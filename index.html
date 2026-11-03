@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="tr" style="background:#07090e;">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07090e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WinDrop">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<title>WinDrop — Kayıpsız iPhone ↔ Windows AirDrop</title>
+<style>
+  :root {
+    --bg: #07090e;
+    --card: rgba(22, 27, 38, 0.82);
+    --border: rgba(255, 255, 255, 0.11);
+    --accent: #0a84ff;
+    --accent-glow: rgba(10, 132, 255, 0.35);
+    --green: #30d158;
+    --text: #f5f7fa;
+    --sub: #98a2b3;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at 50% 15%, #112240 0%, var(--bg) 70%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 28px);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 20px; backdrop-filter: blur(20px);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .radar-dot {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 18px var(--accent-glow);
+    position: relative;
+  }
+  .radar-dot::after {
+    content: ""; position: absolute; inset: -5px; border-radius: 50%;
+    border: 2px solid var(--accent); opacity: 0.6;
+    animation: pulse 2.2s infinite ease-out;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    100% { transform: scale(1.45); opacity: 0; }
+  }
+  .status-pill {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 99px;
+    background: rgba(48, 209, 88, 0.15); color: var(--green);
+    border: 1px solid rgba(48, 209, 88, 0.35);
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 24px; padding: 18px; backdrop-filter: blur(22px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-sub { font-size: 13px; color: var(--sub); margin-bottom: 14px; line-height: 1.4; }
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn {
+    appearance: none; border: none; outline: none; cursor: pointer;
+    padding: 15px 14px; border-radius: 16px; font-weight: 600; font-size: 14px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    transition: transform 0.12s ease, opacity 0.15s ease;
+    color: #fff; text-align: center;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: linear-gradient(135deg, #0a84ff, #0066cc);
+    box-shadow: 0 6px 20px rgba(10, 132, 255, 0.35);
+  }
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  .btn-green {
+    background: linear-gradient(135deg, #30d158, #248a3d);
+    box-shadow: 0 6px 18px rgba(48, 209, 88, 0.3);
+  }
+  .progress-wrap {
+    margin-top: 14px; display: none; background: rgba(0,0,0,0.35);
+    border-radius: 14px; padding: 12px; border: 1px solid var(--border);
+  }
+  .bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+  .bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #0a84ff, #30d158); transition: width 0.15s ease; }
+  .file-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .file-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px; border-radius: 16px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .file-meta { flex: 1; min-width: 0; }
+  .file-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-info { font-size: 11px; color: var(--sub); margin-top: 3px; font-family: ui-monospace, monospace; }
+  .file-actions { display: flex; gap: 6px; }
+  .mini-btn {
+    padding: 8px 12px; border-radius: 11px; font-size: 12px; font-weight: 600;
+    border: none; cursor: pointer; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .badge-lossless {
+    display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 10px;
+    background: rgba(10, 132, 255, 0.18); color: #64d2ff; font-weight: 700;
+  }
+  .gallery-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;
+  }
+  .gallery-thumb {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.14); background: #0c1018; cursor: pointer;
+  }
+  .gallery-thumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .trackpad-box {
+    width: 100%; height: 165px; border-radius: 18px;
+    background: radial-gradient(circle at 50% 50%, rgba(10, 132, 255, 0.14), rgba(0, 0, 0, 0.48));
+    border: 1px dashed rgba(100, 210, 255, 0.35);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; touch-action: none; position: relative; margin-bottom: 10px;
+  }
+  .media-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px;
+  }
+  .lightbox-modal {
+    position: fixed; inset: 0; background: rgba(4, 6, 12, 0.92); backdrop-filter: blur(18px);
+    z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+  }
+  .lightbox-modal img {
+    max-width: 96%; max-height: 72vh; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.65);
+  }
+  input[type="file"] { display: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="radar-dot">📡</div>
+      <div>
+        <div style="font-weight:700; font-size:16px;">WinDrop Radar</div>
+        <div id="pcName" style="font-size:12px; color:var(--sub);">Windows PC • Kayıpsız Hat</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button onclick="toggleMultiPcBar()" class="mini-btn btn-secondary" style="padding:6px 10px; font-size:11px;">🌐 Başka PC</button>
+      <div id="connBadge" class="status-pill">● Bağlı</div>
+    </div>
+  </div>
+
+  <!-- Başka Bilgisayara Bağlan & Taşınabilir EXE Kartı -->
+  <div id="multiPcCard" class="card" style="display:none; padding:14px 16px;">
+    <div class="card-title" style="font-size:14px;">
+      <span>🌐 Başka Bilgisayara Bağlan (Çoklu-PC Modu)</span>
+      <span class="badge-lossless">TAŞINABİLİR</span>
+    </div>
+    <div class="card-sub" style="margin-bottom:10px; font-size:12px;">
+      Başka bir bilgisayarda <b>WinDrop_Portable.exe</b>'yi aç, ekranda yazan IP'yi buraya gir veya <b>Otomatik Bul</b>'a dokun.
+    </div>
+    <div style="display:flex; gap:6px; margin-bottom:8px;">
+      <input id="targetPcInput" type="text" placeholder="Örn: 192.168.1.45 veya 172.20.10.2" style="flex:1; border-radius:11px; background:rgba(0,0,0,0.4); border:1px solid var(--border); color:#fff; padding:9px 12px; font-size:13px; outline:none;">
+      <button onclick="switchTargetPC()" class="mini-btn btn-primary">🔄 Bağlan</button>
+      <button onclick="autoScanOtherPCs()" class="mini-btn btn-green">🔍 Otomatik Bul</button>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span id="activeHostText" style="font-size:11px; color:var(--sub); font-family:monospace;">Hedef: Otomatik</span>
+      <div style="display:flex; gap:6px;">
+        <a href="/profil" class="mini-btn btn-green" style="font-size:11px; padding:6px 10px;">📲 Kablosuz İkonu Güncelle</a>
+        <button onclick="savePortableExeToiPhone()" class="mini-btn btn-secondary" style="font-size:11px; padding:6px 10px;">💾 Portable EXE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- iPhone -> Windows Gönderim Kartı -->
+  <div class="card">
+    <div class="card-title">
+      <span>📤 iPhone'dan PC'ye Gönder</span>
+      <span class="badge-lossless">SHA-256 RAW</span>
+    </div>
+    <div class="card-sub">Fotoğraf (HEIC/ProRAW), 4K 60fps Video (.MOV) ve belgeler sıfır sıkıştırmayla orijinal kalitede Windows masaüstüne aktarılır.</div>
+    <input type="file" id="mediaInput" multiple accept="image/*,video/*" onchange="uploadFiles(this.files)">
+    <input type="file" id="anyFileInput" multiple onchange="uploadFiles(this.files)">
+    <div class="btn-grid">
+      <button class="btn btn-primary" onclick="document.getElementById('mediaInput').click()">
+        <span style="font-size:22px;">🖼️</span>
+        <span>Fotoğraf / Video Seç</span>
+        <span style="font-size:11px; opacity:0.8; font-weight:400;">Orijinal HEIC & MOV</span>
+      </button>
+      <button class="btn btn-secondary" onclick="document.getElementById('anyFileInput').click()">
+        <span style="font-size:22px;">📂</span>
+        <span>Dosyalar'dan Seç</span>
+        <span style="font-size:11px; opacity:0.8; font-weight:400;">Her Türlü Belge / ZIP</span>
+      </button>
+    </div>
+
+    <div id="uploadBox" class="progress-wrap">
+      <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600;">
+        <span id="uploadStatusText">Aktarılıyor...</span>
+        <span id="uploadSpeedText">0 MB/sn</span>
+      </div>
+      <div class="bar-bg"><div id="uploadBar" class="bar-fill"></div></div>
+      <div id="uploadHashText" style="font-size:11px; color:var(--sub); font-family:monospace;">Bütünlük kontrolü bekleniyor...</div>
+    </div>
+  </div>
+
+  <!-- Windows -> iPhone Gelen Kutusu & Canlı Galeri Kartı -->
+  <div class="card">
+    <div class="card-title">
+      <span>📥 Windows'tan Gelenler & Galeri</span>
+      <div style="display:flex; gap:6px;">
+        <button onclick="capturePCScreen()" class="mini-btn btn-green" title="PC Ekran Görüntüsünü Anında Çek">📷 PC Ekranı</button>
+        <button onclick="downloadAllBundle()" class="mini-btn" style="background:rgba(10,132,255,0.22); color:#64d2ff;">📦 Tümünü Al</button>
+      </div>
+    </div>
+    <div class="card-sub">PC'den sürüklenen fotoğraflar <b>Canlı Galeri</b>'de anında önizlenir. <b>"📷 PC Ekranı"</b> tuşuyla bilgisayar ekranını tek dokunuşla iPhone'a çekebilirsin.</div>
+    <div id="liveGalleryGrid" class="gallery-grid" style="display:none;"></div>
+    <div id="incomingList" class="file-list">
+      <div style="text-align:center; padding:18px; color:var(--sub); font-size:13px;">Henüz PC'den paylaşılan dosya yok. Windows'taki WinDrop penceresine dosya sürükle!</div>
+    </div>
+  </div>
+
+  <!-- KDE Connect Tarzı: Kablosuz PC Trackpad / Mouse & Medya Kumandası -->
+  <div class="card">
+    <div class="card-title">
+      <span>🖱️ Kablosuz PC Mouse & Medya</span>
+      <span class="badge-lossless">CANLI KUMANDA</span>
+    </div>
+    <div class="card-sub">Parmağını aşağıdaki alanda kaydırarak PC faresini yönet; tek dokunuş sol tıklar.</div>
+    <div id="trackpadSurface" class="trackpad-box">
+      <div style="font-size:26px; opacity:0.8;">👆</div>
+      <div style="font-size:12px; color:var(--sub); margin-top:4px; font-weight:600;">PC Dokunmatik Yüzey (Kaydır = Fare • Dokun = Tıkla)</div>
+    </div>
+    <div class="media-grid">
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMouseAction('click')">🖱️ Sol Tık</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMouseAction('rclick')">🖱️ Sağ Tık</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMouseScroll(240)">⏫ Yukarı</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMouseScroll(-240)">⏬ Aşağı</button>
+    </div>
+    <div class="media-grid">
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('prev')">⏮️ Önceki</button>
+      <button class="mini-btn btn-primary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('play_pause')">⏯️ Oynat</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('next')">⏭️ Sonraki</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('vol_mute')">🔇 Sessiz</button>
+    </div>
+    <div class="media-grid">
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('vol_down')">🔉 Ses -</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('vol_up')">🔊 Ses +</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('space')">␣ Boşluk</button>
+      <button class="mini-btn btn-secondary" style="justify-content:center; padding:10px;" onclick="sendMediaCmd('enter')">↵ Enter</button>
+    </div>
+  </div>
+
+  <!-- Tam Ekran Galeri Lightbox -->
+  <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
+    <img id="lightboxImg" src="" alt="Önizleme">
+    <div id="lightboxTitle" style="margin-top:12px; font-weight:700; font-size:14px;"></div>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button id="lightboxShareBtn" class="mini-btn btn-green" style="padding:11px 18px; font-size:13px;">📲 Fotoğraflara Kaydet</button>
+      <a id="lightboxDownloadBtn" class="mini-btn btn-primary" style="padding:11px 18px; font-size:13px;" href="#" download>⬇️ İndir</a>
+      <button class="mini-btn btn-secondary" style="padding:11px 18px; font-size:13px;" onclick="document.getElementById('lightboxModal').style.display='none'">✖ Kapat</button>
+    </div>
+  </div>
+
+  <!-- Evrensel Pano (Universal Clipboard: iPhone <-> Windows) -->
+  <div class="card">
+    <div class="card-title">
+      <span>📋 Evrensel Pano (Kopyala ↔ Yapıştır)</span>
+      <span class="badge-lossless">MIROFISH v4</span>
+    </div>
+    <div class="card-sub">iPhone'daki metni/linki PC panosuna gönder veya PC'de kopyaladığın metni iPhone'a çek.</div>
+    <textarea id="clipBox" rows="2" placeholder="PC'ye göndermek istediğin metni veya linki buraya yapıştır..." style="width:100%; border-radius:12px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:#fff; padding:10px; font-size:13px; margin-bottom:10px; outline:none;"></textarea>
+    <div class="btn-grid">
+      <button class="btn btn-primary" style="padding:11px;" onclick="sendClipboardToPC()">📤 PC Panosuna Gönder</button>
+      <button class="btn btn-secondary" style="padding:11px;" onclick="pullClipboardFromPC()">📥 PC Panosundan Çek</button>
+    </div>
+    <button class="btn btn-green" style="width:100%; padding:10px; margin-top:8px;" onclick="openUrlOnPC()">🌐 Linki PC Tarayıcısında Otomatik Aç</button>
+  </div>
+
+  <!-- iOS Kestirme (Share Sheet) AirDrop Entegrasyonu -->
+  <div class="card">
+    <div class="card-title">
+      <span>⚡ Paylaş Menüsüne Ekle (AirDrop & Otomatik Link)</span>
+      <span class="badge-lossless">HER UYGULAMADA</span>
+    </div>
+    <div class="card-sub">
+      <b>Safari, YouTube, X (Twitter)</b> içindeyken linkleri PC tarayıcısında <b>otomatik açmak</b> veya <b>Fotoğraflar / Dosyalar</b>'dan kayıpsız medya fırlatmak için:
+    </div>
+    <button class="btn btn-green" style="width:100%; padding:13px; margin-bottom:10px;" onclick="setupShareSheetShortcut()">
+      <span>⚡ Kestirme Adresini Kopyala & Kestirmeler'i Aç</span>
+    </button>
+    <div id="shortcutStepsBox" style="font-size:12px; color:#d0d7e2; background:rgba(0,0,0,0.38); border:1px solid var(--border); border-radius:14px; padding:12px; line-height:1.55;">
+      <b>1.</b> Yeşil butona bas (Adres kopyalanır ve <b>Kestirmeler</b> açılır).<br>
+      <b>2.</b> Üstteki <b>(i)</b> simgesinden <b>"Paylaşım Menüsünde Göster"</b>i aç (<i>Görüntüler, Ortam, Dosyalar, URL'ler ve Safari Web Sayfaları</i> aktif olsun).<br>
+      <b>3.</b> <b>"URL'nin İçeriğini Al"</b> işlemini ekle:<br>
+      &nbsp;&nbsp;• <b>URL:</b> Kopyalanan adresi yapıştır (<code>/api/shortcut-upload</code>)<br>
+      &nbsp;&nbsp;• <b>Yöntem:</b> <code>POST</code> &nbsp;• <b>İstek Gövdesi:</b> <code>Dosya</code> ➔ <code>Kestirme Girişi</code><br>
+      🌐 <b>Link paylaşırsan</b> PC tarayıcısında kendiliğinden açılır; 📸 <b>fotoğraf/video paylaşırsan</b> masaüstüne kayıpsız iner!
+    </div>
+  </div>
+
+<script>
+const deviceModel = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "iPhone (iOS)" : "Mobil Cihaz";
+const isCloudShell = location.hostname.endsWith(".github.io") || location.hostname.endsWith(".vercel.app") || location.hostname.endsWith(".pages.dev");
+const GIST_SYNC_URL = "https://api.github.com/gists/d5319f8e1452f20d79f5365e597eb6ab";
+const NTFY_SYNC_URL = "https://ntfy.sh/windrop_tris_sync_8492a7c1e5/json?poll=1&since=all";
+let lastDiscoveryAt = 0;
+
+let savedBase = localStorage.getItem("windrop_api_base") || "";
+if (location.protocol === "https:" && savedBase.startsWith("http://")) {
+  savedBase = "";
+  localStorage.removeItem("windrop_api_base");
+}
+if (savedBase.includes(".github.io") || savedBase.includes(".vercel.app")) {
+  savedBase = "";
+}
+let API_BASE = savedBase || (isCloudShell ? "" : location.origin);
+let activeWS = null;
+
+async function setupShareSheetShortcut() {
+  const targetUrl = API_BASE + "/api/shortcut-upload";
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(targetUrl); } catch (e) {}
+  }
+  document.getElementById("connBadge").textContent = "✅ Kestirme URL Kopyalandı!";
+  window.location.href = "shortcuts://create-shortcut";
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+
+function updateHostLabel() {
+  const el = document.getElementById("activeHostText");
+  if (el) el.textContent = API_BASE ? ("Hedef: " + API_BASE) : "Hedef: Canlı Bulut Tüneli Aranıyor...";
+  const inp = document.getElementById("targetPcInput");
+  if (inp && !inp.value && API_BASE) inp.value = API_BASE.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+}
+updateHostLabel();
+
+function toggleMultiPcBar() {
+  const card = document.getElementById("multiPcCard");
+  card.style.display = card.style.display === "none" ? "block" : "none";
+}
+
+function switchTargetPC(rawHost) {
+  let val = (rawHost || document.getElementById("targetPcInput").value || "").trim();
+  if (!val) return;
+  if (!/^https?:\/\//i.test(val)) {
+    if (val.includes(".trycloudflare.com") || val.includes(".lhr.life")) {
+      val = "https://" + val;
+    } else {
+      if (!/:\d+$/.test(val)) val = val + ":8765";
+      val = "http://" + val;
+    }
+  }
+  val = val.replace(/\/+$/, "");
+  if (location.protocol === "https:" && val.startsWith("http://")) {
+    window.location.href = val + "/";
+    return;
+  }
+  API_BASE = val;
+  localStorage.setItem("windrop_api_base", API_BASE);
+  updateHostLabel();
+  document.getElementById("connBadge").textContent = "🔄 Bağlanıyor...";
+  fetchRadarState();
+  connectWS();
+}
+
+async function fetchWithTimeout(url, ms = 2400) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function discoverCandidateEndpoints(force = false) {
+  const now = Date.now();
+  if (!force && (now - lastDiscoveryAt) < 12000) return [];
+  lastDiscoveryAt = now;
+  const urls = new Set();
+
+  const tasks = [
+    (async () => {
+      try {
+        const r = await fetchWithTimeout(GIST_SYNC_URL + "?t=" + now, 2500);
+        if (r.ok) {
+          const g = await r.json();
+          const content = g?.files?.["windrop_live_endpoint.json"]?.content;
+          if (content) {
+            const parsed = JSON.parse(content);
+            if (parsed.primary && parsed.primary.startsWith("https://")) urls.add(parsed.primary.replace(/\/+$/, ""));
+            if (parsed.backup && parsed.backup.startsWith("https://")) urls.add(parsed.backup.replace(/\/+$/, ""));
+          }
+        }
+      } catch (e) {}
+    })(),
+    (async () => {
+      try {
+        const r = await fetchWithTimeout("./live_endpoint.json?t=" + now, 2200);
+        if (r.ok) {
+          const parsed = await r.json();
+          if (parsed.primary && parsed.primary.startsWith("https://")) urls.add(parsed.primary.replace(/\/+$/, ""));
+          if (parsed.backup && parsed.backup.startsWith("https://")) urls.add(parsed.backup.replace(/\/+$/, ""));
+        }
+      } catch (e) {}
+    })(),
+    (async () => {
+      try {
+        const r = await fetchWithTimeout(NTFY_SYNC_URL, 2500);
+        if (r.ok) {
+          const txt = await r.text();
+          const lines = txt.trim().split("\n").filter(Boolean);
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const obj = JSON.parse(lines[i]);
+              if (obj.event === "message" && obj.message && obj.message.startsWith("https://")) {
+                urls.add(obj.message.trim().replace(/\/+$/, ""));
+                if (urls.size >= 4) break;
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    })()
+  ];
+
+  await Promise.allSettled(tasks);
+  return Array.from(urls);
+}
+
+async function discoverLiveCloudTunnel(force = false) {
+  const candidates = await discoverCandidateEndpoints(force);
+  if (!candidates.length) return null;
+  try {
+    const winner = await Promise.any(candidates.map(async (u) => {
+      const r = await fetchWithTimeout(u + "/api/state?model=" + encodeURIComponent(deviceModel), 2500);
+      if (!r.ok) throw new Error("Bad status");
+      const data = await r.json();
+      return { url: u, data };
+    }));
+    return winner;
+  } catch (e) {
+    return candidates[0] ? { url: candidates[0], data: null } : null;
+  }
+}
+
+async function autoScanOtherPCs() {
+  const badge = document.getElementById("connBadge");
+  badge.textContent = "🔍 PC Taranıyor...";
+  const found = await discoverLiveCloudTunnel(true);
+  if (found && found.url) {
+    API_BASE = found.url;
+    localStorage.setItem("windrop_api_base", API_BASE);
+    updateHostLabel();
+    await fetchRadarState();
+    connectWS();
+    return;
+  }
+  badge.textContent = "⚠️ PC Kapalı / Ağ Yok";
+}
+
+async function savePortableExeToiPhone() {
+  try {
+    const resp = await fetch(API_BASE + "/api/download-portable-exe");
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const file = new File([blob], "WinDrop_Portable.exe", { type: "application/octet-stream" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "WinDrop_Portable.exe" });
+        return;
+      }
+    }
+  } catch (e) {}
+  window.location.href = API_BASE + "/api/download-portable-exe";
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(2) + " MB";
+  return (bytes / 1073741824).toFixed(2) + " GB";
+}
+
+async function fetchRadarState() {
+  try {
+    if (!API_BASE) throw new Error("No API_BASE");
+    const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2500);
+    if (!res.ok) throw new Error("Non-200");
+    const data = await res.json();
+    document.getElementById("pcName").textContent = data.pc_name + " • " + data.lan_ip;
+    document.getElementById("connBadge").textContent = "● Bağlı (" + data.pc_name + ")";
+    renderIncoming(data.outgoing_files || []);
+  } catch (e) {
+    const found = await discoverLiveCloudTunnel(false);
+    if (found && found.url && found.url !== API_BASE) {
+      API_BASE = found.url;
+      localStorage.setItem("windrop_api_base", API_BASE);
+      updateHostLabel();
+      if (found.data) {
+        document.getElementById("pcName").textContent = found.data.pc_name + " • " + found.data.lan_ip;
+        document.getElementById("connBadge").textContent = "● Bağlı (" + found.data.pc_name + ")";
+        renderIncoming(found.data.outgoing_files || []);
+      }
+      connectWS();
+    } else if (!API_BASE || !found || !found.data) {
+      document.getElementById("connBadge").textContent = "⏳ PC Bekleniyor...";
+    }
+  }
+}
+
+function isPreviewableImage(name, mime) {
+  const ext = (name || "").toLowerCase();
+  return (mime && mime.startsWith("image/")) || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(ext);
+}
+
+function renderIncoming(files) {
+  const box = document.getElementById("incomingList");
+  const grid = document.getElementById("liveGalleryGrid");
+  if (!files.length) {
+    grid.style.display = "none";
+    grid.innerHTML = "";
+    box.innerHTML = '<div style="text-align:center; padding:18px; color:var(--sub); font-size:13px;">PC\'den dosya sürüklendiğinde veya "📷 PC Ekranı" tuşuna bastığında anında burada belirecek.</div>';
+    return;
+  }
+  const imgFiles = files.filter(f => isPreviewableImage(f.name, f.mime));
+  if (imgFiles.length > 0) {
+    grid.style.display = "grid";
+    grid.innerHTML = imgFiles.map(f => `
+      <div class="gallery-thumb" onclick="openLightbox('${f.id}', '${f.name.replace(/'/g, "\\'")}', '${f.mime}')">
+        <img src="${API_BASE}/api/preview/${f.id}" loading="lazy" alt="${f.name}">
+      </div>
+    `).join("");
+  } else {
+    grid.style.display = "none";
+  }
+  box.innerHTML = files.map(f => {
+    const thumbHtml = isPreviewableImage(f.name, f.mime)
+      ? `<img src="${API_BASE}/api/preview/${f.id}" onclick="openLightbox('${f.id}', '${f.name.replace(/'/g, "\\'")}', '${f.mime}')" style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer;border:1px solid rgba(255,255,255,0.15);">`
+      : `<div style="width:44px;height:44px;border-radius:10px;background:rgba(10,132,255,0.16);display:flex;align-items:center;justify-content:center;font-size:20px;">📄</div>`;
+    return `
+    <div class="file-item">
+      ${thumbHtml}
+      <div class="file-meta">
+        <div class="file-name">${f.name}</div>
+        <div class="file-info">${formatSize(f.size)} • SHA256: ${f.sha256.slice(0, 10)}…</div>
+      </div>
+      <div class="file-actions">
+        <button class="mini-btn btn-green" onclick="shareToiOSNative('${f.id}', '${f.name.replace(/'/g, "\\'")}', '${f.mime}')">📲 Kaydet</button>
+        <a class="mini-btn btn-primary" href="${API_BASE}/api/download/${f.id}" download="${f.name}">⬇️</a>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openLightbox(fileId, fileName, mimeType) {
+  const modal = document.getElementById("lightboxModal");
+  document.getElementById("lightboxImg").src = API_BASE + "/api/preview/" + fileId;
+  document.getElementById("lightboxTitle").textContent = fileName;
+  document.getElementById("lightboxDownloadBtn").href = API_BASE + "/api/download/" + fileId;
+  document.getElementById("lightboxDownloadBtn").setAttribute("download", fileName);
+  document.getElementById("lightboxShareBtn").onclick = () => shareToiOSNative(fileId, fileName, mimeType);
+  modal.style.display = "flex";
+}
+
+function closeLightbox(ev) {
+  if (ev.target.id === "lightboxModal") {
+    document.getElementById("lightboxModal").style.display = "none";
+  }
+}
+
+async function capturePCScreen() {
+  const badge = document.getElementById("connBadge");
+  badge.textContent = "📸 PC Ekranı Çekiliyor...";
+  try {
+    const res = await fetch(API_BASE + "/api/capture-screen", { method: "POST" });
+    const data = await res.json();
+    if (data.status === "ok" && data.file) {
+      badge.textContent = "✅ PC Ekranı Geldi!";
+      await fetchRadarState();
+      openLightbox(data.file.id, data.file.name, data.file.mime);
+    } else {
+      badge.textContent = "⚠️ Ekran Alınamadı";
+    }
+  } catch (e) {
+    badge.textContent = "❌ Bağlantı Hatası";
+  }
+}
+
+async function sendMouseAction(action, dx = 0, dy = 0, scroll = 0) {
+  try {
+    await fetch(API_BASE + "/api/remote/mouse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, dx: Math.round(dx), dy: Math.round(dy), scroll: Math.round(scroll) })
+    });
+  } catch (e) {}
+}
+
+function sendMouseScroll(delta) {
+  sendMouseAction("scroll", 0, 0, delta);
+}
+
+async function sendMediaCmd(cmd) {
+  try {
+    await fetch(API_BASE + "/api/remote/media", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cmd })
+    });
+    document.getElementById("connBadge").textContent = "🎛️ Komut: " + cmd.toUpperCase();
+  } catch (e) {}
+}
+
+(function initTrackpad() {
+  const pad = document.getElementById("trackpadSurface");
+  if (!pad) return;
+  let lastX = 0, lastY = 0, startT = 0, moved = false, busy = false;
+  pad.addEventListener("touchstart", (e) => {
+    if (!e.touches.length) return;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    startT = performance.now();
+    moved = false;
+  }, { passive: true });
+  pad.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (!e.touches.length || busy) return;
+    const cx = e.touches[0].clientX;
+    const cy = e.touches[0].clientY;
+    const dx = (cx - lastX) * 1.85;
+    const dy = (cy - lastY) * 1.85;
+    if (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5) {
+      moved = true;
+      lastX = cx;
+      lastY = cy;
+      busy = true;
+      sendMouseAction("move", dx, dy).finally(() => { busy = false; });
+    }
+  }, { passive: false });
+  pad.addEventListener("touchend", () => {
+    if (!moved && (performance.now() - startT) < 220) {
+      sendMouseAction("click");
+    }
+  }, { passive: true });
+})();
+
+async function shareToiOSNative(fileId, fileName, mimeType) {
+  try {
+    const resp = await fetch(API_BASE + "/api/download/" + fileId);
+    const blob = await resp.blob();
+    const file = new File([blob], fileName, { type: mimeType || blob.type || "application/octet-stream" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: fileName });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+  }
+  window.location.href = API_BASE + "/api/download/" + fileId;
+}
+
+function downloadAllBundle() {
+  window.location.href = API_BASE + "/api/download-all-store";
+}
+
+async function sendClipboardToPC() {
+  const el = document.getElementById("clipBox");
+  let txt = el.value.trim();
+  if (!txt && navigator.clipboard && navigator.clipboard.readText) {
+    try { txt = await navigator.clipboard.readText(); el.value = txt; } catch (e) {}
+  }
+  if (!txt) return;
+  await fetch(API_BASE + "/api/clipboard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: txt })
+  });
+  document.getElementById("connBadge").textContent = "✅ Panoya Kopyalandı!";
+}
+
+async function pullClipboardFromPC() {
+  const res = await fetch(API_BASE + "/api/clipboard");
+  const data = await res.json();
+  const el = document.getElementById("clipBox");
+  el.value = data.text || "";
+  if (data.text && navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(data.text); } catch (e) {}
+  }
+  document.getElementById("connBadge").textContent = "📥 PC Panosu Alındı!";
+}
+
+async function openUrlOnPC() {
+  const el = document.getElementById("clipBox");
+  let txt = el.value.trim();
+  if (!txt && navigator.clipboard && navigator.clipboard.readText) {
+    try { txt = (await navigator.clipboard.readText() || "").trim(); } catch (e) {}
+  }
+  if (!txt) {
+    const entered = prompt("PC tarayıcısında otomatik açılacak linki (YouTube, Safari, X vb.) yapıştırın:", "https://");
+    if (!entered || entered.trim() === "https://") return;
+    txt = entered.trim();
+    el.value = txt;
+  }
+  try {
+    const res = await fetch(API_BASE + "/api/open-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: txt })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      document.getElementById("connBadge").textContent = "🌐 PC'de Açıldı!";
+    } else {
+      document.getElementById("connBadge").textContent = "⚠️ Geçersiz Link";
+    }
+  } catch (e) {
+    document.getElementById("connBadge").textContent = "❌ Bağlantı Hatası";
+  }
+}
+
+async function uploadFiles(fileList) {
+  if (!fileList || !fileList.length) return;
+  const box = document.getElementById("uploadBox");
+  const statusTxt = document.getElementById("uploadStatusText");
+  const speedTxt = document.getElementById("uploadSpeedText");
+  const bar = document.getElementById("uploadBar");
+  const hashTxt = document.getElementById("uploadHashText");
+  box.style.display = "block";
+
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    statusTxt.textContent = `(${i+1}/${fileList.length}) ${file.name}`;
+    bar.style.width = "0%";
+    hashTxt.textContent = "Kayıpsız ham akış (Raw Binary Stream) gönderiliyor...";
+
+    await new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      const startTime = performance.now();
+      xhr.open("POST", API_BASE + "/api/upload-raw?filename=" + encodeURIComponent(file.name) + "&size=" + file.size + "&last_modified=" + (file.lastModified || 0), true);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.setRequestHeader("X-Device-Model", deviceModel);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          bar.style.width = pct + "%";
+          const elapsed = Math.max((performance.now() - startTime) / 1000, 0.05);
+          const mbps = (e.loaded / 1048576) / elapsed;
+          speedTxt.textContent = mbps.toFixed(1) + " MB/sn (" + pct + "%)";
+        }
+      };
+      xhr.onload = () => {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          hashTxt.textContent = `✅ Kayıpsız Aktarıldı • SHA-256: ${res.sha256.slice(0, 16)}...`;
+        } catch (e) {
+          hashTxt.textContent = "✅ Aktarım tamamlandı.";
+        }
+        resolve();
+      };
+      xhr.onerror = () => { hashTxt.textContent = "❌ Bağlantı hatası!"; resolve(); };
+      xhr.send(file);
+    });
+  }
+  statusTxt.textContent = `🎉 ${fileList.length} dosya kayıpsız olarak PC'ye ulaştı!`;
+}
+
+function connectWS() {
+  try {
+    if (!API_BASE) return;
+    if (activeWS) { try { activeWS.close(); } catch (e) {} }
+    const wsBase = API_BASE.replace(/^http/i, "ws");
+    const ws = new WebSocket(`${wsBase}/ws/radar?model=${encodeURIComponent(deviceModel)}`);
+    activeWS = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "state") renderIncoming(msg.outgoing_files || []);
+      } catch (e) {}
+    };
+  } catch (e) {}
+}
+
+async function bootstrapWinDrop() {
+  if (!API_BASE) {
+    document.getElementById("connBadge").textContent = "🔄 PC Bağlanıyor...";
+    const found = await discoverLiveCloudTunnel(true);
+    if (found && found.url) {
+      API_BASE = found.url;
+      localStorage.setItem("windrop_api_base", API_BASE);
+      updateHostLabel();
+      if (found.data) {
+        document.getElementById("pcName").textContent = found.data.pc_name + " • " + found.data.lan_ip;
+        document.getElementById("connBadge").textContent = "● Bağlı (" + found.data.pc_name + ")";
+        renderIncoming(found.data.outgoing_files || []);
+      }
+    }
+  }
+  await fetchRadarState();
+  connectWS();
+  setInterval(fetchRadarState, 5000);
+}
+bootstrapWinDrop();
+</script>
+</body>
+</html>
