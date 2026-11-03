@@ -1142,15 +1142,25 @@ function renderIncoming(files) {
   `).join("");
 }
 
-function openLightbox(url, name, mime) {
+function openLightbox(urlOrId, name, mime) {
   const modal = document.getElementById("lightboxModal");
-  document.getElementById("lightboxImg").src = url;
+  let finalUrl = urlOrId || "";
+  if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("blob:") && !finalUrl.startsWith("data:")) {
+    if (finalUrl === "live_pc_screen" || finalUrl.includes("screen") || finalUrl.includes("Ekran")) {
+      finalUrl = API_BASE + "/api/screenshot/pc?t=" + Date.now();
+    } else if (finalUrl.startsWith("/")) {
+      finalUrl = API_BASE + finalUrl;
+    } else {
+      finalUrl = API_BASE + "/api/preview/" + finalUrl;
+    }
+  }
+  document.getElementById("lightboxImg").src = finalUrl;
   document.getElementById("lightboxTitle").textContent = name;
-  document.getElementById("lightboxDownloadBtn").href = url;
+  document.getElementById("lightboxDownloadBtn").href = finalUrl;
   document.getElementById("lightboxDownloadBtn").setAttribute("download", name);
   document.getElementById("lightboxShareBtn").onclick = async () => {
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(finalUrl);
       const blob = await resp.blob();
       const file = new File([blob], name, { type: mime || "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
