@@ -296,16 +296,22 @@
     <div class="card-sub">
       <b>Safari, YouTube, X (Twitter)</b> içindeyken linkleri PC tarayıcısında <b>otomatik açmak</b> veya <b>Fotoğraflar / Dosyalar</b>'dan kayıpsız medya fırlatmak için:
     </div>
-    <button class="btn btn-green" style="width:100%; padding:13px; margin-bottom:10px;" onclick="setupShareSheetShortcut()">
-      <span>⚡ Kestirme Adresini Kopyala & Kestirmeler'i Aç</span>
-    </button>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+      <a class="btn btn-primary" style="width:100%; padding:13px; text-decoration:none;" href="./WinDrop.shortcut" download="WinDrop.shortcut">
+        <span>📲 Doğrudan Kestirmeyi İndir & Kur (iCloud Beklemeden)</span>
+      </a>
+      <button class="btn btn-secondary" style="width:100%; padding:11px;" onclick="setupShareSheetShortcut()">
+        <span>📋 Kestirme URL'sini Kopyala & Kestirmeler'i Aç</span>
+      </button>
+    </div>
     <div id="shortcutStepsBox" style="font-size:12px; color:#d0d7e2; background:rgba(0,0,0,0.38); border:1px solid var(--border); border-radius:14px; padding:12px; line-height:1.55;">
-      <b>1.</b> Yeşil butona bas (Adres kopyalanır ve <b>Kestirmeler</b> açılır).<br>
-      <b>2.</b> Üstteki <b>(i)</b> simgesinden <b>"Paylaşım Menüsünde Göster"</b>i aç (<i>Görüntüler, Ortam, Dosyalar, URL'ler ve Safari Web Sayfaları</i> aktif olsun).<br>
-      <b>3.</b> <b>"URL'nin İçeriğini Al"</b> işlemini ekle:<br>
-      &nbsp;&nbsp;• <b>URL:</b> Kopyalanan adresi yapıştır (<code>/api/shortcut-upload</code>)<br>
+      💡 <b>Kestirmeler uygulamasında 10 saniyede sıfırdan eklemek istersen (Sadece 1 Blok):</b><br>
+      <b>1.</b> Kestirmeler uygulamasında sağ üstteki <b>(+)</b> simgesine dokun.<br>
+      <b>2.</b> Üstteki <b>(i)</b> simgesine basıp <b>"Paylaşım Sayfasında Göster"</b>i aç.<br>
+      <b>3.</b> Eylem Ekle ➔ <b>"URL'nin İçeriğini Al"</b> (Get Contents of URL) seç:<br>
+      &nbsp;&nbsp;• <b>URL:</b> <code>http://192.168.1.158:8765/api/shortcut-upload</code><br>
       &nbsp;&nbsp;• <b>Yöntem:</b> <code>POST</code> &nbsp;• <b>İstek Gövdesi:</b> <code>Dosya</code> ➔ <code>Kestirme Girişi</code><br>
-      🌐 <b>Link paylaşırsan</b> PC tarayıcısında kendiliğinden açılır; 📸 <b>fotoğraf/video paylaşırsan</b> masaüstüne kayıpsız iner!
+      ✨ Bu kadar! Artık her şey doğrudan Windows masaüstüne kayıpsız uçar!
     </div>
   </div>
 
