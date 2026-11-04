@@ -456,7 +456,52 @@
     color: #64D2FF !important;
   }
   
-  /* Fullscreen & Landscape Immersive Mode for iPhone & Desktop */
+  /* Fullscreen & Landscape Immersive Cinema Mode for iPhone & Desktop */
+  .touch-target-44 {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    touch-action: manipulation !important;
+    cursor: pointer !important;
+  }
+  .header-action-btn {
+    min-height: 40px !important;
+    padding: 8px 14px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    border-radius: 999px !important;
+    touch-action: manipulation !important;
+    position: relative !important;
+    transition: transform 0.12s ease, opacity 0.15s ease !important;
+    cursor: pointer !important;
+  }
+  .header-action-btn::after {
+    content: "";
+    position: absolute;
+    top: -6px; bottom: -6px; left: -6px; right: -6px;
+  }
+  .header-action-btn:active {
+    transform: scale(0.94) !important;
+    opacity: 0.8 !important;
+  }
+  .fs-floating-controls .key-pill,
+  .fs-bottom-dock .key-pill {
+    min-height: 38px !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    border-radius: 999px !important;
+    position: relative !important;
+    touch-action: manipulation !important;
+  }
+  .fs-floating-controls .key-pill::after,
+  .fs-bottom-dock .key-pill::after {
+    content: "";
+    position: absolute;
+    top: -4px; bottom: -4px; left: -4px; right: -4px;
+  }
+
   #desktopContainer.is-fullscreen {
     position: fixed !important;
     top: 0 !important;
@@ -464,6 +509,7 @@
     right: 0 !important;
     bottom: 0 !important;
     width: 100vw !important;
+    height: 100svh !important;
     height: 100dvh !important;
     z-index: 999999 !important;
     border-radius: 0 !important;
@@ -476,17 +522,23 @@
     align-items: center !important;
     justify-content: center !important;
     overflow: hidden !important;
+    touch-action: none !important;
+    overscroll-behavior: none !important;
   }
   #desktopContainer.is-fullscreen img {
     width: 100% !important;
     height: 100% !important;
-    object-fit: fill !important; /* Full edge-to-edge screen fill with ZERO black bars */
+    object-fit: contain !important; /* Preserves 16:9 PC ratio with true cinema black borders */
+    transition: object-fit 0.2s ease;
+  }
+  #desktopContainer.is-fullscreen.is-stretched img {
+    object-fit: fill !important; /* Edge to edge stretch when user explicitly desires */
   }
   #desktopContainer.is-fullscreen.is-landscape-force {
     position: fixed !important;
     top: 50% !important;
     left: 50% !important;
-    width: 100dvh !important;
+    width: 100svh !important;
     height: 100vw !important;
     transform: translate(-50%, -50%) rotate(90deg) !important;
     transform-origin: center center !important;
@@ -494,7 +546,8 @@
   @media (orientation: landscape) {
     #desktopContainer.is-fullscreen {
       width: 100vw !important;
-      height: 100vh !important;
+      height: 100svh !important;
+      height: 100dvh !important;
       top: 0 !important;
       left: 0 !important;
       transform: none !important;
@@ -502,6 +555,9 @@
     #desktopContainer.is-fullscreen img {
       width: 100% !important;
       height: 100% !important;
+      object-fit: contain !important;
+    }
+    #desktopContainer.is-fullscreen.is-stretched img {
       object-fit: fill !important;
     }
   }
@@ -519,6 +575,10 @@
     border-radius: 999px;
     border: 0.5px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    will-change: opacity, transform;
   }
   #desktopContainer.is-fullscreen .fs-floating-controls {
     display: flex !important;
@@ -538,9 +598,25 @@
     border-radius: 999px;
     border: 0.5px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    will-change: opacity, transform;
   }
   #desktopContainer.is-fullscreen .fs-bottom-dock {
     display: flex !important;
+  }
+  .fs-floating-controls.controls-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(-12px) !important;
+  }
+  .fs-bottom-dock.controls-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translate(-50%, 12px) !important;
   }
   
   /* AnyDesk-Style iOS Switch & Settings Sheet */
@@ -714,21 +790,21 @@
           <span class="status-indicator"></span>
           <span id="remoteLiveStatus" style="font-size:12px; font-weight:700; color:var(--green); letter-spacing:-0.2px;">● Canlı Windows 11</span>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:linear-gradient(135deg, rgba(255,45,85,0.3), rgba(175,82,222,0.3)); color:#FF375F; border-color:rgba(255,45,85,0.5);" onclick="launchNativeVideoFullscreen()">
-            <span>🎬 Sinema (Film Gibi)</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="header-action-btn touch-target-44" style="background:linear-gradient(135deg, rgba(255,45,85,0.35), rgba(175,82,222,0.35)); color:#FF375F; border:1px solid rgba(255,45,85,0.5);" onclick="launchCinemaMode()">
+            <span>🎬 Sinema</span>
           </button>
-          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(10,132,255,0.2); color:#64D2FF; border-color:rgba(10,132,255,0.4);" onclick="haptic(); toggleDesktopFullscreen()">
+          <button class="header-action-btn touch-target-44" style="background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45);" onclick="haptic(); toggleDesktopFullscreen()">
             <span>⛶ Tam Ekran</span>
           </button>
-          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(255,255,255,0.12); color:#fff; border-color:rgba(255,255,255,0.25);" onclick="toggleSettingsDrawer()">
+          <button class="header-action-btn touch-target-44" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.28);" onclick="toggleSettingsDrawer()">
             <span>⚙️ Ayarlar</span>
           </button>
         </div>
       </div>
 
       <!-- THE LIVE DESKTOP VIEWPORT (INTERACTIVE TOUCH CANVAS) -->
-      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.18); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.18); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);" onclick="resetFullscreenControlsTimer()">
         <!-- Native Video Element for Native iOS Movie Player Mode -->
         <video id="desktopNativeVideo" playsinline webkit-playsinline muted autoplay style="position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none;"></video>
         <canvas id="desktopCanvas" width="1280" height="720" style="display:none;"></canvas>
@@ -749,6 +825,7 @@
         <!-- Floating Controls in Fullscreen -->
         <div class="fs-floating-controls" onclick="event.stopPropagation()">
           <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleForceLandscape()">🔄 Döndür</button>
+          <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleCinemaStretch()">📺 En/Boy</button>
           <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleSettingsDrawer()">⚙️ Ayarlar</button>
           <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleKeyboardInput()">⌨️ Klavye</button>
           <button class="key-pill" style="padding:4px 9px; font-size:11px; background:rgba(255,69,58,0.25); color:#FF453A; border-color:rgba(255,69,58,0.4);" onclick="exitDesktopFullscreen()">✖ Çıkış</button>
@@ -924,12 +1001,22 @@
 
   <!-- Lightbox Modal -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
-    <img id="lightboxImg" class="lightbox-img" src="" alt="Önizleme">
-    <div id="lightboxTitle" style="margin-top:14px; font-weight:700; font-size:15px; color:#fff;"></div>
-    <div style="display:flex; gap:10px; margin-top:16px;">
-      <button id="lightboxShareBtn" class="action-btn action-btn-green" style="padding:11px 18px; flex-direction:row;">📲 Fotoğraflara Kaydet</button>
-      <a id="lightboxDownloadBtn" class="action-btn action-btn-primary" style="padding:11px 18px; text-decoration:none; flex-direction:row;" href="#" download>⬇️ İndir</a>
-      <button class="action-btn" style="padding:11px 18px; flex-direction:row;" onclick="document.getElementById('lightboxModal').style.display='none'">✖ Kapat</button>
+    <div id="lightboxSpinner" style="display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; margin-bottom:12px; min-height:160px;">
+      <div class="ios-spinner" style="width:38px; height:38px; border:3px solid rgba(255,255,255,0.2); border-top-color:#0A84FF; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+      <div style="font-size:13px; color:var(--sub); font-weight:600;">Görsel Alınıyor...</div>
+    </div>
+    <div id="lightboxErrorBox" style="display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; margin-bottom:12px; min-height:160px; padding:20px; text-align:center;">
+      <div style="font-size:36px;">⚠️</div>
+      <div style="font-size:14px; font-weight:600; color:#FF453A;">Görsel henüz hazır değil</div>
+      <div style="font-size:12px; color:var(--sub); max-width:260px;">PC'den görüntü aktarımı tamamlanamadı. Lütfen tekrar deneyin.</div>
+      <button class="action-btn action-btn-primary touch-target-44" style="margin-top:8px; padding:8px 18px; flex-direction:row;" onclick="retryLightboxLoad()">🔄 Yeniden Dene</button>
+    </div>
+    <img id="lightboxImg" class="lightbox-img" src="" alt="Önizleme" style="display:none; max-width:92vw; max-height:65vh; border-radius:16px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,0.85);">
+    <div id="lightboxTitle" style="margin-top:14px; font-weight:700; font-size:15px; color:#fff; max-width:90vw; text-align:center; word-break:break-all;"></div>
+    <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; justify-content:center;">
+      <button id="lightboxShareBtn" class="action-btn action-btn-green touch-target-44" style="padding:11px 18px; flex-direction:row;">📲 Fotoğraflara Kaydet</button>
+      <a id="lightboxDownloadBtn" class="action-btn action-btn-primary touch-target-44" style="padding:11px 18px; text-decoration:none; flex-direction:row;" href="#" download>⬇️ İndir</a>
+      <button class="action-btn touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="document.getElementById('lightboxModal').style.display='none'">✖ Kapat</button>
     </div>
   </div>
 
@@ -1265,42 +1352,78 @@ function syncFrameToCanvasAndVideo() {
   } catch(e) {}
 }
 
-function launchNativeVideoFullscreen() {
+// --- Auto-Hiding Controls & Safe Cinema Engine ---
+let fsInactivityTimer = null;
+let isControlsVisible = true;
+
+function resetFullscreenControlsTimer() {
+  const topControls = document.querySelector(".fs-floating-controls");
+  const bottomDock = document.querySelector(".fs-bottom-dock");
+  const container = document.getElementById("desktopContainer");
+
+  if (!container || !container.classList.contains("is-fullscreen")) return;
+
+  if (topControls) topControls.classList.remove("controls-hidden");
+  if (bottomDock) bottomDock.classList.remove("controls-hidden");
+  isControlsVisible = true;
+
+  if (fsInactivityTimer) clearTimeout(fsInactivityTimer);
+
+  fsInactivityTimer = setTimeout(() => {
+    if (topControls) topControls.classList.add("controls-hidden");
+    if (bottomDock) bottomDock.classList.add("controls-hidden");
+    isControlsVisible = false;
+  }, 3500);
+}
+
+function launchCinemaMode() {
   haptic();
-  const video = document.getElementById("desktopNativeVideo");
-  const canvas = document.getElementById("desktopCanvas");
-  const img = document.getElementById("desktopStreamImg");
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+
+  // Enter Fullscreen
+  container.classList.add("is-fullscreen");
   
-  if (canvas && img && img.complete) {
-    const ctx = canvas.getContext("2d");
-    try { ctx.drawImage(img, 0, 0, 1280, 720); } catch(e) {}
-    if (!video.srcObject && canvas.captureStream) {
-      try {
-        video.srcObject = canvas.captureStream(20);
-      } catch(e) {}
-    }
+  // Auto-rotate if device is currently upright portrait
+  if (window.innerHeight > window.innerWidth) {
+    container.classList.add("is-landscape-force");
+  } else {
+    container.classList.remove("is-landscape-force");
   }
 
-  if (video) {
-    video.play().then(() => {
-      if (video.webkitEnterFullscreen) {
-        video.webkitEnterFullscreen();
-      } else if (video.requestFullscreen) {
-        video.requestFullscreen();
-      } else {
-        toggleDesktopFullscreen();
-      }
-    }).catch(() => {
-      if (video.webkitEnterFullscreen) {
-        video.webkitEnterFullscreen();
-      } else {
-        toggleDesktopFullscreen();
-      }
-    });
-  } else {
-    toggleDesktopFullscreen();
-  }
+  // Default to cinema aspect ratio
+  container.classList.remove("is-stretched");
+
+  // Start auto-hide timer for theater view
+  resetFullscreenControlsTimer();
+
+  try {
+    if (container.requestFullscreen) {
+      container.requestFullscreen().catch(() => {});
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen().catch(() => {});
+    }
+  } catch(e) {}
 }
+
+function toggleCinemaStretch() {
+  haptic();
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  container.classList.toggle("is-stretched");
+  resetFullscreenControlsTimer();
+}
+
+window.addEventListener("orientationchange", () => {
+  const container = document.getElementById("desktopContainer");
+  if (!container || !container.classList.contains("is-fullscreen")) return;
+  setTimeout(() => {
+    if (window.innerWidth > window.innerHeight) {
+      container.classList.remove("is-landscape-force");
+    }
+    resetFullscreenControlsTimer();
+  }, 200);
+});
 
 function toggleDesktopFullscreen() {
   const container = document.getElementById("desktopContainer");
@@ -1310,22 +1433,17 @@ function toggleDesktopFullscreen() {
     exitDesktopFullscreen();
   } else {
     container.classList.add("is-fullscreen");
-    // Auto-detect orientation: if upright portrait, rotate 90 deg so it fills screen horizontally like a video
     if (window.innerHeight > window.innerWidth) {
       container.classList.add("is-landscape-force");
     } else {
       container.classList.remove("is-landscape-force");
     }
+    resetFullscreenControlsTimer();
     try {
       if (container.requestFullscreen) {
         container.requestFullscreen().catch(() => {});
       } else if (container.webkitRequestFullscreen) {
         container.webkitRequestFullscreen().catch(() => {});
-      }
-    } catch (e) {}
-    try {
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock("landscape").catch(() => {});
       }
     } catch (e) {}
   }
@@ -1337,16 +1455,17 @@ function exitDesktopFullscreen() {
   haptic();
   container.classList.remove("is-fullscreen");
   container.classList.remove("is-landscape-force");
+  container.classList.remove("is-stretched");
+  if (fsInactivityTimer) clearTimeout(fsInactivityTimer);
+  const topControls = document.querySelector(".fs-floating-controls");
+  const bottomDock = document.querySelector(".fs-bottom-dock");
+  if (topControls) topControls.classList.remove("controls-hidden");
+  if (bottomDock) bottomDock.classList.remove("controls-hidden");
   try {
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     } else if (document.webkitExitFullscreen) {
       document.webkitExitFullscreen().catch(() => {});
-    }
-  } catch (e) {}
-  try {
-    if (screen.orientation && screen.orientation.unlock) {
-      screen.orientation.unlock();
     }
   } catch (e) {}
 }
@@ -1356,6 +1475,7 @@ function toggleForceLandscape() {
   if (!container) return;
   haptic();
   container.classList.toggle("is-landscape-force");
+  resetFullscreenControlsTimer();
 }
 
 // AnyDesk-Style Unified Settings Engine
@@ -1595,9 +1715,12 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 
-function capturePCScreen() {
-  const tabbarBtns = document.querySelectorAll('.tabbar-item');
-  if (tabbarBtns[2]) switchMainTab('screen', tabbarBtns[2]);
+async function capturePCScreen() {
+  haptic();
+  const d = new Date();
+  const ts = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + "_" + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+  const filename = `PC_Ekran_${ts}.png`;
+  await openLightbox(API_BASE + "/api/screenshot/pc?t=" + Date.now(), filename, "image/png");
 }
 
 async function sendClipboardToPC() {
@@ -1656,48 +1779,119 @@ function renderIncoming(files) {
     return;
   }
   box.innerHTML = files.map(f => `
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px;">
-      <div>
-        <div style="font-size:14px; font-weight:600;">${f.name}</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">
+      <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:10px;">
+        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${f.name}</div>
         <div style="font-size:11px; color:var(--sub);">${f.size ? (f.size/1024/1024).toFixed(2) + " MB" : ""}</div>
       </div>
-      <a class="action-btn action-btn-primary" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${f.name}">⬇️</a>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">👁️</button>
+        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${f.name}" onclick="event.stopPropagation()">⬇️</a>
+      </div>
     </div>
   `).join("");
 }
 
-function openLightbox(urlOrId, name, mime) {
+let currentLightboxParams = null;
+
+async function openLightbox(urlOrId, name, mime) {
+  currentLightboxParams = { urlOrId, name, mime };
   const modal = document.getElementById("lightboxModal");
-  let finalUrl = urlOrId || "";
-  if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("blob:") && !finalUrl.startsWith("data:")) {
-    if (finalUrl === "live_pc_screen" || finalUrl.includes("screen") || finalUrl.includes("Ekran")) {
-      finalUrl = API_BASE + "/api/screenshot/pc?t=" + Date.now();
-    } else if (finalUrl.startsWith("/")) {
-      finalUrl = API_BASE + finalUrl;
+  const spinner = document.getElementById("lightboxSpinner");
+  const errBox = document.getElementById("lightboxErrorBox");
+  const imgEl = document.getElementById("lightboxImg");
+  const titleEl = document.getElementById("lightboxTitle");
+  const dlBtn = document.getElementById("lightboxDownloadBtn");
+  const shareBtn = document.getElementById("lightboxShareBtn");
+
+  titleEl.textContent = name || "PC Ekran Görüntüsü";
+  modal.style.display = "flex";
+  imgEl.style.display = "none";
+  if (errBox) errBox.style.display = "none";
+  if (spinner) spinner.style.display = "flex";
+
+  let targetUrl = urlOrId || "";
+  if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://") && !targetUrl.startsWith("blob:") && !targetUrl.startsWith("data:")) {
+    if (targetUrl === "live_pc_screen" || targetUrl.includes("screen") || targetUrl.includes("Ekran")) {
+      targetUrl = API_BASE + "/api/screenshot/pc?t=" + Date.now();
+    } else if (targetUrl.startsWith("/")) {
+      targetUrl = API_BASE + targetUrl;
     } else {
-      finalUrl = API_BASE + "/api/preview/" + finalUrl;
+      targetUrl = API_BASE + "/api/preview/" + targetUrl;
     }
   }
-  const imgEl = document.getElementById("lightboxImg");
-  imgEl.onerror = () => {
-    imgEl.onerror = null;
-    imgEl.src = API_BASE + "/api/remote/screen/frame?t=" + Date.now();
-  };
-  imgEl.src = finalUrl;
-  document.getElementById("lightboxTitle").textContent = name;
-  document.getElementById("lightboxDownloadBtn").href = finalUrl;
-  document.getElementById("lightboxDownloadBtn").setAttribute("download", name);
-  document.getElementById("lightboxShareBtn").onclick = async () => {
+
+  let blob = null;
+  // 1. Fetch target as Blob
+  try {
+    const res = await fetch(targetUrl, { cache: "no-store" });
+    if (res.ok) {
+      const b = await res.blob();
+      if (b && b.size > 50) blob = b;
+    }
+  } catch (e) {}
+
+  // 2. Fallback to live stream frame if target failed
+  if (!blob) {
     try {
-      const resp = await fetch(finalUrl);
-      const blob = await resp.blob();
-      const file = new File([blob], name, { type: mime || "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: name });
+      const fb = await fetch(API_BASE + "/api/remote/screen/frame?t=" + Date.now(), { cache: "no-store" });
+      if (fb.ok) {
+        const b = await fb.blob();
+        if (b && b.size > 50) blob = b;
       }
-    } catch (e) {}
-  };
-  modal.style.display = "flex";
+    } catch (e2) {}
+  }
+
+  // 3. Fallback to local snapshot endpoint
+  if (!blob) {
+    try {
+      const fb2 = await fetch(API_BASE + "/live_pc_screen?t=" + Date.now(), { cache: "no-store" });
+      if (fb2.ok) {
+        const b = await fb2.blob();
+        if (b && b.size > 50) blob = b;
+      }
+    } catch (e3) {}
+  }
+
+  if (blob && blob.size > 50) {
+    const blobUrl = URL.createObjectURL(blob);
+    imgEl.onload = () => {
+      if (spinner) spinner.style.display = "none";
+      imgEl.style.display = "block";
+    };
+    imgEl.src = blobUrl;
+    dlBtn.onclick = (e) => {
+      e.preventDefault();
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name || "PC_Ekran.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+    shareBtn.onclick = async () => {
+      haptic();
+      try {
+        const file = new File([blob], name || "PC_Ekran.png", { type: blob.type || mime || "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: name });
+        } else {
+          window.open(blobUrl, "_blank");
+        }
+      } catch (err) {
+        window.open(blobUrl, "_blank");
+      }
+    };
+  } else {
+    if (spinner) spinner.style.display = "none";
+    if (errBox) errBox.style.display = "flex";
+  }
+}
+
+function retryLightboxLoad() {
+  if (currentLightboxParams) {
+    openLightbox(currentLightboxParams.urlOrId, currentLightboxParams.name, currentLightboxParams.mime);
+  }
 }
 
 function closeLightbox(ev) {
