@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr" style="background:#000000;">
+<html lang="tr" style="background:#000000; color-scheme:dark;">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -7,6 +7,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="WinDrop">
+<script>
+window.addEventListener('error', function(e) {
+  console.warn('[WinDrop SafeGuard]', e.message);
+});
+</script>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-180.png">
 <title>WinDrop — Lossless AirDrop</title>
@@ -544,20 +549,28 @@
     transform-origin: center center !important;
   }
   @media (orientation: landscape) {
-    #desktopContainer.is-fullscreen {
+    #desktopContainer.is-fullscreen,
+    #desktopContainer.is-fullscreen.is-landscape-force {
       width: 100vw !important;
       height: 100svh !important;
       height: 100dvh !important;
       top: 0 !important;
       left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
       transform: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
     }
-    #desktopContainer.is-fullscreen img {
+    #desktopContainer.is-fullscreen img,
+    #desktopContainer.is-fullscreen.is-landscape-force img {
       width: 100% !important;
       height: 100% !important;
       object-fit: contain !important;
     }
-    #desktopContainer.is-fullscreen.is-stretched img {
+    #desktopContainer.is-fullscreen.is-stretched img,
+    #desktopContainer.is-fullscreen.is-landscape-force.is-stretched img {
       object-fit: fill !important;
     }
   }
@@ -658,7 +671,7 @@
   input[type="file"] { display: none; }
 </style>
 </head>
-<body>
+<body style="background:#000000; color:#ffffff;">
 
   <!-- Dynamic Island Header -->
   <header class="ios-navbar">
@@ -1377,13 +1390,46 @@ function resetFullscreenControlsTimer() {
   }, 3500);
 }
 
+let fsOriginalParent = null;
+let fsPlaceholder = null;
+
+function enterFullscreenDOM() {
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  if (!fsPlaceholder) {
+    fsPlaceholder = document.createElement("div");
+    fsPlaceholder.id = "desktopContainerPlaceholder";
+    fsPlaceholder.style.display = "none";
+  }
+  if (container.parentNode !== document.body) {
+    fsOriginalParent = container.parentNode;
+    fsOriginalParent.insertBefore(fsPlaceholder, container);
+    document.body.appendChild(container);
+  }
+  document.body.style.overflow = "hidden";
+  container.classList.add("is-fullscreen");
+}
+
+function exitFullscreenDOM() {
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  container.classList.remove("is-fullscreen");
+  container.classList.remove("is-landscape-force");
+  container.classList.remove("is-stretched");
+  document.body.style.overflow = "";
+  if (fsOriginalParent && fsPlaceholder && fsPlaceholder.parentNode === fsOriginalParent) {
+    fsOriginalParent.insertBefore(container, fsPlaceholder);
+    fsPlaceholder.remove();
+    fsPlaceholder = null;
+  }
+}
+
 function launchCinemaMode() {
   haptic();
   const container = document.getElementById("desktopContainer");
   if (!container) return;
 
-  // Enter Fullscreen
-  container.classList.add("is-fullscreen");
+  enterFullscreenDOM();
   
   // Auto-rotate if device is currently upright portrait
   if (window.innerHeight > window.innerWidth) {
@@ -1415,15 +1461,28 @@ function toggleCinemaStretch() {
   resetFullscreenControlsTimer();
 }
 
-window.addEventListener("orientationchange", () => {
+function handleOrientationChange() {
   const container = document.getElementById("desktopContainer");
-  if (!container || !container.classList.contains("is-fullscreen")) return;
-  setTimeout(() => {
-    if (window.innerWidth > window.innerHeight) {
-      container.classList.remove("is-landscape-force");
+  if (!container) return;
+  const isLandscape = window.innerWidth > window.innerHeight;
+  const screenTab = document.getElementById("tab-screen");
+  const isScreenActive = screenTab && screenTab.classList.contains("active");
+
+  if (isLandscape) {
+    container.classList.remove("is-landscape-force");
+    if (isScreenActive && !container.classList.contains("is-fullscreen")) {
+      enterFullscreenDOM();
+      resetFullscreenControlsTimer();
     }
-    resetFullscreenControlsTimer();
-  }, 200);
+  }
+  resetFullscreenControlsTimer();
+}
+
+window.addEventListener("orientationchange", () => {
+  setTimeout(handleOrientationChange, 200);
+});
+window.addEventListener("resize", () => {
+  handleOrientationChange();
 });
 
 function toggleDesktopFullscreen() {
@@ -1433,7 +1492,7 @@ function toggleDesktopFullscreen() {
   if (container.classList.contains("is-fullscreen")) {
     exitDesktopFullscreen();
   } else {
-    container.classList.add("is-fullscreen");
+    enterFullscreenDOM();
     if (window.innerHeight > window.innerWidth) {
       container.classList.add("is-landscape-force");
     } else {
@@ -1451,12 +1510,8 @@ function toggleDesktopFullscreen() {
 }
 
 function exitDesktopFullscreen() {
-  const container = document.getElementById("desktopContainer");
-  if (!container) return;
   haptic();
-  container.classList.remove("is-fullscreen");
-  container.classList.remove("is-landscape-force");
-  container.classList.remove("is-stretched");
+  exitFullscreenDOM();
   if (fsInactivityTimer) clearTimeout(fsInactivityTimer);
   const topControls = document.querySelector(".fs-floating-controls");
   const bottomDock = document.querySelector(".fs-bottom-dock");
