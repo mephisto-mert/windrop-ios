@@ -455,6 +455,74 @@
     border-color: #0A84FF !important;
     color: #64D2FF !important;
   }
+  
+  /* Fullscreen & Landscape Immersive Mode for iPhone & Desktop */
+  #desktopContainer.is-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    z-index: 999999 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    background: #000000 !important;
+    aspect-ratio: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #desktopContainer.is-fullscreen img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
+  #desktopContainer.is-fullscreen.is-landscape-force {
+    transform: rotate(90deg) !important;
+    transform-origin: center center !important;
+    width: 100dvh !important;
+    height: 100vw !important;
+  }
+  .fs-floating-controls {
+    display: none;
+    position: absolute;
+    top: max(env(safe-area-inset-top), 14px);
+    right: 14px;
+    z-index: 1000000;
+    gap: 6px;
+    background: rgba(18, 18, 22, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  }
+  #desktopContainer.is-fullscreen .fs-floating-controls {
+    display: flex !important;
+  }
+  .fs-bottom-dock {
+    display: none;
+    position: absolute;
+    bottom: max(env(safe-area-inset-bottom), 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000000;
+    gap: 6px;
+    background: rgba(18, 18, 22, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  }
+  #desktopContainer.is-fullscreen .fs-bottom-dock {
+    display: flex !important;
+  }
   input[type="file"] { display: none; }
 </style>
 </head>
@@ -614,15 +682,33 @@
 
         <!-- Touch Cursor Ripple -->
         <div id="desktopRipple" style="position:absolute; width:34px; height:34px; border-radius:50%; background:rgba(10,132,255,0.4); border:2px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:20; box-shadow:0 0 15px #0A84FF;"></div>
+
+        <!-- Floating Controls in Fullscreen -->
+        <div class="fs-floating-controls" onclick="event.stopPropagation()">
+          <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleForceLandscape()">🔄 Döndür</button>
+          <button class="key-pill" style="padding:4px 9px; font-size:11px;" onclick="toggleKeyboardInput()">⌨️ Klavye</button>
+          <button class="key-pill" style="padding:4px 9px; font-size:11px; background:rgba(255,69,58,0.25); color:#FF453A; border-color:rgba(255,69,58,0.4);" onclick="exitDesktopFullscreen()">✖ Çıkış</button>
+        </div>
+
+        <!-- Floating Bottom Quick Windows Dock in Fullscreen -->
+        <div class="fs-bottom-dock" onclick="event.stopPropagation()">
+          <button class="key-pill" style="padding:5px 9px; font-size:11px;" onclick="sendRemoteKey('win')">⊞ Başlat</button>
+          <button class="key-pill" style="padding:5px 9px; font-size:11px;" onclick="sendRemoteClick('right')">✌️ Sağ Tık</button>
+          <button class="key-pill" style="padding:5px 9px; font-size:11px;" onclick="sendRemoteCombo('alt+tab')">⇄ Alt+Tab</button>
+          <button class="key-pill" style="padding:5px 9px; font-size:11px;" onclick="sendRemoteCombo('win+d')">Masaüstü</button>
+          <button class="key-pill" style="padding:5px 9px; font-size:11px;" onclick="sendRemoteCombo('ctrl+shift+esc')">Görev Yön.</button>
+        </div>
       </div>
 
       <!-- Minimalist Floating Control Bar -->
       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:6px 10px; background:rgba(255,255,255,0.05); border-radius:14px; border:0.5px solid var(--border);">
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="key-pill" style="background:var(--blue); border-color:var(--blue);" onclick="toggleKeyboardInput()">⌨️ Klavye</button>
           <button class="key-pill" onclick="sendRemoteKey('win')">⊞ Başlat</button>
           <button class="key-pill" onclick="sendRemoteClick('right')">✌️ Sağ Tık</button>
           <button class="key-pill" onclick="sendRemoteCombo('win+d')">Masaüstü</button>
+          <button class="key-pill" onclick="sendRemoteCombo('alt+tab')">⇄ Alt+Tab</button>
+          <button class="key-pill" onclick="sendRemoteCombo('ctrl+shift+esc')">⚡ Görev</button>
         </div>
         <div style="font-size:11px; color:var(--sub); font-family:monospace;" id="desktopFpsText">~15 FPS • 35ms</div>
       </div>
@@ -968,19 +1054,51 @@ async function capturePCScreenNow() {
 function toggleDesktopFullscreen() {
   const container = document.getElementById("desktopContainer");
   if (!container) return;
-  if (!document.fullscreenElement) {
-    if (container.requestFullscreen) {
-      container.requestFullscreen();
-    } else if (container.webkitRequestFullscreen) {
-      container.webkitRequestFullscreen();
-    }
+  haptic();
+  if (container.classList.contains("is-fullscreen")) {
+    exitDesktopFullscreen();
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
+    container.classList.add("is-fullscreen");
+    try {
+      if (container.requestFullscreen) {
+        container.requestFullscreen().catch(() => {});
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen().catch(() => {});
+      }
+    } catch (e) {}
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("landscape").catch(() => {});
+      }
+    } catch (e) {}
   }
+}
+
+function exitDesktopFullscreen() {
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  haptic();
+  container.classList.remove("is-fullscreen");
+  container.classList.remove("is-landscape-force");
+  try {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen().catch(() => {});
+    }
+  } catch (e) {}
+  try {
+    if (screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
+    }
+  } catch (e) {}
+}
+
+function toggleForceLandscape() {
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  haptic();
+  container.classList.toggle("is-landscape-force");
 }
 
 // Interactive Desktop Touch Listeners
@@ -994,14 +1112,25 @@ window.addEventListener('DOMContentLoaded', () => {
   let touchStartX = 0;
   let touchStartY = 0;
 
+  function getCoords(ev) {
+    const rect = container.getBoundingClientRect();
+    let x_pct, y_pct, clickX = ev.clientX - rect.left, clickY = ev.clientY - rect.top;
+    if (container.classList.contains("is-landscape-force")) {
+      const relX = (ev.clientX - rect.left) / rect.width;
+      const relY = (ev.clientY - rect.top) / rect.height;
+      x_pct = Math.max(0, Math.min(1, relY));
+      y_pct = Math.max(0, Math.min(1, 1 - relX));
+    } else {
+      x_pct = Math.max(0, Math.min(1, clickX / rect.width));
+      y_pct = Math.max(0, Math.min(1, clickY / rect.height));
+    }
+    return { x_pct, y_pct, clickX, clickY };
+  }
+
   container.addEventListener('pointerdown', (ev) => {
     touchStartX = ev.clientX;
     touchStartY = ev.clientY;
-    const rect = container.getBoundingClientRect();
-    const clickX = ev.clientX - rect.left;
-    const clickY = ev.clientY - rect.top;
-    const x_pct = Math.max(0, Math.min(1, clickX / rect.width));
-    const y_pct = Math.max(0, Math.min(1, clickY / rect.height));
+    const { x_pct, y_pct, clickX, clickY } = getCoords(ev);
 
     if (ripple) {
       ripple.style.left = clickX + "px";
@@ -1029,9 +1158,7 @@ window.addEventListener('DOMContentLoaded', () => {
       isDragging = true;
     }
     if (isDragging) {
-      const rect = container.getBoundingClientRect();
-      const x_pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const y_pct = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+      const { x_pct, y_pct } = getCoords(ev);
       sendDesktopAction({ action: "mouse_move", x_pct, y_pct });
     }
   });
@@ -1039,9 +1166,7 @@ window.addEventListener('DOMContentLoaded', () => {
   container.addEventListener('pointerup', (ev) => {
     if (longPressTimer) {
       clearTimeout(longPressTimer);
-      const rect = container.getBoundingClientRect();
-      const x_pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const y_pct = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+      const { x_pct, y_pct } = getCoords(ev);
       sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: "left" });
     }
     isDragging = false;
