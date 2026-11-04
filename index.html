@@ -955,7 +955,10 @@
 
 <script>
 const deviceModel = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "iPhone (iOS)" : "Mobil Cihaz";
-let API_BASE = "https://foot-hotel-modified-shoe.trycloudflare.com";
+const DEFAULT_CLOUD_TUNNEL = "https://foot-hotel-modified-shoe.trycloudflare.com";
+let API_BASE = (location.hostname.includes("github.io") || location.hostname.includes("vercel.app")) 
+  ? DEFAULT_CLOUD_TUNNEL 
+  : (location.origin.startsWith("http") ? location.origin : DEFAULT_CLOUD_TUNNEL);
 let activeWS = null;
 
 function haptic() {
@@ -981,7 +984,18 @@ function switchMainTab(tabId, el) {
   if (segmentBtns[tabIndex]) segmentBtns[tabIndex].classList.add('active');
 
   if (tabId === 'screen') {
+    const img = document.getElementById("desktopStreamImg");
+    const loading = document.getElementById("desktopLoading");
+    if (img) {
+      img.onload = () => {
+        if (loading) loading.style.display = "none";
+        img.style.display = "block";
+        syncFrameToCanvasAndVideo();
+      };
+      img.src = API_BASE + "/api/remote/screen/frame?t=" + Date.now();
+    }
     connectDesktopWebSocket();
+    startHttpFrameFallback();
   }
 }
 
@@ -1006,15 +1020,16 @@ async function fetchRadarState() {
     document.getElementById("connBadge").style.color = "#30D158";
     renderIncoming(data.outgoing_files || []);
   } catch (e) {
-    // If local LAN reachable, fallback
-    try {
-      const locRes = await fetchWithTimeout("http://192.168.1.158:8765/api/state", 1500);
-      if (locRes.ok) {
-        API_BASE = "http://192.168.1.158:8765";
-        document.getElementById("connBadgeText").textContent = "● Yerel Wi-Fi (Süper Hız)";
-        return;
-      }
-    } catch (e2) {}
+    if (location.protocol === "http:") {
+      try {
+        const locRes = await fetchWithTimeout("http://192.168.1.158:8765/api/state", 1500);
+        if (locRes.ok) {
+          API_BASE = "http://192.168.1.158:8765";
+          document.getElementById("connBadgeText").textContent = "● Yerel Wi-Fi (Süper Hız)";
+          return;
+        }
+      } catch (e2) {}
+    }
     document.getElementById("connBadgeText").textContent = "● 24/7 Bulut Hazır";
   }
 }
@@ -1074,11 +1089,12 @@ async function uploadFiles(fileList) {
   setTimeout(() => { box.style.display = "none"; }, 3500);
 }
 
-// --- TRUE LIVE WEBSOCKET REMOTE DESKTOP ENGINE ---
+// --- TRUE LIVE WEBSOCKET + DYNAMIC HTTP FALLBACK REMOTE DESKTOP ENGINE ---
 let desktopWS = null;
 let desktopStreaming = false;
 let desktopFallbackTimer = null;
 let frameCount = 0;
+let lastFrameReceivedTime = 0;
 
 function connectDesktopWebSocket() {
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) return;
@@ -1096,12 +1112,12 @@ function connectDesktopWebSocket() {
         st.textContent = "● Canlı Windows 11 (WebSocket)";
         st.style.color = "#30D158";
       }
-      desktopStreaming = true;
-      if (desktopFallbackTimer) clearTimeout(desktopFallbackTimer);
     };
 
     desktopWS.onmessage = (ev) => {
       if (ev.data instanceof Blob) {
+        lastFrameReceivedTime = Date.now();
+        desktopStreaming = true;
         const img = document.getElementById("desktopStreamImg");
         const loading = document.getElementById("desktopLoading");
         if (img) {
@@ -1124,7 +1140,6 @@ function connectDesktopWebSocket() {
         st.textContent = "● Canlı Windows 11 (HTTP)";
         st.style.color = "#FF9F0A";
       }
-      startHttpFrameFallback();
       setTimeout(connectDesktopWebSocket, 3000);
     };
 
@@ -1132,33 +1147,37 @@ function connectDesktopWebSocket() {
       if (desktopWS) try { desktopWS.close(); } catch(e){}
     };
   } catch (e) {
-    startHttpFrameFallback();
+    desktopStreaming = false;
   }
 }
 
 function startHttpFrameFallback() {
-  if (desktopStreaming) return;
+  if (desktopFallbackTimer) clearTimeout(desktopFallbackTimer);
   async function fetchFrame() {
-    if (desktopStreaming) return;
-    try {
-      const img = document.getElementById("desktopStreamImg");
-      const loading = document.getElementById("desktopLoading");
-      const res = await fetch(API_BASE + "/api/remote/screen/frame?t=" + Date.now(), { cache: "no-store" });
-      if (res.ok) {
-        const b = await res.blob();
-        if (img) {
-          if (currentStreamBlobUrl) {
-            try { URL.revokeObjectURL(currentStreamBlobUrl); } catch(e) {}
+    const now = Date.now();
+    // If WebSocket hasn't delivered a frame in the last 400ms, pull via HTTP
+    if (now - lastFrameReceivedTime > 400) {
+      try {
+        const img = document.getElementById("desktopStreamImg");
+        const loading = document.getElementById("desktopLoading");
+        const res = await fetch(API_BASE + "/api/remote/screen/frame?t=" + now, { cache: "no-store" });
+        if (res.ok) {
+          const b = await res.blob();
+          if (img) {
+            if (currentStreamBlobUrl) {
+              try { URL.revokeObjectURL(currentStreamBlobUrl); } catch(e) {}
+            }
+            currentStreamBlobUrl = URL.createObjectURL(b);
+            img.src = currentStreamBlobUrl;
+            img.style.display = "block";
           }
-          currentStreamBlobUrl = URL.createObjectURL(b);
-          img.src = currentStreamBlobUrl;
-          img.style.display = "block";
+          if (loading) loading.style.display = "none";
+          lastFrameReceivedTime = Date.now();
+          frameCount++;
         }
-        if (loading) loading.style.display = "none";
-        frameCount++;
-      }
-    } catch(e) {}
-    desktopFallbackTimer = setTimeout(fetchFrame, 150);
+      } catch(e) {}
+    }
+    desktopFallbackTimer = setTimeout(fetchFrame, 120);
   }
   fetchFrame();
 }
