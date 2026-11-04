@@ -591,9 +591,9 @@
           <span id="remoteLiveStatus" style="font-size:12px; font-weight:700; color:var(--green); letter-spacing:-0.2px;">● Canlı Windows 11</span>
         </div>
         <div style="display:flex; gap:6px;">
-          <a class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; text-decoration:none; background:rgba(10,132,255,0.2); color:#64D2FF; border-color:rgba(10,132,255,0.4);" href="anydesk://1566521558" onclick="haptic()">
-            <span>⚡ AnyDesk App</span>
-          </a>
+          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(10,132,255,0.2); color:#64D2FF; border-color:rgba(10,132,255,0.4);" onclick="haptic(); toggleDesktopFullscreen()">
+            <span>⛶ Tam Ekran</span>
+          </button>
           <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(255,255,255,0.08);" onclick="capturePCScreenNow()">
             <span>📸 Kaydet</span>
           </button>
@@ -965,6 +965,24 @@ async function capturePCScreenNow() {
   }
 }
 
+function toggleDesktopFullscreen() {
+  const container = document.getElementById("desktopContainer");
+  if (!container) return;
+  if (!document.fullscreenElement) {
+    if (container.requestFullscreen) {
+      container.requestFullscreen();
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen();
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+}
+
 // Interactive Desktop Touch Listeners
 window.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById("desktopContainer");
@@ -1121,7 +1139,12 @@ function openLightbox(urlOrId, name, mime) {
       finalUrl = API_BASE + "/api/preview/" + finalUrl;
     }
   }
-  document.getElementById("lightboxImg").src = finalUrl;
+  const imgEl = document.getElementById("lightboxImg");
+  imgEl.onerror = () => {
+    imgEl.onerror = null;
+    imgEl.src = API_BASE + "/api/remote/screen/frame?t=" + Date.now();
+  };
+  imgEl.src = finalUrl;
   document.getElementById("lightboxTitle").textContent = name;
   document.getElementById("lightboxDownloadBtn").href = finalUrl;
   document.getElementById("lightboxDownloadBtn").setAttribute("download", name);
