@@ -1182,6 +1182,7 @@ let desktopStreaming = false;
 let desktopFallbackTimer = null;
 let frameCount = 0;
 let lastFrameReceivedTime = 0;
+let currentStreamBlobUrl = null;
 
 function connectDesktopWebSocket() {
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) return;
