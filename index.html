@@ -469,22 +469,41 @@
     border-radius: 0 !important;
     border: none !important;
     margin: 0 !important;
+    padding: 0 !important;
     background: #000000 !important;
     aspect-ratio: auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    overflow: hidden !important;
   }
   #desktopContainer.is-fullscreen img {
     width: 100% !important;
     height: 100% !important;
-    object-fit: contain !important;
+    object-fit: fill !important; /* Full edge-to-edge screen fill with ZERO black bars */
   }
   #desktopContainer.is-fullscreen.is-landscape-force {
-    transform: rotate(90deg) !important;
-    transform-origin: center center !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
     width: 100dvh !important;
     height: 100vw !important;
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform-origin: center center !important;
+  }
+  @media (orientation: landscape) {
+    #desktopContainer.is-fullscreen {
+      width: 100vw !important;
+      height: 100vh !important;
+      top: 0 !important;
+      left: 0 !important;
+      transform: none !important;
+    }
+    #desktopContainer.is-fullscreen img {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: fill !important;
+    }
   }
   .fs-floating-controls {
     display: none;
@@ -696,20 +715,24 @@
           <span id="remoteLiveStatus" style="font-size:12px; font-weight:700; color:var(--green); letter-spacing:-0.2px;">● Canlı Windows 11</span>
         </div>
         <div style="display:flex; gap:6px;">
-          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(255,255,255,0.12); color:#fff; border-color:rgba(255,255,255,0.25);" onclick="toggleSettingsDrawer()">
-            <span>⚙️ Ayarlar</span>
+          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:linear-gradient(135deg, rgba(255,45,85,0.3), rgba(175,82,222,0.3)); color:#FF375F; border-color:rgba(255,45,85,0.5);" onclick="launchNativeVideoFullscreen()">
+            <span>🎬 Sinema (Film Gibi)</span>
           </button>
           <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(10,132,255,0.2); color:#64D2FF; border-color:rgba(10,132,255,0.4);" onclick="haptic(); toggleDesktopFullscreen()">
             <span>⛶ Tam Ekran</span>
           </button>
-          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(255,255,255,0.08);" onclick="capturePCScreenNow()">
-            <span>📸 Kaydet</span>
+          <button class="action-btn" style="padding:5px 10px; font-size:11px; flex-direction:row; background:rgba(255,255,255,0.12); color:#fff; border-color:rgba(255,255,255,0.25);" onclick="toggleSettingsDrawer()">
+            <span>⚙️ Ayarlar</span>
           </button>
         </div>
       </div>
 
       <!-- THE LIVE DESKTOP VIEWPORT (INTERACTIVE TOUCH CANVAS) -->
       <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.18); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+        <!-- Native Video Element for Native iOS Movie Player Mode -->
+        <video id="desktopNativeVideo" playsinline webkit-playsinline muted autoplay style="position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none;"></video>
+        <canvas id="desktopCanvas" width="1280" height="720" style="display:none;"></canvas>
+
         <!-- Live Desktop Image / Canvas -->
         <img id="desktopStreamImg" src="" alt="Windows 11 Masaüstü" style="width:100%; height:100%; object-fit:fill; display:none; pointer-events:none;">
         
@@ -1199,6 +1222,59 @@ async function capturePCScreenNow() {
   }
 }
 
+function syncFrameToCanvasAndVideo() {
+  const canvas = document.getElementById("desktopCanvas");
+  const video = document.getElementById("desktopNativeVideo");
+  const img = document.getElementById("desktopStreamImg");
+  if (!canvas || !video || !img || !img.complete || img.naturalWidth === 0) return;
+  const ctx = canvas.getContext("2d");
+  try {
+    ctx.drawImage(img, 0, 0, 1280, 720);
+    if (!video.srcObject && canvas.captureStream) {
+      const stream = canvas.captureStream(20);
+      video.srcObject = stream;
+      video.play().catch(() => {});
+    }
+  } catch(e) {}
+}
+
+function launchNativeVideoFullscreen() {
+  haptic();
+  const video = document.getElementById("desktopNativeVideo");
+  const canvas = document.getElementById("desktopCanvas");
+  const img = document.getElementById("desktopStreamImg");
+  
+  if (canvas && img && img.complete) {
+    const ctx = canvas.getContext("2d");
+    try { ctx.drawImage(img, 0, 0, 1280, 720); } catch(e) {}
+    if (!video.srcObject && canvas.captureStream) {
+      try {
+        video.srcObject = canvas.captureStream(20);
+      } catch(e) {}
+    }
+  }
+
+  if (video) {
+    video.play().then(() => {
+      if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      } else if (video.requestFullscreen) {
+        video.requestFullscreen();
+      } else {
+        toggleDesktopFullscreen();
+      }
+    }).catch(() => {
+      if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      } else {
+        toggleDesktopFullscreen();
+      }
+    });
+  } else {
+    toggleDesktopFullscreen();
+  }
+}
+
 function toggleDesktopFullscreen() {
   const container = document.getElementById("desktopContainer");
   if (!container) return;
@@ -1207,6 +1283,12 @@ function toggleDesktopFullscreen() {
     exitDesktopFullscreen();
   } else {
     container.classList.add("is-fullscreen");
+    // Auto-detect orientation: if upright portrait, rotate 90 deg so it fills screen horizontally like a video
+    if (window.innerHeight > window.innerWidth) {
+      container.classList.add("is-landscape-force");
+    } else {
+      container.classList.remove("is-landscape-force");
+    }
     try {
       if (container.requestFullscreen) {
         container.requestFullscreen().catch(() => {});
@@ -1346,6 +1428,10 @@ async function handleDesktopDropUpload(files) {
 window.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById("desktopContainer");
   const ripple = document.getElementById("desktopRipple");
+  const imgStream = document.getElementById("desktopStreamImg");
+  if (imgStream) {
+    imgStream.addEventListener('load', syncFrameToCanvasAndVideo);
+  }
   if (!container) return;
 
   let longPressTimer = null;
