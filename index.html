@@ -2344,33 +2344,55 @@ async function capturePCScreen() {
 }
 
 async function sendClipboardToPC() {
+  haptic();
   const el = document.getElementById("clipBox");
-  let txt = el.value.trim();
-  if (!txt && navigator.clipboard && navigator.clipboard.readText) {
-    try { txt = await navigator.clipboard.readText(); el.value = txt; } catch (e) {}
+  let freshClip = "";
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      freshClip = (await navigator.clipboard.readText() || "").trim();
+    } catch (e) {}
   }
-  if (!txt) return;
-  await fetch(API_BASE + "/clipboard", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clipboard: txt })
-  });
-  document.getElementById("connBadgeText").textContent = "✅ Pano PC'ye İletildi!";
-  setTimeout(fetchRadarState, 2000);
+  // Prioritize actual fresh device clipboard over stale textarea contents
+  let txt = freshClip || (el ? el.value.trim() : "");
+  if (!txt) {
+    showDesktopToast("⚠️ Pano boş! Önce bir metin kopyalayın.");
+    return;
+  }
+  if (el) el.value = txt;
+  try {
+    await fetch(API_BASE + "/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clipboard: txt, t: Date.now() })
+    });
+    showDesktopToast("✅ Son Pano PC'ye Gönderildi: " + (txt.length > 22 ? txt.slice(0, 22) + "..." : txt));
+    document.getElementById("connBadgeText").textContent = "✅ Pano PC'ye İletildi!";
+    setTimeout(fetchRadarState, 1500);
+  } catch (e) {
+    showDesktopToast("❌ Pano iletilemedi");
+  }
 }
 
 async function pullClipboardFromPC() {
+  haptic();
   try {
-    const res = await fetch(API_BASE + "/clipboard");
+    const res = await fetch(API_BASE + "/clipboard?t=" + Date.now(), { cache: "no-store" });
     const data = await res.json();
     const el = document.getElementById("clipBox");
-    const txt = data.text || data.clipboard || "";
-    el.value = txt;
-    if (txt && navigator.clipboard && navigator.clipboard.writeText) {
+    const txt = (data.text || data.clipboard || "").trim();
+    if (!txt) {
+      showDesktopToast("⚠️ PC Panosu Boş!");
+      return;
+    }
+    if (el) el.value = txt;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
       try { await navigator.clipboard.writeText(txt); } catch (e) {}
     }
+    showDesktopToast("📥 Son Pano Alındı: " + (txt.length > 22 ? txt.slice(0, 22) + "..." : txt));
     document.getElementById("connBadgeText").textContent = "📥 Pano iPhone'a Alındı!";
-  } catch (e) {}
+  } catch (e) {
+    showDesktopToast("❌ PC panosu alınamadı");
+  }
 }
 
 async function openUrlOnPC() {
