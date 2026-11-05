@@ -1416,8 +1416,12 @@ function startHttpFrameFallback() {
   if (desktopFallbackTimer) clearTimeout(desktopFallbackTimer);
   async function fetchFrame() {
     const now = Date.now();
-    // If WebSocket hasn't delivered a frame in the last 400ms, pull via HTTP
-    if (now - lastFrameReceivedTime > 400) {
+    // If WebSocket is alive and receiving frames, completely suspend HTTP fallback
+    if (desktopWS && desktopWS.readyState === WebSocket.OPEN && (now - lastFrameReceivedTime < 1500)) {
+      desktopFallbackTimer = setTimeout(fetchFrame, 800);
+      return;
+    }
+    if (now - lastFrameReceivedTime > 1200) {
       try {
         const img = document.getElementById("desktopStreamImg");
         const loading = document.getElementById("desktopLoading");
@@ -1425,12 +1429,11 @@ function startHttpFrameFallback() {
         if (res.ok) {
           const b = await res.blob();
           if (img) {
-            if (currentStreamBlobUrl) {
-              try { URL.revokeObjectURL(currentStreamBlobUrl); } catch(e) {}
-            }
+            const oldUrl = currentStreamBlobUrl;
             currentStreamBlobUrl = URL.createObjectURL(b);
             img.src = currentStreamBlobUrl;
             img.style.display = "block";
+            if (oldUrl) setTimeout(() => { try { URL.revokeObjectURL(oldUrl); } catch(e){} }, 200);
           }
           if (loading) loading.style.display = "none";
           lastFrameReceivedTime = Date.now();
@@ -1438,7 +1441,7 @@ function startHttpFrameFallback() {
         }
       } catch(e) {}
     }
-    desktopFallbackTimer = setTimeout(fetchFrame, 120);
+    desktopFallbackTimer = setTimeout(fetchFrame, 400);
   }
   fetchFrame();
 }
@@ -1446,14 +1449,14 @@ function startHttpFrameFallback() {
 function sendDesktopAction(actionObj) {
   if (!actionObj || !actionObj.action) return;
   actionObj.t = Date.now();
-  let wsSuccess = false;
+  // Send directly over WebSocket if connected (Zero-Duplication!)
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
     try {
       desktopWS.send(JSON.stringify(actionObj));
-      wsSuccess = true;
+      return; // Sent cleanly over WebSocket! Do NOT duplicate over HTTP!
     } catch (e) {}
   }
-  // Parallel or fallback HTTP POST to guarantee delivery even if WS is reconnecting
+  // Fallback to HTTP POST only if WebSocket is disconnected
   try {
     fetch(API_BASE + "/api/remote/action", {
       method: "POST",
