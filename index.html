@@ -2024,34 +2024,47 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function checkDoubleTap(ev) {
     const now = Date.now();
-    const geom = getDesktopImageGeometry();
-    const tapX = ev.clientX - geom.left;
-    const tapY = ev.clientY - geom.top;
+    const clientX = (ev.clientX !== undefined) ? ev.clientX : (ev.touches?.[0]?.clientX ?? 0);
+    const clientY = (ev.clientY !== undefined) ? ev.clientY : (ev.touches?.[0]?.clientY ?? 0);
 
-    if (now - lastTapTime < 320 && Math.hypot(tapX - lastTapX, tapY - lastTapY) < 40) {
+    if (now - lastTapTime < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 45) {
       lastTapTime = 0;
       haptic();
       if (currentZoomScale > 1.2) {
         showDesktopToast("🔍 1.0x Zoom");
         resetZoom();
       } else {
-        // Zoom to 2.5x anchored right at the tapped spot!
         const targetScale = 2.5;
-        const targetPanX = tapX - tapX * targetScale;
-        const targetPanY = tapY - tapY * targetScale;
-        const minPanX = geom.width * (1 - targetScale);
-        const minPanY = geom.height * (1 - targetScale);
         currentZoomScale = targetScale;
-        panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
-        panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
+        
+        if (isRotated) {
+          const vW = window.innerWidth;
+          const vH = window.innerHeight;
+          const isStretched = container.classList.contains("is-stretched");
+          const targetAspect = 16 / 9;
+          const contentLen = isStretched ? vH : (vW * targetAspect);
+          const barTop = isStretched ? 0 : Math.max(0, (vH - contentLen) / 2);
+          const u_screen = clientY - barTop;
+          const v_screen = vW - clientX;
+          panOffsetX = u_screen * (1 - targetScale);
+          panOffsetY = v_screen * (1 - targetScale);
+        } else {
+          const cRect = container.getBoundingClientRect();
+          const tapX = clientX - cRect.left;
+          const tapY = clientY - cRect.top;
+          panOffsetX = tapX * (1 - targetScale);
+          panOffsetY = tapY * (1 - targetScale);
+        }
         showDesktopToast("🔍 2.5x Yakınlaştı");
         applyZoomTransform(true);
       }
       return true;
     }
     lastTapTime = now;
-    lastTapX = tapX;
-    lastTapY = tapY;
+    lastTapX = clientX;
+    lastTapY = clientY;
     return false;
   }
 
