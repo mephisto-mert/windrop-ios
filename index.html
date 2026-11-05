@@ -913,9 +913,6 @@ window.addEventListener('error', function(e) {
           <div style="font-size:11px; color:var(--sub);">Canlı ekran akışı kuruluyor</div>
         </div>
 
-        <!-- Touch Cursor Ripple -->
-        <div id="desktopRipple" style="position:absolute; width:34px; height:34px; border-radius:50%; background:rgba(10,132,255,0.4); border:2px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:20; box-shadow:0 0 15px #0A84FF;"></div>
-
         <!-- AnyDesk-Style Floating Action Bubble (FAB) & Menu -->
         <div id="anydeskFabContainer" class="anydesk-fab-container" 
              onpointerdown="event.stopPropagation()" 
@@ -1953,8 +1950,10 @@ window.addEventListener('DOMContentLoaded', () => {
       initialPanY = panOffsetY;
     } else if (ev.touches.length === 1 && currentZoomScale > 1.05) {
       isPanning = true;
-      panStartX = ev.touches[0].clientX - panOffsetX;
-      panStartY = ev.touches[0].clientY - panOffsetY;
+      panStartX = ev.touches[0].clientX;
+      panStartY = ev.touches[0].clientY;
+      initialPanX = panOffsetX;
+      initialPanY = panOffsetY;
     }
   }, { passive: true });
 
@@ -1995,13 +1994,17 @@ window.addEventListener('DOMContentLoaded', () => {
       applyZoomTransform(false);
     } else if (ev.touches.length === 1 && isPanning && currentZoomScale > 1.05) {
       ev.preventDefault();
-      const geom = getDesktopImageGeometry();
-      const targetPanX = ev.touches[0].clientX - panStartX;
-      const targetPanY = ev.touches[0].clientY - panStartY;
-      const minPanX = geom.width * (1 - currentZoomScale);
-      const minPanY = geom.height * (1 - currentZoomScale);
-      panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
-      panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
+      const deltaX = ev.touches[0].clientX - panStartX;
+      const deltaY = ev.touches[0].clientY - panStartY;
+      if (isRotated) {
+        panOffsetX = initialPanX + deltaY;
+        panOffsetY = initialPanY - deltaX;
+      } else {
+        panOffsetX = initialPanX + deltaX;
+        panOffsetY = initialPanY + deltaY;
+      }
       applyZoomTransform(false);
     }
   }, { passive: false });
@@ -2054,9 +2057,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function getCoords(ev) {
     const container = document.getElementById("desktopContainer");
-    const geom = getDesktopImageGeometry();
-    const isRotated = container && container.classList.contains("is-landscape-force");
-
     let clientX = (ev.clientX !== undefined) ? ev.clientX : 0;
     let clientY = (ev.clientY !== undefined) ? ev.clientY : 0;
     if (ev.touches && ev.touches.length > 0) {
@@ -2067,34 +2067,39 @@ window.addEventListener('DOMContentLoaded', () => {
       clientY = ev.changedTouches[0].clientY;
     }
 
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
+
     if (isRotated) {
-      // Screen dimensions and center
       const vW = window.innerWidth;
       const vH = window.innerHeight;
-      const cx = vW / 2;
-      const cy = vH / 2;
+      const isStretched = container.classList.contains("is-stretched");
+      const targetAspect = 16 / 9;
+      
+      const contentLen = isStretched ? vH : (vW * targetAspect);
+      const contentWid = vW;
+      const barTop = isStretched ? 0 : Math.max(0, (vH - contentLen) / 2);
 
-      // Distance from center of screen
-      const dx = clientX - cx;
-      const dy = clientY - cy;
+      const u_screen = clientY - barTop;
+      const v_screen = vW - clientX;
+      
+      const u_unzoomed = (u_screen - panOffsetX) / currentZoomScale;
+      const v_unzoomed = (v_screen - panOffsetY) / currentZoomScale;
 
-      // Inverse of 90deg clockwise rotation:
-      // Rotated around center (0,0) by +90deg: x' = -y, y' = x
-      // Inverse rotation (-90deg): unrotX = dy, unrotY = -dx
-      const unrotX = dy;
-      const unrotY = -dx;
+      const x_pct = Math.max(0.0, Math.min(1.0, u_unzoomed / contentLen));
+      const y_pct = Math.max(0.0, Math.min(1.0, v_unzoomed / contentWid));
 
-      // In rotated mode, container element has width = vH and height = vW
-      const cW = vH;
-      const cH = vW;
-      const contX = (cW / 2) + unrotX;
-      const contY = (cH / 2) + unrotY;
-
-      // 16:9 projection inside unrotated (cW x cH) box
+      return { x_pct, y_pct, clickX: clientX, clickY: clientY };
+    } else {
+      const cRect = container ? container.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      const cW = cRect.width || window.innerWidth;
+      const cH = cRect.height || window.innerHeight;
+      const isStretched = container && container.classList.contains("is-stretched");
       const targetAspect = 16 / 9;
       const currentAspect = cW / cH;
+
       let renderW, renderH, offX, offY;
-      if (container.classList.contains("is-stretched")) {
+      if (isStretched) {
         renderW = cW;
         renderH = cH;
         offX = 0;
@@ -2111,22 +2116,14 @@ window.addEventListener('DOMContentLoaded', () => {
         offY = (cH - renderH) / 2;
       }
 
-      const imgX = (contX - offX - panOffsetX) / currentZoomScale;
-      const imgY = (contY - offY - panOffsetY) / currentZoomScale;
-
-      const x_pct = Math.max(0.0, Math.min(1.0, imgX / renderW));
-      const y_pct = Math.max(0.0, Math.min(1.0, imgY / renderH));
-      return { x_pct, y_pct, clickX: clientX, clickY: clientY };
-    } else {
-      // Normal unrotated view
-      const rawX = clientX - geom.left;
-      const rawY = clientY - geom.top;
+      const rawX = clientX - cRect.left - offX;
+      const rawY = clientY - cRect.top - offY;
 
       const unscaledX = (rawX - panOffsetX) / currentZoomScale;
       const unscaledY = (rawY - panOffsetY) / currentZoomScale;
 
-      const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
-      const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
+      const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / renderW));
+      const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / renderH));
 
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
@@ -2472,5 +2469,7 @@ function closeLightbox(ev) {
 fetchRadarState();
 setInterval(fetchRadarState, 5000);
 </script>
+<!-- Exact Subpixel Touch Cursor Ripple (Fixed to Body, immune to container rotation) -->
+<div id="desktopRipple" style="position:fixed; width:36px; height:36px; border-radius:50%; background:rgba(10,132,255,0.45); border:2.5px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:2000050; box-shadow:0 0 16px #0A84FF;"></div>
 </body>
 </html>
