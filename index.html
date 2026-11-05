@@ -763,6 +763,27 @@ window.addEventListener('error', function(e) {
         <span>📲 WinDrop Kestirmesini İndir</span>
       </a>
     </div>
+
+    <!-- Wireless OTA & Profile Install Card (Zero Cable) -->
+    <div class="ios-card" style="border: 1px solid rgba(10,132,255,0.35); background: linear-gradient(145deg, rgba(28,28,30,0.85), rgba(10,132,255,0.12));">
+      <div class="card-header">
+        <span class="card-header-title">📲 Kablosuz Güncelle & Yükle (Sıfır Kablo)</span>
+      </div>
+      <div class="card-header-desc">
+        Kablo takmadan uygulamayı doğrudan iPhone'una yükleyebilir veya güncelleyebilirsin:
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+        <a class="action-btn action-btn-primary" style="padding:12px; text-decoration:none; justify-content:center;" href="/WinDrop.mobileconfig" onclick="haptic()">
+          <span>📱 1. Kablosuz Profili Kur (7 Gün Limiti Yok, Tam Ekran)</span>
+        </a>
+        <a class="action-btn action-btn-green" style="padding:12px; text-decoration:none; justify-content:center;" href="itms-services://?action=download-manifest&url=https://foot-hotel-modified-shoe.trycloudflare.com/manifest.plist" onclick="haptic()">
+          <span>🚀 2. Doğrudan OTA İle Güncelle</span>
+        </a>
+        <a class="action-btn" style="padding:12px; text-decoration:none; justify-content:center;" href="/WinDrop.ipa" onclick="haptic()">
+          <span>📦 3. Güncel WinDrop.ipa İndir (TrollStore / Sideloadly)</span>
+        </a>
+      </div>
+    </div>
   </main>
 
   <!-- TAB 2: EVRENSEL PANO (CLIPBOARD) -->
