@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>FullScreen</key>
+			<true/>
+			<key>Icon</key>
+			<data>
+			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
+			</data>
+			<key>IgnoreManifestScope</key>
+			<true/>
+			<key>IsRemovable</key>
+			<true/>
+			<key>Label</key>
+			<string>OmniMic</string>
+			<key>PayloadDescription</key>
+			<string>OmniMic Studio — Sovereign Immortal iOS Audio App</string>
+			<key>PayloadDisplayName</key>
+			<string>OmniMic</string>
+			<key>PayloadIdentifier</key>
+			<string>com.trisaudio.omnimic.webclip</string>
+			<key>PayloadType</key>
+			<string>com.apple.webClip.managed</string>
+			<key>PayloadUUID</key>
+			<string>DD61B0E4-9060-50A5-A19E-FA7536989AF7</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Precomposed</key>
+			<true/>
+			<key>URL</key>
+			<string>https://mephisto-mert.github.io/windrop-ios/omnimic/</string>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>OmniMic Studio — Sovereign Immortal iOS Audio App (Windrop Mimarisi)</string>
+	<key>PayloadDisplayName</key>
+	<string>OmniMic Studio</string>
+	<key>PayloadIdentifier</key>
+	<string>com.trisaudio.omnimic.profile</string>
+	<key>PayloadOrganization</key>
+	<string>OmniMic P2P</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>408BF190-B46A-5C73-8144-DD2012FB4637</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
