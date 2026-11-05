@@ -927,39 +927,39 @@ window.addEventListener('error', function(e) {
               <button class="anydesk-menu-close" onclick="closeAnydeskMenu()">✕</button>
             </div>
             <div class="anydesk-menu-grid">
-              <button class="anydesk-menu-btn" onclick="sendRemoteKey('win'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('win'); showDesktopToast('⊞ Başlat Menüsü'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⊞</span>
                 <span class="anydesk-btn-label">Başlat</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteClick('right'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="armNextRightClick();">
                 <span class="anydesk-btn-icon">✌️</span>
                 <span class="anydesk-btn-label">Sağ Tık</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('alt+tab'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('alt+tab'); showDesktopToast('⇄ Alt+Tab'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⇄</span>
                 <span class="anydesk-btn-label">Alt+Tab</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('win+d'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('win+d'); showDesktopToast('💻 Masaüstü'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">💻</span>
                 <span class="anydesk-btn-label">Masaüstü</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('ctrl+shift+esc'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('ctrl+shift+esc'); showDesktopToast('⚡ Görev Yöneticisi'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⚡</span>
                 <span class="anydesk-btn-label">Görev Yön.</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleKeyboardInput(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="toggleKeyboardInput(); showDesktopToast('⌨️ Klavye'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⌨️</span>
                 <span class="anydesk-btn-label">Klavye</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleForceLandscape(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="toggleForceLandscape(); showDesktopToast('🔄 Ekran Döndürüldü'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">🔄</span>
                 <span class="anydesk-btn-label">Döndür</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleCinemaStretch(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="toggleCinemaStretch(); showDesktopToast('📺 En/Boy Değiştirildi'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">📺</span>
                 <span class="anydesk-btn-label">En/Boy</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="resetZoom(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="resetZoom(); showDesktopToast('🔍 Zoom 1x'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">🔍</span>
                 <span class="anydesk-btn-label">Zoom 1x</span>
               </button>
@@ -967,7 +967,7 @@ window.addEventListener('error', function(e) {
                 <span class="anydesk-btn-icon">⚙️</span>
                 <span class="anydesk-btn-label">Ayarlar</span>
               </button>
-              <button class="anydesk-menu-btn btn-exit" onclick="exitDesktopFullscreen(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn btn-exit" onclick="exitDesktopFullscreen(); showDesktopToast('✕ Tam Ekrandan Çıkıldı'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">✕</span>
                 <span class="anydesk-btn-label">Çıkış</span>
               </button>
@@ -1784,6 +1784,80 @@ async function handleDesktopDropUpload(files) {
   }
 }
 
+// --- Toast & Visual Feedback Helper ---
+function showDesktopToast(text) {
+  let toast = document.getElementById("desktopToastNotification");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "desktopToastNotification";
+    toast.style.cssText = "position:fixed; top:24px; left:50%; transform:translateX(-50%); background:rgba(28,28,30,0.92); backdrop-filter:blur(25px); -webkit-backdrop-filter:blur(25px); color:#fff; padding:9px 20px; border-radius:30px; font-size:13.5px; font-weight:700; z-index:2000002; pointer-events:none; box-shadow:0 8px 30px rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.22); transition:opacity 0.22s, transform 0.22s; opacity:0;";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = text;
+  toast.style.opacity = "1";
+  toast.style.transform = "translateX(-50%) translateY(0)";
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateX(-50%) translateY(-12px)";
+  }, 1600);
+}
+
+let nextClickIsRight = false;
+function armNextRightClick() {
+  haptic();
+  nextClickIsRight = true;
+  showDesktopToast("✌️ Sonraki Dokunma: SAĞ TIK");
+  closeAnydeskMenu();
+}
+
+// Compute the true visible Windows screen geometry within container (accounting for letterbox/black bars)
+function getDesktopImageGeometry() {
+  const container = document.getElementById("desktopContainer");
+  const img = document.getElementById("desktopStreamImg");
+  const canvas = document.getElementById("desktopCanvas");
+  const target = (img && img.style.display !== "none") ? img : canvas;
+  
+  if (!container || !target) {
+    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight, offsetX: 0, offsetY: 0 };
+  }
+  
+  const cRect = container.getBoundingClientRect();
+  const cW = cRect.width || window.innerWidth;
+  const cH = cRect.height || window.innerHeight;
+  
+  if (container.classList.contains("is-stretched")) {
+    return { left: cRect.left, top: cRect.top, width: cW, height: cH, offsetX: 0, offsetY: 0 };
+  }
+
+  // Windows standard 16:9 aspect ratio
+  const targetAspect = 16 / 9;
+  const currentAspect = cW / cH;
+  
+  let renderW, renderH, offX, offY;
+  if (currentAspect > targetAspect) {
+    // Container is wider than 16:9 -> black bars on sides (left/right)
+    renderH = cH;
+    renderW = cH * targetAspect;
+    offX = (cW - renderW) / 2;
+    offY = 0;
+  } else {
+    // Container is taller than 16:9 -> black bars on top/bottom
+    renderW = cW;
+    renderH = cW / targetAspect;
+    offX = 0;
+    offY = (cH - renderH) / 2;
+  }
+  
+  return {
+    left: cRect.left + offX,
+    top: cRect.top + offY,
+    width: renderW,
+    height: renderH,
+    offsetX: offX,
+    offsetY: offY
+  };
+}
+
 // Interactive Desktop Touch & Focal-Point Zoom Engine
 window.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById("desktopContainer");
@@ -1826,13 +1900,13 @@ window.addEventListener('DOMContentLoaded', () => {
       
       const t1 = ev.touches[0];
       const t2 = ev.touches[1];
-      const rect = container.getBoundingClientRect();
+      const geom = getDesktopImageGeometry();
       initialPinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       initialScale = currentZoomScale;
       
-      // Calculate focal midpoint in container coordinates
-      initialFocalX = (t1.clientX + t2.clientX) / 2 - rect.left;
-      initialFocalY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      // Calculate focal midpoint anchored strictly to Windows desktop content
+      initialFocalX = (t1.clientX + t2.clientX) / 2 - geom.left;
+      initialFocalY = (t1.clientY + t2.clientY) / 2 - geom.top;
       initialPanX = panOffsetX;
       initialPanY = panOffsetY;
     } else if (ev.touches.length === 1 && currentZoomScale > 1.05) {
@@ -1846,21 +1920,22 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!settingPinchZoomEnabled) return;
 
     if (ev.touches.length === 2 && isPinching && initialPinchDist > 0) {
+      ev.preventDefault();
       const t1 = ev.touches[0];
       const t2 = ev.touches[1];
-      const rect = container.getBoundingClientRect();
+      const geom = getDesktopImageGeometry();
       const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       const factor = newDist / initialPinchDist;
       
-      const newScale = Math.max(1.0, Math.min(5.0, initialScale * factor));
-      const curFocalX = (t1.clientX + t2.clientX) / 2 - rect.left;
-      const curFocalY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      const newScale = Math.max(1.0, Math.min(6.0, initialScale * factor));
+      const curFocalX = (t1.clientX + t2.clientX) / 2 - geom.left;
+      const curFocalY = (t1.clientY + t2.clientY) / 2 - geom.top;
 
-      // The exact image point under the initial pinch center
+      // Exact unscaled desktop point under initial pinch center
       const imgPointX = (initialFocalX - initialPanX) / initialScale;
       const imgPointY = (initialFocalY - initialPanY) / initialScale;
 
-      // Pan offset calculated so the focal point stays locked under fingers
+      // Pan offset dynamically solved so point under fingers remains stationary
       const targetPanX = curFocalX - imgPointX * newScale;
       const targetPanY = curFocalY - imgPointY * newScale;
 
@@ -1870,23 +1945,24 @@ window.addEventListener('DOMContentLoaded', () => {
         panOffsetY = 0;
         currentZoomScale = 1.0;
       } else {
-        const minPanX = rect.width * (1 - currentZoomScale);
-        const minPanY = rect.height * (1 - currentZoomScale);
+        const minPanX = geom.width * (1 - currentZoomScale);
+        const minPanY = geom.height * (1 - currentZoomScale);
         panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
         panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
       }
       applyZoomTransform(false);
     } else if (ev.touches.length === 1 && isPanning && currentZoomScale > 1.05) {
-      const rect = container.getBoundingClientRect();
+      ev.preventDefault();
+      const geom = getDesktopImageGeometry();
       const targetPanX = ev.touches[0].clientX - panStartX;
       const targetPanY = ev.touches[0].clientY - panStartY;
-      const minPanX = rect.width * (1 - currentZoomScale);
-      const minPanY = rect.height * (1 - currentZoomScale);
+      const minPanX = geom.width * (1 - currentZoomScale);
+      const minPanY = geom.height * (1 - currentZoomScale);
       panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
       panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
       applyZoomTransform(false);
     }
-  }, { passive: true });
+  }, { passive: false });
 
   container.addEventListener('touchend', (ev) => {
     if (ev.touches.length < 2) {
@@ -1903,25 +1979,27 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function checkDoubleTap(ev) {
     const now = Date.now();
-    const rect = container.getBoundingClientRect();
-    const tapX = ev.clientX - rect.left;
-    const tapY = ev.clientY - rect.top;
+    const geom = getDesktopImageGeometry();
+    const tapX = ev.clientX - geom.left;
+    const tapY = ev.clientY - geom.top;
 
-    if (now - lastTapTime < 300 && Math.hypot(tapX - lastTapX, tapY - lastTapY) < 35) {
+    if (now - lastTapTime < 320 && Math.hypot(tapX - lastTapX, tapY - lastTapY) < 40) {
       lastTapTime = 0;
       haptic();
       if (currentZoomScale > 1.2) {
+        showDesktopToast("🔍 1.0x Zoom");
         resetZoom();
       } else {
-        // Zoom to 2.5x centered at tap location!
+        // Zoom to 2.5x anchored right at the tapped spot!
         const targetScale = 2.5;
         const targetPanX = tapX - tapX * targetScale;
         const targetPanY = tapY - tapY * targetScale;
-        const minPanX = rect.width * (1 - targetScale);
-        const minPanY = rect.height * (1 - targetScale);
+        const minPanX = geom.width * (1 - targetScale);
+        const minPanY = geom.height * (1 - targetScale);
         currentZoomScale = targetScale;
         panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
         panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
+        showDesktopToast("🔍 2.5x Yakınlaştı");
         applyZoomTransform(true);
       }
       return true;
@@ -1933,25 +2011,18 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCoords(ev) {
-    const rect = container.getBoundingClientRect();
-    const rawX = ev.clientX - rect.left;
-    const rawY = ev.clientY - rect.top;
+    const geom = getDesktopImageGeometry();
+    const rawX = ev.clientX - geom.left;
+    const rawY = ev.clientY - geom.top;
 
-    // Convert raw touch back to unscaled container pixel
+    // Convert raw touch back to unscaled Windows desktop pixel
     const unscaledX = (rawX - panOffsetX) / currentZoomScale;
     const unscaledY = (rawY - panOffsetY) / currentZoomScale;
 
-    let x_pct, y_pct;
-    if (container.classList.contains("is-landscape-force")) {
-      const relX = unscaledX / rect.width;
-      const relY = unscaledY / rect.height;
-      x_pct = Math.max(0, Math.min(1, relY));
-      y_pct = Math.max(0, Math.min(1, 1 - relX));
-    } else {
-      x_pct = Math.max(0, Math.min(1, unscaledX / rect.width));
-      y_pct = Math.max(0, Math.min(1, unscaledY / rect.height));
-    }
-    return { x_pct, y_pct, clickX: rawX, clickY: rawY };
+    const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
+    const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
+
+    return { x_pct, y_pct, clickX: ev.clientX, clickY: ev.clientY };
   }
 
   container.addEventListener('pointerdown', (ev) => {
@@ -1988,6 +2059,7 @@ window.addEventListener('DOMContentLoaded', () => {
     longPressTimer = setTimeout(() => {
       if (!isPanning && !isPinching) {
         haptic();
+        showDesktopToast("✌️ Sağ Tık Yapıldı");
         sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: "right" });
       }
       longPressTimer = null;
@@ -2032,7 +2104,8 @@ window.addEventListener('DOMContentLoaded', () => {
       const dist = Math.hypot(ev.clientX - touchStartX, ev.clientY - touchStartY);
       if (dist < 6) {
         haptic();
-        sendDesktopAction({ action: "touch_click", button: "left" });
+        sendDesktopAction({ action: "touch_click", button: nextClickIsRight ? "right" : "left" });
+        if (nextClickIsRight) nextClickIsRight = false;
       }
       return;
     }
@@ -2040,7 +2113,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       const { x_pct, y_pct } = getCoords(ev);
-      sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: "left" });
+      const clickBtn = nextClickIsRight ? "right" : "left";
+      if (nextClickIsRight) {
+        showDesktopToast("✌️ Sağ Tık Yapıldı");
+        nextClickIsRight = false;
+      }
+      sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: clickBtn });
     }
     isDragging = false;
     longPressTimer = null;
