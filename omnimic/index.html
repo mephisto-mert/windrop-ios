@@ -263,19 +263,17 @@
                 try {
                     const ctrl = new AbortController();
                     const timeoutId = setTimeout(() => ctrl.abort(), 1200);
-                    const probe = await fetch(c.url + '/install', { method: 'HEAD', signal: ctrl.signal });
+                    const probe = await fetch(c.url + '/install', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
                     clearTimeout(timeoutId);
-                    if (probe.ok || probe.status === 200 || probe.status === 404) {
-                        console.log("[+] Active endpoint found:", c);
-                        connectWebSocket(c.url, c.label);
-                        return;
-                    }
+                    console.log("[+] Active endpoint found via fetch:", c);
+                    connectWebSocket(c.url, c.label);
+                    return;
                 } catch(err) {
                     // Try next candidate
                 }
             }
 
-            // Fallback: If probing fetch was blocked by CORS, try direct WebSocket connection to candidate
+            // Fallback: Direct WebSocket connection to candidate
             for (let c of candidates) {
                 const connected = await tryWsProbe(c.url, c.label);
                 if (connected) return;
@@ -290,13 +288,18 @@
                 const wsProto = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
                 const host = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
                 const wsUrl = `${wsProto}//${host}/ws/audio`;
-                let testWs = new WebSocket(wsUrl);
+                let testWs;
+                try {
+                    testWs = new WebSocket(wsUrl);
+                } catch(e) {
+                    return resolve(false);
+                }
                 let resolved = false;
 
                 testWs.onopen = () => {
                     if (!resolved) {
                         resolved = true;
-                        testWs.close();
+                        try { testWs.close(); } catch(e){}
                         connectWebSocket(baseUrl, label);
                         resolve(true);
                     }
@@ -304,6 +307,7 @@
                 testWs.onerror = () => {
                     if (!resolved) {
                         resolved = true;
+                        try { testWs.close(); } catch(e){}
                         resolve(false);
                     }
                 };
@@ -313,11 +317,14 @@
                         try { testWs.close(); } catch(e){}
                         resolve(false);
                     }
-                }, 1500);
+                }, 1800);
             });
         }
 
         function connectWebSocket(baseUrl, label) {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
             activeBaseUrl = baseUrl;
             const wsProto = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
             const host = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -330,7 +337,15 @@
                 ws.onopen = () => {
                     console.log("[+] Audio WebSocket Connected to", wsUrl);
                     setStatus(true, '🟢 Bağlandı [' + label + ']');
-                    ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
+                    
+                    const safeSendRegister = () => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            try {
+                                ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
+                            } catch(err){}
+                        }
+                    };
+                    setTimeout(safeSendRegister, 50);
                     showToast('🟢 Stüdyoya Bağlandı (' + label + ')!', true);
                 };
 
@@ -397,7 +412,7 @@
                     document.getElementById('level-fill').style.width = meterPct + '%';
 
                     if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(pcm16.buffer);
+                        try { ws.send(pcm16.buffer); } catch(e){}
                     }
                 };
 
