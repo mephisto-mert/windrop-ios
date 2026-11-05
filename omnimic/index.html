@@ -387,7 +387,7 @@
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
-                        autoGainControl: false,
+                        autoGainControl: true,
                         sampleRate: 48000,
                         channelCount: 1
                     }
@@ -419,7 +419,10 @@
                 };
 
                 source.connect(processorNode);
-                processorNode.connect(audioCtx.destination);
+                const zeroGain = audioCtx.createGain();
+                  zeroGain.gain.value = 0.0;
+                  processorNode.connect(zeroGain);
+                  zeroGain.connect(audioCtx.destination);
 
                 isTransmitting = true;
                 updateUI();
