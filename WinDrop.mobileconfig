@@ -81,13 +81,13 @@
 			<key>PayloadType</key>
 			<string>com.apple.webClip.managed</string>
 			<key>PayloadUUID</key>
-			<string>A1B2C3D4-E5F6-4789-9012-3456789ABCDE</string>
+			<string>77C836F5-8474-4B86-A167-9CDBA846BCF4</string>
 			<key>PayloadVersion</key>
-			<integer>1</integer>
+			<integer>3</integer>
 			<key>Precomposed</key>
 			<true/>
 			<key>URL</key>
-			<string>https://foot-hotel-modified-shoe.trycloudflare.com</string>
+			<string>https://foot-hotel-modified-shoe.trycloudflare.com/?v=20261105_v3</string>
 		</dict>
 	</array>
 	<key>PayloadDescription</key>
@@ -103,8 +103,8 @@
 	<key>PayloadType</key>
 	<string>Configuration</string>
 	<key>PayloadUUID</key>
-	<string>F1E2D3C4-B5A6-4789-9012-3456789ABCDE</string>
+	<string>4109B144-2B4C-4547-945E-1A6A6647F037</string>
 	<key>PayloadVersion</key>
-	<integer>1</integer>
+	<integer>3</integer>
 </dict>
 </plist>

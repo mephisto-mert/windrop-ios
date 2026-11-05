@@ -917,57 +917,65 @@ window.addEventListener('error', function(e) {
         <div id="desktopRipple" style="position:absolute; width:34px; height:34px; border-radius:50%; background:rgba(10,132,255,0.4); border:2px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:20; box-shadow:0 0 15px #0A84FF;"></div>
 
         <!-- AnyDesk-Style Floating Action Bubble (FAB) & Menu -->
-        <div id="anydeskFabContainer" class="anydesk-fab-container" onclick="event.stopPropagation()">
+        <div id="anydeskFabContainer" class="anydesk-fab-container" 
+             onpointerdown="event.stopPropagation()" 
+             ontouchstart="event.stopPropagation()" 
+             onmousedown="event.stopPropagation()" 
+             onclick="event.stopPropagation()">
           <button id="anydeskFabBtn" class="anydesk-fab-btn" onclick="toggleAnydeskMenu(event)" title="WinDrop Menü">
             <span class="anydesk-fab-icon">⚡</span>
           </button>
-          <div id="anydeskFabMenu" class="anydesk-fab-menu">
+          <div id="anydeskFabMenu" class="anydesk-fab-menu" 
+               onpointerdown="event.stopPropagation()" 
+               ontouchstart="event.stopPropagation()" 
+               onmousedown="event.stopPropagation()" 
+               onclick="event.stopPropagation()">
             <div class="anydesk-menu-header">
               <span style="font-size:12px; font-weight:700; color:#fff;">⚡ WinDrop Kontrol</span>
               <button class="anydesk-menu-close" onclick="closeAnydeskMenu()">✕</button>
             </div>
             <div class="anydesk-menu-grid">
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('win'); showDesktopToast('⊞ Başlat Menüsü'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('win'); showDesktopToast('⊞ Başlat Menüsü'); setTimeout(closeAnydeskMenu, 180);">
                 <span class="anydesk-btn-icon">⊞</span>
                 <span class="anydesk-btn-label">Başlat</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="armNextRightClick();">
+              <button class="anydesk-menu-btn" onclick="haptic(); armNextRightClick(); setTimeout(closeAnydeskMenu, 180);">
                 <span class="anydesk-btn-icon">✌️</span>
                 <span class="anydesk-btn-label">Sağ Tık</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('alt+tab'); showDesktopToast('⇄ Alt+Tab'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('alt+tab'); showDesktopToast('⇄ Alt+Tab'); setTimeout(closeAnydeskMenu, 180);">
                 <span class="anydesk-btn-icon">⇄</span>
                 <span class="anydesk-btn-label">Alt+Tab</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('win+d'); showDesktopToast('💻 Masaüstü'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('win+d'); showDesktopToast('💻 Masaüstü'); setTimeout(closeAnydeskMenu, 180);">
                 <span class="anydesk-btn-icon">💻</span>
                 <span class="anydesk-btn-label">Masaüstü</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="sendRemoteCombo('ctrl+shift+esc'); showDesktopToast('⚡ Görev Yöneticisi'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('ctrl+shift+esc'); showDesktopToast('⚡ Görev Yöneticisi'); setTimeout(closeAnydeskMenu, 180);">
                 <span class="anydesk-btn-icon">⚡</span>
                 <span class="anydesk-btn-label">Görev Yön.</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleKeyboardInput(); showDesktopToast('⌨️ Klavye'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); toggleKeyboardInput(); showDesktopToast('⌨️ Klavye'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⌨️</span>
                 <span class="anydesk-btn-label">Klavye</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleForceLandscape(); showDesktopToast('🔄 Ekran Döndürüldü'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); toggleForceLandscape(); showDesktopToast('🔄 Ekran Döndürüldü'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">🔄</span>
                 <span class="anydesk-btn-label">Döndür</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleCinemaStretch(); showDesktopToast('📺 En/Boy Değiştirildi'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); toggleCinemaStretch(); showDesktopToast('📺 En/Boy Değiştirildi'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">📺</span>
                 <span class="anydesk-btn-label">En/Boy</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="resetZoom(); showDesktopToast('🔍 Zoom 1x'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); resetZoom(); showDesktopToast('🔍 Zoom 1x'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">🔍</span>
                 <span class="anydesk-btn-label">Zoom 1x</span>
               </button>
-              <button class="anydesk-menu-btn" onclick="toggleSettingsDrawer(); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn" onclick="haptic(); toggleSettingsDrawer(); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⚙️</span>
                 <span class="anydesk-btn-label">Ayarlar</span>
               </button>
-              <button class="anydesk-menu-btn btn-exit" onclick="exitDesktopFullscreen(); showDesktopToast('✕ Tam Ekrandan Çıkıldı'); closeAnydeskMenu();">
+              <button class="anydesk-menu-btn btn-exit" onclick="haptic(); exitDesktopFullscreen(); showDesktopToast('✕ Tam Ekrandan Çıkıldı'); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">✕</span>
                 <span class="anydesk-btn-label">Çıkış</span>
               </button>
@@ -990,21 +998,42 @@ window.addEventListener('error', function(e) {
         <div style="font-size:11px; color:var(--sub); font-family:monospace;" id="desktopFpsText">~15 FPS • 35ms</div>
       </div>
 
-      <!-- Expandable Keyboard Input Drawer -->
-      <div id="keyboardDrawer" style="display:none; margin-top:8px; padding:10px; background:rgba(0,0,0,0.5); border-radius:12px; border:0.5px solid var(--border);">
-        <div style="display:flex; gap:6px;">
-          <input id="keyboardRealInput" type="text" placeholder="Buraya yaz, Windows'ta anında yazılsın..." style="flex:1; background:rgba(255,255,255,0.08); border:0.5px solid var(--border); border-radius:10px; color:#fff; padding:10px 12px; font-size:13px; outline:none;" onkeydown="handleRealKeyDown(event)">
-          <button class="action-btn action-btn-primary" style="padding:8px 14px; flex-direction:row;" onclick="sendKeyboardDrawerText()">
+      <!-- Universal High-Z-Index Floating Keyboard Overlay -->
+      <div id="keyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:2000005; background:rgba(20,20,26,0.97); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-top:1px solid rgba(255,255,255,0.22); border-radius:24px 24px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom, 12px)); box-shadow:0 -10px 40px rgba(0,0,0,0.85);" onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
+        <!-- Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:15px; font-weight:700; color:#fff;">⌨️ Windows Klavye</span>
+            <span style="font-size:11px; color:#30D158; background:rgba(48,209,88,0.15); padding:2px 8px; border-radius:999px;">Canlı Giriş</span>
+          </div>
+          <button class="key-pill" style="padding:6px 14px; background:rgba(255,255,255,0.15); color:#fff; border-radius:999px; font-weight:600;" onclick="toggleKeyboardInput()">✕ Kapat</button>
+        </div>
+        
+        <!-- Live Input Field -->
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input id="keyboardRealInput" type="text" placeholder="Yaz ve Gönder'e bas..." style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:#fff; padding:12px 14px; font-size:16px; outline:none; -webkit-user-select:text; user-select:text;" onkeydown="handleRealKeyDown(event)">
+          <button class="action-btn action-btn-primary" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; flex-shrink:0;" onclick="sendKeyboardDrawerText()">
             <span>↵ Gönder</span>
           </button>
         </div>
-        <div style="display:flex; gap:6px; margin-top:8px;">
-          <button class="key-pill" onclick="sendRemoteKey('enter')">↵ Enter</button>
-          <button class="key-pill" onclick="sendRemoteKey('backspace')">⌫ Sil</button>
-          <button class="key-pill" onclick="sendRemoteKey('esc')">Esc</button>
-          <button class="key-pill" onclick="sendRemoteKey('tab')">Tab</button>
-          <button class="key-pill" onclick="sendRemoteCombo('ctrl+c')">Ctrl+C</button>
-          <button class="key-pill" onclick="sendRemoteCombo('ctrl+v')">Ctrl+V</button>
+
+        <!-- Key Row 1 -->
+        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-bottom:6px;">
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('enter')">↵ Enter</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('backspace')">⌫ Sil</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('esc')">Esc</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('tab')">Tab</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('space')">␣ Boşluk</button>
+        </div>
+
+        <!-- Key Row 2 -->
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('win')">⊞ Win</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+c')">Ctrl+C</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+v')">Ctrl+V</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+z')">Ctrl+Z</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+a')">Ctrl+A</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center; color:#FF453A;" onclick="sendRemoteKey('delete')">Del</button>
         </div>
       </div>
 
@@ -1406,15 +1435,24 @@ function startHttpFrameFallback() {
 }
 
 function sendDesktopAction(actionObj) {
+  if (!actionObj || !actionObj.action) return;
+  actionObj.t = Date.now();
+  let wsSuccess = false;
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
-    desktopWS.send(JSON.stringify(actionObj));
-  } else {
+    try {
+      desktopWS.send(JSON.stringify(actionObj));
+      wsSuccess = true;
+    } catch (e) {}
+  }
+  // Parallel or fallback HTTP POST to guarantee delivery even if WS is reconnecting
+  try {
     fetch(API_BASE + "/api/remote/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(actionObj)
+      body: JSON.stringify(actionObj),
+      keepalive: true
     }).catch(() => {});
-  }
+  } catch (e) {}
 }
 
 function sendRemoteKey(key) {
@@ -1437,11 +1475,15 @@ function toggleKeyboardInput() {
   const drawer = document.getElementById("keyboardDrawer");
   const input = document.getElementById("keyboardRealInput");
   if (!drawer) return;
-  if (drawer.style.display === "none" || !drawer.style.display) {
-    drawer.style.display = "block";
-    if (input) input.focus();
-  } else {
-    drawer.style.display = "none";
+  const isHidden = (drawer.style.display === "none" || !drawer.style.display);
+  drawer.style.display = isHidden ? "block" : "none";
+  if (isHidden) {
+    setTimeout(() => {
+      if (input) {
+        input.focus();
+        input.click();
+      }
+    }, 120);
   }
 }
 
@@ -2011,42 +2053,126 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCoords(ev) {
+    const container = document.getElementById("desktopContainer");
     const geom = getDesktopImageGeometry();
-    const rawX = ev.clientX - geom.left;
-    const rawY = ev.clientY - geom.top;
+    const isRotated = container && container.classList.contains("is-landscape-force");
 
-    // Convert raw touch back to unscaled Windows desktop pixel
-    const unscaledX = (rawX - panOffsetX) / currentZoomScale;
-    const unscaledY = (rawY - panOffsetY) / currentZoomScale;
+    let clientX = (ev.clientX !== undefined) ? ev.clientX : 0;
+    let clientY = (ev.clientY !== undefined) ? ev.clientY : 0;
+    if (ev.touches && ev.touches.length > 0) {
+      clientX = ev.touches[0].clientX;
+      clientY = ev.touches[0].clientY;
+    } else if (ev.changedTouches && ev.changedTouches.length > 0) {
+      clientX = ev.changedTouches[0].clientX;
+      clientY = ev.changedTouches[0].clientY;
+    }
 
-    const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
-    const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
+    if (isRotated) {
+      // Screen dimensions and center
+      const vW = window.innerWidth;
+      const vH = window.innerHeight;
+      const cx = vW / 2;
+      const cy = vH / 2;
 
-    return { x_pct, y_pct, clickX: ev.clientX, clickY: ev.clientY };
+      // Distance from center of screen
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+
+      // Inverse of 90deg clockwise rotation:
+      // Rotated around center (0,0) by +90deg: x' = -y, y' = x
+      // Inverse rotation (-90deg): unrotX = dy, unrotY = -dx
+      const unrotX = dy;
+      const unrotY = -dx;
+
+      // In rotated mode, container element has width = vH and height = vW
+      const cW = vH;
+      const cH = vW;
+      const contX = (cW / 2) + unrotX;
+      const contY = (cH / 2) + unrotY;
+
+      // 16:9 projection inside unrotated (cW x cH) box
+      const targetAspect = 16 / 9;
+      const currentAspect = cW / cH;
+      let renderW, renderH, offX, offY;
+      if (container.classList.contains("is-stretched")) {
+        renderW = cW;
+        renderH = cH;
+        offX = 0;
+        offY = 0;
+      } else if (currentAspect > targetAspect) {
+        renderH = cH;
+        renderW = cH * targetAspect;
+        offX = (cW - renderW) / 2;
+        offY = 0;
+      } else {
+        renderW = cW;
+        renderH = cW / targetAspect;
+        offX = 0;
+        offY = (cH - renderH) / 2;
+      }
+
+      const imgX = (contX - offX - panOffsetX) / currentZoomScale;
+      const imgY = (contY - offY - panOffsetY) / currentZoomScale;
+
+      const x_pct = Math.max(0.0, Math.min(1.0, imgX / renderW));
+      const y_pct = Math.max(0.0, Math.min(1.0, imgY / renderH));
+      return { x_pct, y_pct, clickX: clientX, clickY: clientY };
+    } else {
+      // Normal unrotated view
+      const rawX = clientX - geom.left;
+      const rawY = clientY - geom.top;
+
+      const unscaledX = (rawX - panOffsetX) / currentZoomScale;
+      const unscaledY = (rawY - panOffsetY) / currentZoomScale;
+
+      const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
+      const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
+
+      return { x_pct, y_pct, clickX: clientX, clickY: clientY };
+    }
   }
 
-  container.addEventListener('pointerdown', (ev) => {
-    resetFabDimTimer();
-    closeAnydeskMenu();
+  let touchStartTime = 0;
+  let touchStartClientX = 0;
+  let touchStartClientY = 0;
+  let touchMovedFar = false;
+  let longPressFired = false;
 
+  container.addEventListener('pointerdown', (ev) => {
+    // Ignore if touch was inside floating menu, keyboard, or settings modal!
+    if (ev.target.closest('#anydeskFabContainer') || 
+        ev.target.closest('#keyboardDrawer') || 
+        ev.target.closest('#desktopSettingsModal')) {
+      return;
+    }
+
+    resetFabDimTimer();
+
+    // Check double tap for zoom
     if (ev.pointerType === 'touch' && checkDoubleTap(ev)) {
       return;
     }
 
+    touchStartTime = Date.now();
+    touchStartClientX = ev.clientX;
+    touchStartClientY = ev.clientY;
     touchStartX = ev.clientX;
     touchStartY = ev.clientY;
     lastTrackpadX = ev.clientX;
     lastTrackpadY = ev.clientY;
-    
+    touchMovedFar = false;
+    longPressFired = false;
+
     if (settingTrackpadEnabled) {
       return;
     }
 
-    const { x_pct, y_pct, clickX, clickY } = getCoords(ev);
+    const coords = getCoords(ev);
 
+    // Ripple visual indicator
     if (ripple && !isPanning && !isPinching) {
-      ripple.style.left = clickX + "px";
-      ripple.style.top = clickY + "px";
+      ripple.style.left = coords.clickX + "px";
+      ripple.style.top = coords.clickY + "px";
       ripple.style.opacity = "1";
       ripple.style.transform = "translate(-50%, -50%) scale(1.8)";
       setTimeout(() => {
@@ -2055,15 +2181,17 @@ window.addEventListener('DOMContentLoaded', () => {
       }, 250);
     }
 
-    haptic();
+    // Long press detection for Right Click (500ms)
+    if (longPressTimer) clearTimeout(longPressTimer);
     longPressTimer = setTimeout(() => {
-      if (!isPanning && !isPinching) {
+      if (!isPanning && !isPinching && !touchMovedFar) {
+        longPressFired = true;
         haptic();
         showDesktopToast("✌️ Sağ Tık Yapıldı");
-        sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: "right" });
+        sendDesktopAction({ action: "touch_click", x_pct: coords.x_pct, y_pct: coords.y_pct, button: "right" });
       }
       longPressTimer = null;
-    }, 450);
+    }, 500);
   });
 
   container.addEventListener('pointermove', (ev) => {
@@ -2080,18 +2208,26 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (longPressTimer && (Math.abs(ev.clientX - touchStartX) > 8 || Math.abs(ev.clientY - touchStartY) > 8)) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
+    const dist = Math.hypot(ev.clientX - touchStartClientX, ev.clientY - touchStartClientY);
+    if (dist > 18) {
+      touchMovedFar = true;
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
       isDragging = true;
-    }
-    if (isDragging) {
       const { x_pct, y_pct } = getCoords(ev);
       sendDesktopAction({ action: "mouse_move", x_pct, y_pct });
     }
   });
 
   container.addEventListener('pointerup', (ev) => {
+    if (ev.target.closest('#anydeskFabContainer') || 
+        ev.target.closest('#keyboardDrawer') || 
+        ev.target.closest('#desktopSettingsModal')) {
+      return;
+    }
+
     if (isPanning || isPinching) {
       isPanning = false;
       isPinching = false;
@@ -2100,9 +2236,20 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+
+    if (longPressFired) {
+      longPressFired = false;
+      isDragging = false;
+      return;
+    }
+
     if (settingTrackpadEnabled) {
       const dist = Math.hypot(ev.clientX - touchStartX, ev.clientY - touchStartY);
-      if (dist < 6) {
+      if (dist < 8) {
         haptic();
         sendDesktopAction({ action: "touch_click", button: nextClickIsRight ? "right" : "left" });
         if (nextClickIsRight) nextClickIsRight = false;
@@ -2110,18 +2257,23 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
+    // NATURAL TAP DETECTION:
+    // If touch moved less than 22px and lasted less than 550ms -> 100% RELIABLE CLICK!
+    const elapsed = Date.now() - touchStartTime;
+    const dist = Math.hypot(ev.clientX - touchStartClientX, ev.clientY - touchStartClientY);
+
+    if (!touchMovedFar && dist < 22 && elapsed < 550) {
       const { x_pct, y_pct } = getCoords(ev);
       const clickBtn = nextClickIsRight ? "right" : "left";
       if (nextClickIsRight) {
         showDesktopToast("✌️ Sağ Tık Yapıldı");
         nextClickIsRight = false;
       }
+      haptic();
       sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: clickBtn });
     }
+
     isDragging = false;
-    longPressTimer = null;
   });
 
   setInterval(() => {
