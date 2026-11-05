@@ -584,7 +584,9 @@ window.addEventListener('error', function(e) {
     display: none;
     touch-action: none;
   }
-  #desktopContainer.is-fullscreen .anydesk-fab-container {
+  #desktopContainer.is-fullscreen .anydesk-fab-container,
+  #tab-screen.active .anydesk-fab-container,
+  .anydesk-fab-container.is-visible {
     display: block !important;
   }
   .anydesk-fab-btn {
