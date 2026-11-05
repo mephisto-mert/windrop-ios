@@ -235,8 +235,11 @@
         }
 
         // --- ENDPOINT AUTO-DISCOVERY (USB -> LAN -> CLOUDFLARE) ---
+        let isDiscovering = false;
         async function discoverAndConnect() {
+            if (isDiscovering) return;
             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+            isDiscovering = true;
             setStatus(false, 'Sunucu Aranıyor...');
 
             let candidates = [
@@ -280,7 +283,7 @@
             }
 
             setStatus(false, 'Sunucuya Ulaşılamadı (Yeniden Deneniyor...)');
-            setTimeout(discoverAndConnect, 3000);
+            isDiscovering = false; setTimeout(discoverAndConnect, 3000);
         }
 
         function tryWsProbe(baseUrl, label) {
@@ -334,18 +337,17 @@
                 ws = new WebSocket(wsUrl);
                 ws.binaryType = 'arraybuffer';
 
-                ws.onopen = () => {
+                ws.onopen = function(event) {
+                    const socket = this;
+                    isDiscovering = false;
                     console.log("[+] Audio WebSocket Connected to", wsUrl);
                     setStatus(true, '🟢 Bağlandı [' + label + ']');
                     
-                    const safeSendRegister = () => {
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            try {
-                                ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
-                            } catch(err){}
+                    try {
+                        if (socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
                         }
-                    };
-                    setTimeout(safeSendRegister, 50);
+                    } catch(err){}
                     showToast('🟢 Stüdyoya Bağlandı (' + label + ')!', true);
                 };
 
@@ -360,7 +362,7 @@
                 };
             } catch(e) {
                 setStatus(false, 'Hata: ' + e.message);
-                setTimeout(discoverAndConnect, 3000);
+                isDiscovering = false; setTimeout(discoverAndConnect, 3000);
             }
         }
 
