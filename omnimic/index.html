@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="OmniMic">
+    <title>OmniMic Studio — Sovereign iOS</title>
+    <link rel="apple-touch-icon" href="../icon-180.png">
+    <style>
+        :root {
+            --bg: #07090e;
+            --card-bg: #111622;
+            --accent: #00f2fe;
+            --accent-purple: #a855f7;
+            --danger: #ef4444;
+            --success: #10b981;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            padding: max(env(safe-area-inset-top), 20px) 16px max(env(safe-area-inset-bottom), 24px) 16px;
+            overflow-x: hidden;
+        }
+        .header { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-online { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
+        .status-offline { background-color: var(--danger); }
+
+        .mic-btn-wrap {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        .pulse-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .transmitting .pulse-ring { animation: ring-pulse 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1); }
+        @keyframes ring-pulse {
+            0% { transform: scale(0.85); opacity: 0.8; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+        .mic-btn {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #1a2333, #0b1019);
+            border: 3px solid #334155;
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            transition: all 0.2s ease-in-out;
+            z-index: 2;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .mic-btn:active { transform: scale(0.95); }
+        .mic-btn * { pointer-events: none; }
+        .transmitting .mic-btn { border-color: var(--accent); box-shadow: 0 0 40px rgba(0, 242, 254, 0.4); }
+        .muted .mic-btn { border-color: var(--danger); box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+
+        .level-meter {
+            width: 100%;
+            max-width: 280px;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 8px 0 12px 0;
+        }
+        .level-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.05s ease-out; }
+
+        .controls-card {
+            width: 100%;
+            max-width: 360px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            margin-bottom: 10px;
+        }
+        .soundboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .sound-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: var(--text);
+            padding: 10px 8px;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .sound-btn:active { background: var(--accent); color: #000; transform: scale(0.97); }
+
+        .profile-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: var(--text);
+            padding: 9px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .profile-btn.active {
+            background: linear-gradient(135deg, #00f2fe, #4facfe);
+            color: #050b14;
+            border-color: #00f2fe;
+            font-weight: 800;
+        }
+
+        .toggle-btn {
+            width: 100%;
+            padding: 11px;
+            border-radius: 10px;
+            background: #1e293b;
+            color: var(--text);
+            border: 1px solid #334155;
+            font-weight: 700;
+            margin-top: 6px;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+        .toggle-btn.active { background: var(--accent-purple); color: white; border-color: var(--accent-purple); }
+        .btn-rec { background: var(--danger); border-color: var(--danger); color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display:flex; align-items:center; font-size:0.85rem; cursor:pointer;" onclick="discoverAndConnect()">
+            <span class="status-dot status-offline" id="status-dot"></span>
+            <span id="status-text">Sunucu Aranıyor...</span>
+        </div>
+        <div style="font-weight:800; font-size:0.9rem; color:var(--accent);">OmniMic Sovereign</div>
+    </div>
+
+    <div class="mic-btn-wrap" id="mic-wrap">
+        <div class="pulse-ring"></div>
+        <button class="mic-btn" id="mic-btn" onclick="toggleTransmission()">
+            <div style="font-size:3.2rem;" id="mic-icon">🎙️</div>
+            <div style="font-weight:800; font-size:1.1rem; letter-spacing:1px;" id="mic-label">BAŞLAT</div>
+        </button>
+    </div>
+
+    <div class="level-meter">
+        <div class="level-fill" id="level-fill"></div>
+    </div>
+    <div style="font-size:0.75rem; color:var(--text-dim); text-align:center; margin-bottom:10px;">
+        💡 Masaya yüzüstü çevirirsen <strong>otomatik sessize alınır</strong> (Flip-to-Mute).
+    </div>
+
+    <!-- SES PROFILLERI -->
+    <div class="controls-card">
+        <div style="font-size:0.78rem; font-weight:700; color:var(--text-dim); text-transform:uppercase;">🎚️ Canlı Ses Profili</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <button class="profile-btn active" id="prof-warm_podcast" onclick="sendProfile('warm_podcast')">🎙️ Podcast</button>
+            <button class="profile-btn" id="prof-tactical_fps" onclick="sendProfile('tactical_fps')">🎮 Gaming</button>
+            <button class="profile-btn" id="prof-walkie_talkie" onclick="sendProfile('walkie_talkie')">📻 Telsiz</button>
+            <button class="profile-btn" id="prof-studio_clean" onclick="sendProfile('studio_clean')">✨ Doğal</button>
+        </div>
+    </div>
+
+    <!-- SOUNDBOARD -->
+    <div class="controls-card">
+        <div style="font-size:0.78rem; font-weight:700; color:var(--text-dim); text-transform:uppercase;">📢 Soundboard & Kayıt</div>
+        <div class="soundboard-grid">
+            <button class="sound-btn" onclick="sendSound('horn')">📯 Airhorn</button>
+            <button class="sound-btn" onclick="sendSound('chime')">🔔 Zil</button>
+            <button class="sound-btn" onclick="sendSound('applause')">👏 Alkış</button>
+            <button class="sound-btn" onclick="sendSound('beep')">🤬 Bip</button>
+        </div>
+        <button class="toggle-btn btn-rec" id="phone-rec-btn" onclick="togglePhoneRecord()">🔴 Telefondan Kayıt Başlat</button>
+    </div>
+
+    <script>
+        let isTransmitting = false;
+        let isHardwareFlipped = false;
+        let activeBaseUrl = "";
+        let ws = null;
+        let audioCtx = null;
+        let mediaStream = null;
+        let processorNode = null;
+        let phoneId = "phone_" + Math.random().toString(36).substr(2, 6);
+
+        function showToast(msg, isSuccess = true) {
+            let toast = document.getElementById('omnimic-toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'omnimic-toast';
+                toast.style.cssText = 'position:fixed; top:18px; left:50%; transform:translateX(-50%); background:#0f172a; color:#f8fafc; border:1px solid #38bdf8; padding:10px 18px; border-radius:12px; font-size:0.85rem; font-weight:700; z-index:999999; box-shadow:0 8px 24px rgba(0,0,0,0.6); pointer-events:none; transition:all 0.25s ease; opacity:0; text-align:center; max-width:90%;';
+                document.body.appendChild(toast);
+            }
+            toast.innerText = msg;
+            toast.style.borderColor = isSuccess ? '#10b981' : '#ef4444';
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+            if (window._toastTimer) clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(-50%) translateY(-10px)';
+            }, 2600);
+        }
+
+        function setStatus(online, text) {
+            const dot = document.getElementById('status-dot');
+            const lbl = document.getElementById('status-text');
+            if (dot) dot.className = online ? 'status-dot status-online' : 'status-dot status-offline';
+            if (lbl) lbl.innerText = text;
+        }
+
+        // --- ENDPOINT AUTO-DISCOVERY (USB -> LAN -> CLOUDFLARE) ---
+        async function discoverAndConnect() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+            setStatus(false, 'Sunucu Aranıyor...');
+
+            let candidates = [
+                { url: "https://172.20.10.3:8443", label: "USB Kablolu (1ms)" },
+                { url: "https://192.168.1.158:8443", label: "Wi-Fi (Yerel Ağ)" }
+            ];
+
+            try {
+                // Fetch dynamic cloud tunnel from live_endpoint.json
+                const res = await fetch('./live_endpoint.json?t=' + Date.now(), { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.primary) {
+                        candidates.push({ url: data.primary, label: "Bulut Tüneli" });
+                    }
+                }
+            } catch(e) {
+                console.warn("Could not read live_endpoint.json:", e);
+            }
+
+            console.log("Probing candidates:", candidates);
+
+            for (let c of candidates) {
+                try {
+                    const ctrl = new AbortController();
+                    const timeoutId = setTimeout(() => ctrl.abort(), 1200);
+                    const probe = await fetch(c.url + '/install', { method: 'HEAD', signal: ctrl.signal });
+                    clearTimeout(timeoutId);
+                    if (probe.ok || probe.status === 200 || probe.status === 404) {
+                        console.log("[+] Active endpoint found:", c);
+                        connectWebSocket(c.url, c.label);
+                        return;
+                    }
+                } catch(err) {
+                    // Try next candidate
+                }
+            }
+
+            // Fallback: If probing fetch was blocked by CORS, try direct WebSocket connection to candidate
+            for (let c of candidates) {
+                const connected = await tryWsProbe(c.url, c.label);
+                if (connected) return;
+            }
+
+            setStatus(false, 'Sunucuya Ulaşılamadı (Yeniden Deneniyor...)');
+            setTimeout(discoverAndConnect, 3000);
+        }
+
+        function tryWsProbe(baseUrl, label) {
+            return new Promise((resolve) => {
+                const wsProto = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
+                const host = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                const wsUrl = `${wsProto}//${host}/ws/audio`;
+                let testWs = new WebSocket(wsUrl);
+                let resolved = false;
+
+                testWs.onopen = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        testWs.close();
+                        connectWebSocket(baseUrl, label);
+                        resolve(true);
+                    }
+                };
+                testWs.onerror = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        resolve(false);
+                    }
+                };
+                setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        try { testWs.close(); } catch(e){}
+                        resolve(false);
+                    }
+                }, 1500);
+            });
+        }
+
+        function connectWebSocket(baseUrl, label) {
+            activeBaseUrl = baseUrl;
+            const wsProto = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
+            const host = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+            const wsUrl = `${wsProto}//${host}/ws/audio`;
+
+            try {
+                ws = new WebSocket(wsUrl);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = () => {
+                    console.log("[+] Audio WebSocket Connected to", wsUrl);
+                    setStatus(true, '🟢 Bağlandı [' + label + ']');
+                    ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
+                    showToast('🟢 Stüdyoya Bağlandı (' + label + ')!', true);
+                };
+
+                ws.onclose = () => {
+                    setStatus(false, '🔴 Bağlantı Kesildi (Yeniden Bağlanılıyor...)');
+                    setTimeout(discoverAndConnect, 2500);
+                };
+
+                ws.onerror = (e) => {
+                    console.warn("WS error:", e);
+                    try { ws.close(); } catch(err){}
+                };
+            } catch(e) {
+                setStatus(false, 'Hata: ' + e.message);
+                setTimeout(discoverAndConnect, 3000);
+            }
+        }
+
+        async function toggleTransmission() {
+            if (isTransmitting) {
+                stopTransmission();
+            } else {
+                startTransmission();
+            }
+        }
+
+        async function startTransmission() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+                }
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 48000,
+                        channelCount: 1
+                    }
+                });
+
+                const source = audioCtx.createMediaStreamSource(mediaStream);
+                const bufferSize = 1024;
+                processorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+                processorNode.onaudioprocess = (e) => {
+                    if (!isTransmitting || isHardwareFlipped) return;
+                    const inputData = e.inputBuffer.getChannelData(0);
+
+                    let sum = 0;
+                    const pcm16 = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        let s = Math.max(-1, Math.min(1, inputData[i]));
+                        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        sum += s * s;
+                    }
+
+                    const rms = Math.sqrt(sum / inputData.length);
+                    const meterPct = Math.min(100, Math.round(rms * 400));
+                    document.getElementById('level-fill').style.width = meterPct + '%';
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(pcm16.buffer);
+                    }
+                };
+
+                source.connect(processorNode);
+                processorNode.connect(audioCtx.destination);
+
+                isTransmitting = true;
+                updateUI();
+                showToast("🎙️ Mikrofon Yayını Başlatıldı!", true);
+            } catch(e) {
+                alert("Mikrofon Hatası: " + e.message);
+            }
+        }
+
+        function stopTransmission() {
+            isTransmitting = false;
+            if (processorNode) {
+                processorNode.disconnect();
+                processorNode = null;
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(t => t.stop());
+                mediaStream = null;
+            }
+            document.getElementById('level-fill').style.width = '0%';
+            updateUI();
+            showToast("⏹️ Mikrofon Susturuldu", false);
+        }
+
+        function updateUI() {
+            const btn = document.getElementById('mic-btn');
+            const wrap = document.getElementById('mic-wrap');
+            const lbl = document.getElementById('mic-label');
+            const ico = document.getElementById('mic-icon');
+
+            if (isTransmitting && !isHardwareFlipped) {
+                wrap.className = 'mic-btn-wrap transmitting';
+                lbl.innerText = 'YAYINDA';
+                ico.innerText = '🔴';
+            } else if (isHardwareFlipped) {
+                wrap.className = 'mic-btn-wrap muted';
+                lbl.innerText = 'FLIP MUTE';
+                ico.innerText = '🤫';
+            } else {
+                wrap.className = 'mic-btn-wrap';
+                lbl.innerText = 'BAŞLAT';
+                ico.innerText = '🎙️';
+            }
+        }
+
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (e) => {
+                const beta = Math.abs(e.beta || 0);
+                if (beta > 155 && !isHardwareFlipped) {
+                    isHardwareFlipped = true;
+                    updateUI();
+                } else if (beta < 135 && isHardwareFlipped) {
+                    isHardwareFlipped = false;
+                    updateUI();
+                }
+            });
+        }
+
+        function togglePhoneRecord() {
+            if (!activeBaseUrl) {
+                showToast("Önce sunucuya bağlanılmalı", false);
+                return;
+            }
+            fetch(activeBaseUrl + '/api/record/toggle', { method: 'POST' })
+                .then(r => r.json())
+                .then(d => {
+                    const btn = document.getElementById('phone-rec-btn');
+                    if (d.recording) {
+                        btn.innerText = '⏹️ Kaydı Durdur (' + (d.filename || 'Aktif') + ')';
+                        btn.style.background = '#334155';
+                        showToast('🔴 Stüdyo Kaydı Başlatıldı!', true);
+                    } else {
+                        btn.innerText = '🔴 Telefondan Kayıt Başlat';
+                        btn.style.background = 'var(--danger)';
+                        const s = d.duration_s ? d.duration_s.toFixed(1) : '0';
+                        showToast("✅ Kayıt PCye Kaydedildi (" + s + " sn)!", true);
+                    }
+                })
+                .catch(() => showToast('❌ Kayıt komutu iletilemedi', false));
+        }
+
+        function sendProfile(name) {
+            if (!activeBaseUrl) return;
+            fetch(activeBaseUrl + '/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile: name }) })
+                .then(r => r.json())
+                .then(() => {
+                    document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+                    const target = document.getElementById('prof-' + name);
+                    if (target) target.classList.add('active');
+                    showToast('🎚️ Profil Değiştirildi', true);
+                })
+                .catch(() => showToast('❌ Profil uygulanamadı', false));
+        }
+
+        function sendSound(name) {
+            if (!activeBaseUrl) return;
+            fetch(activeBaseUrl + '/api/soundboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sound: name }) })
+                .then(r => r.json())
+                .then(() => showToast('📢 Soundboard Çalındı', true))
+                .catch(() => showToast('❌ Ses iletilemedi', false));
+        }
+
+        // --- LIFECYCLE AUTO CONNECT ---
+        window.addEventListener('DOMContentLoaded', discoverAndConnect);
+        window.addEventListener('load', discoverAndConnect);
+        window.addEventListener('pageshow', discoverAndConnect);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') discoverAndConnect();
+        });
+        setInterval(() => {
+            if (!ws || (ws.readyState !== WebSocket.OPEN && ws.readyState !== WebSocket.CONNECTING)) {
+                discoverAndConnect();
+            }
+        }, 4000);
+    </script>
+</body>
+</html>
