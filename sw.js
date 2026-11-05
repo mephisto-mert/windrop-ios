@@ -1,4 +1,4 @@
-const CACHE_NAME = 'windrop-native-v12';
+const CACHE_NAME = 'windrop-native-v13';
 const SHELL_ASSETS = ['./', './index.html', './manifest.json', './icon-180.png'];
 
 self.addEventListener('install', (e) => {
