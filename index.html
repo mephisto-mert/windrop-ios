@@ -968,6 +968,18 @@ window.addEventListener('error', function(e) {
                 <span class="anydesk-btn-icon">🔍</span>
                 <span class="anydesk-btn-label">Zoom 1x</span>
               </button>
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('alt+f4'); showDesktopToast('✕ Pencere Kapatıldı'); setTimeout(closeAnydeskMenu, 180);">
+                <span class="anydesk-btn-icon">✕</span>
+                <span class="anydesk-btn-label">Pencere Kapat</span>
+              </button>
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteCombo('f5'); showDesktopToast('🔄 Sayfa Yenilendi'); setTimeout(closeAnydeskMenu, 180);">
+                <span class="anydesk-btn-icon">🔄</span>
+                <span class="anydesk-btn-label">Yenile (F5)</span>
+              </button>
+              <button class="anydesk-menu-btn" onclick="haptic(); sendRemoteKey('esc'); showDesktopToast('⎋ Esc'); setTimeout(closeAnydeskMenu, 180);">
+                <span class="anydesk-btn-icon">⎋</span>
+                <span class="anydesk-btn-label">Esc</span>
+              </button>
               <button class="anydesk-menu-btn" onclick="haptic(); toggleSettingsDrawer(); closeAnydeskMenu();">
                 <span class="anydesk-btn-icon">⚙️</span>
                 <span class="anydesk-btn-label">Ayarlar</span>
@@ -1905,6 +1917,16 @@ window.addEventListener('DOMContentLoaded', () => {
   if (imgStream) {
     imgStream.addEventListener('load', syncFrameToCanvasAndVideo);
   }
+  // Guarantee keyboardDrawer and desktopSettingsModal stay in document.body on top of fullscreen
+  const kbDrawer = document.getElementById("keyboardDrawer");
+  if (kbDrawer && kbDrawer.parentNode !== document.body) {
+    document.body.appendChild(kbDrawer);
+  }
+  const settingsModal = document.getElementById("desktopSettingsModal");
+  if (settingsModal && settingsModal.parentNode !== document.body) {
+    document.body.appendChild(settingsModal);
+  }
+
   initAnydeskFabDrag();
   if (!container) return;
 
@@ -1967,6 +1989,21 @@ window.addEventListener('DOMContentLoaded', () => {
       const geom = getDesktopImageGeometry();
       const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       const factor = newDist / initialPinchDist;
+
+      // Two-Finger Smooth Scroll detection (when pinch distance is relatively stable)
+      const curFocalY_raw = (t1.clientY + t2.clientY) / 2;
+      const curFocalX_raw = (t1.clientX + t2.clientX) / 2;
+      if (Math.abs(factor - 1.0) < 0.12 && currentZoomScale <= 1.05) {
+        const deltaY = curFocalY_raw - (initialFocalY + geom.top);
+        if (Math.abs(deltaY) > 18) {
+          const isPortrait = window.innerHeight > window.innerWidth;
+          const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
+          const scrollStep = deltaY > 0 ? -120 : 120;
+          sendDesktopAction({ action: "scroll", dy: isRotated ? -scrollStep : scrollStep });
+          initialFocalY = curFocalY_raw - geom.top;
+          return;
+        }
+      }
       
       const newScale = Math.max(1.0, Math.min(6.0, initialScale * factor));
       const curFocalX = (t1.clientX + t2.clientX) / 2 - geom.left;
@@ -2042,20 +2079,22 @@ window.addEventListener('DOMContentLoaded', () => {
         if (isRotated) {
           const vW = window.innerWidth;
           const vH = window.innerHeight;
-          const isStretched = container.classList.contains("is-stretched");
-          const targetAspect = 16 / 9;
-          const contentLen = isStretched ? vH : (vW * targetAspect);
-          const barTop = isStretched ? 0 : Math.max(0, (vH - contentLen) / 2);
-          const u_screen = clientY - barTop;
-          const v_screen = vW - clientX;
-          panOffsetX = u_screen * (1 - targetScale);
-          panOffsetY = v_screen * (1 - targetScale);
+          panOffsetX = clientY * (1 - targetScale);
+          panOffsetY = (vW - clientX) * (1 - targetScale);
+          const minPanX = vH * (1 - targetScale);
+          const minPanY = vW * (1 - targetScale);
+          panOffsetX = Math.min(0, Math.max(minPanX, panOffsetX));
+          panOffsetY = Math.min(0, Math.max(minPanY, panOffsetY));
         } else {
-          const cRect = container.getBoundingClientRect();
+          const cRect = container ? container.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
           const tapX = clientX - cRect.left;
           const tapY = clientY - cRect.top;
           panOffsetX = tapX * (1 - targetScale);
           panOffsetY = tapY * (1 - targetScale);
+          const minPanX = cRect.width * (1 - targetScale);
+          const minPanY = cRect.height * (1 - targetScale);
+          panOffsetX = Math.min(0, Math.max(minPanX, panOffsetX));
+          panOffsetY = Math.min(0, Math.max(minPanY, panOffsetY));
         }
         showDesktopToast("🔍 2.5x Yakınlaştı");
         applyZoomTransform(true);
@@ -2093,14 +2132,13 @@ window.addEventListener('DOMContentLoaded', () => {
       const contentWid = vW;
       const barTop = isStretched ? 0 : Math.max(0, (vH - contentLen) / 2);
 
-      const u_screen = clientY - barTop;
-      const v_screen = vW - clientX;
-      
-      const u_unzoomed = (u_screen - panOffsetX) / currentZoomScale;
-      const v_unzoomed = (v_screen - panOffsetY) / currentZoomScale;
+      // In rotated mode, container local coordinates:
+      // x_local = clientY, y_local = vW - clientX
+      const x_unscaled = (clientY - panOffsetX) / currentZoomScale;
+      const y_unscaled = (vW - clientX - panOffsetY) / currentZoomScale;
 
-      const x_pct = Math.max(0.0, Math.min(1.0, u_unzoomed / contentLen));
-      const y_pct = Math.max(0.0, Math.min(1.0, v_unzoomed / contentWid));
+      const x_pct = Math.max(0.0, Math.min(1.0, (x_unscaled - barTop) / contentLen));
+      const y_pct = Math.max(0.0, Math.min(1.0, y_unscaled / contentWid));
 
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     } else {
@@ -2129,14 +2167,14 @@ window.addEventListener('DOMContentLoaded', () => {
         offY = (cH - renderH) / 2;
       }
 
-      const rawX = clientX - cRect.left - offX;
-      const rawY = clientY - cRect.top - offY;
+      const rx = clientX - cRect.left;
+      const ry = clientY - cRect.top;
 
-      const unscaledX = (rawX - panOffsetX) / currentZoomScale;
-      const unscaledY = (rawY - panOffsetY) / currentZoomScale;
+      const unscaledX = (rx - panOffsetX) / currentZoomScale;
+      const unscaledY = (ry - panOffsetY) / currentZoomScale;
 
-      const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / renderW));
-      const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / renderH));
+      const x_pct = Math.max(0.0, Math.min(1.0, (unscaledX - offX) / renderW));
+      const y_pct = Math.max(0.0, Math.min(1.0, (unscaledY - offY) / renderH));
 
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
