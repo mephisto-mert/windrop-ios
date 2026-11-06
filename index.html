@@ -39,9 +39,17 @@ window.addEventListener('error', function(e) {
 
   // Missing functions implementation
   function downloadAllBundle() {
-    haptic();
-    window.location.href = API_BASE + "/api/download-all-store";
+  if (!window.currentOutgoingFiles || window.currentOutgoingFiles.length === 0) {
+    if (window.showToast) showToast("İndirilecek dosya yok");
+    return;
   }
+  const a = document.createElement("a");
+  a.href = API_BASE + "/api/download-all-store";
+  a.download = "WinDrop_Tum_Dosyalar.zip";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
   function resetFullscreenControlsTimer() {
     resetFabDimTimer();
@@ -1029,6 +1037,19 @@ window.addEventListener('error', function(e) {
     border-radius: 20px 20px 0 0 !important;
   }
 
+
+/* iOS Safari Fullscreen Fallback & Responsive Viewport */
+.vnc-pseudo-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  z-index: 999999 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  background: #000 !important;
+}
 </style>
 </head>
 <body>
@@ -1129,16 +1150,40 @@ window.addEventListener('error', function(e) {
 
     </main>
 
-  <!-- TAB 2: EVRENSEL PANO (CLIPBOARD) -->
+  <!-- TAB 2: EVRENSEL PANO (CLIPBOARD HUB) -->
   <section id="tab-clipboard" class="tab-pane">
     <div class="ios-card">
       <div class="card-header">
         <span class="card-header-title">📋 Evrensel Pano (Çift Yönlü)</span>
+        <span id="clipCharCount" class="status-badge" style="padding: 3px 10px; font-size: 11px;">0 Karakter</span>
       </div>
       <div class="card-header-desc">
-        iPhone'da kopyaladığın bir metni anında PC'nin panosuna yapıştır veya PC'de kopyaladığın metni tek dokunuşla iPhone'a çek.
+        iPhone ile Windows PC arasında anlık, iki yönlü pano transferi. Kopyaladığın metin ve bağlantılar anında senkronize olur.
       </div>
-      <textarea id="clipBox" class="ios-textarea" placeholder="PC'ye göndermek istediğin metni veya linki buraya yaz veya yapıştır..."></textarea>
+
+      <!-- Quick Action Utilities Strip -->
+      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        <button class="key-pill touch-target-44" onclick="copyClipBoxToPhone()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:12px; padding:8px 12px; border-radius:10px;">
+          <span>📋</span><span>iPhone'a Kopyala</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="pasteFromPhoneToClipBox()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:12px; padding:8px 12px; border-radius:10px;">
+          <span>📥</span><span>Panodan Yapıştır</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="clearClipBox()" style="color:#FF453A; border-color:rgba(255,69,58,0.3); display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; padding:8px 12px; border-radius:10px;">
+          <span>🧹</span><span>Temizle</span>
+        </button>
+      </div>
+
+      <textarea id="clipBox" class="ios-textarea" placeholder="PC'ye göndermek istediğin metni, şifreyi veya bağlantıyı buraya yazın veya yapıştırın..." oninput="updateClipCharCount()"></textarea>
+
+      <!-- Quick Snippets Strip -->
+      <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;">
+        <button class="key-pill" style="font-size:11px; padding:5px 9px; border-radius:8px; white-space:nowrap;" onclick="insertClipSnippet('https://')">🌐 https://</button>
+        <button class="key-pill" style="font-size:11px; padding:5px 9px; border-radius:8px; white-space:nowrap;" onclick="insertClipSnippet('C:\\Users\\')">📁 C:\Users\</button>
+        <button class="key-pill" style="font-size:11px; padding:5px 9px; border-radius:8px; white-space:nowrap;" onclick="insertClipSnippet('cmd /c ')">⚡ cmd</button>
+        <button class="key-pill" style="font-size:11px; padding:5px 9px; border-radius:8px; white-space:nowrap;" onclick="pullClipboardFromPC()">🔄 PC'den Yenile</button>
+      </div>
+
       <div class="action-grid" style="margin-top:0;">
         <button class="action-btn action-btn-primary" onclick="haptic(); sendClipboardToPC()">
           <span class="action-icon">📤</span>
@@ -1151,15 +1196,15 @@ window.addEventListener('error', function(e) {
           <span class="action-sub">iPhone Panosuna Alır</span>
         </button>
       </div>
-      <button class="action-btn action-btn-green" style="width:100%; margin-top:10px; padding:13px;" onclick="haptic(); openUrlOnPC()">
+      <button class="action-btn action-btn-green" style="width:100%; margin-top:10px; padding:13px; font-weight:600;" onclick="haptic(); openUrlOnPC()">
         <span>🌐 Linki PC Tarayıcısında Aç</span>
       </button>
     </div>
   </section>
 
   <!-- TAB 3: GERÇEK CANLI UZAKTAN MASAÜSTÜ (REMOTE DESKTOP) -->
-    <section id="tab-screen" class="tab-pane">
-    <div class="ios-card" style="padding: 12px; background: rgba(18, 18, 20, 0.95); border: 0.5px solid rgba(255, 255, 255, 0.14); border-radius: 20px;">
+  <section id="tab-screen" class="tab-pane">
+    <div class="ios-card" style="padding: 12px; background: rgba(18, 18, 22, 0.95); border: 0.5px solid rgba(255, 255, 255, 0.14); border-radius: 20px;">
       
       <!-- Top Status Header (macOS / VisionOS Style) -->
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; padding: 2px 4px;">
@@ -1170,7 +1215,7 @@ window.addEventListener('error', function(e) {
             <span style="width:9px; height:9px; border-radius:50%; background:#27C93F; display:inline-block; box-shadow:0 0 6px rgba(39,201,63,0.6);"></span>
           </div>
           <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#27C93F; box-shadow:0 0 8px #27C93F;"></span>
-          <span id="remoteLiveStatus" style="font-size:12px; font-weight:700; color:#27C93F; letter-spacing:-0.2px;">● Canlı 60 FPS (noVNC Engine)</span>
+          <span id="remoteLiveStatus" style="font-size:12px; font-weight:700; color:#27C93F; letter-spacing:-0.2px;">● Canlı 60 FPS (noVNC)</span>
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
           <button class="header-action-btn touch-target-44" style="background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); padding:6px 12px; border-radius:10px; font-size:12px; font-weight:600; cursor:pointer;" onclick="toggleVncFullscreen()">
@@ -1183,12 +1228,38 @@ window.addEventListener('error', function(e) {
       </div>
 
       <!-- THE LIVE DESKTOP VIEWPORT (EMBEDDED HIGH PERFORMANCE NOVNC) -->
-      <div id="vncContainer" style="position:relative; width:100%; aspect-ratio:16/9; min-height:520px; background:#000000; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.22); box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+      <div id="vncContainer">
+        <!-- iOS Floating Fullscreen Exit & Controller Bar -->
+        <div id="vncFsControls" class="vnc-fs-floating-bar">
+          <button class="vnc-fs-btn" onclick="sendKeystrokePrompt()">⌨ Klavye</button>
+          <button class="vnc-fs-btn" onclick="reloadVncIframe()">🔄 Yenile</button>
+          <button class="vnc-fs-btn vnc-fs-close" onclick="toggleVncFullscreen()">✕ Çıkış</button>
+        </div>
+
         <iframe id="vncIframe" 
-                src="/novnc/vnc_lite.html?autoconnect=true&resize=scale&path=ws/vnc" 
-                style="width:100%; height:100%; min-height:520px; border:none; display:block; background:#000;" 
+                src="about:blank"
+                data-src="/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=ws/vnc" 
                 allow="fullscreen; clipboard-read; clipboard-write; autoplay">
         </iframe>
+      </div>
+
+      <!-- Mobile Quick Remote Controls (Keyboard, Mouse, WinKey) -->
+      <div style="display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding:4px 2px; -webkit-overflow-scrolling:touch;">
+        <button class="key-pill touch-target-44" onclick="sendKeystrokePrompt()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; min-width:85px;">
+          <span>⌨</span><span>Klavye</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="sendRemoteClick('left')" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; min-width:80px;">
+          <span>🖱️</span><span>Sol Tık</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="sendRemoteClick('right')" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; min-width:80px;">
+          <span>🖱️</span><span>Sağ Tık</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="sendWinKey()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; min-width:75px;">
+          <span>⊞</span><span>Win</span>
+        </button>
+        <button class="key-pill touch-target-44" onclick="toggleVncFullscreen()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; min-width:85px; color:#64D2FF; border-color:rgba(10,132,255,0.4);">
+          <span>⛶</span><span>Büyüt</span>
+        </button>
       </div>
 
       <!-- Quick Alternative: RustDesk Open-Source Integration -->
@@ -1239,7 +1310,8 @@ window.addEventListener('error', function(e) {
       <div style="font-size:12px; color:var(--sub); max-width:260px;">PC'den görüntü aktarımı tamamlanamadı. Lütfen tekrar deneyin.</div>
       <button class="action-btn action-btn-primary touch-target-44" style="margin-top:8px; padding:8px 18px; flex-direction:row;" onclick="retryLightboxLoad()">🔄 Yeniden Dene</button>
     </div>
-    <img id="lightboxImg" class="lightbox-img" src="" alt="Önizleme" style="display:none; max-width:92vw; max-height:65vh; border-radius:16px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,0.85);">
+    <video id="lightboxVideo" controls playsinline style="display:none; max-width:92vw; max-height:65vh; border-radius:16px; background:#000;"></video>
+      <img id="lightboxImg" class="lightbox-img" src="" alt="Önizleme" style="display:none; max-width:92vw; max-height:65vh; border-radius:16px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,0.85);">
     <div id="lightboxTitle" style="margin-top:14px; font-weight:700; font-size:15px; color:#fff; max-width:90vw; text-align:center; word-break:break-all;"></div>
     <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; justify-content:center;">
       <button id="lightboxShareBtn" class="action-btn action-btn-green touch-target-44" style="padding:11px 18px; flex-direction:row;">📲 Fotoğraflara Kaydet</button>
@@ -1370,10 +1442,76 @@ function switchMainTab(tabId, el) {
 
   if (tabId === 'screen') {
     const frame = document.getElementById("vncIframe");
-    if (frame && (!frame.src || frame.src === "about:blank")) {
-      frame.src = "/novnc/vnc_lite.html?autoconnect=true&resize=scale&path=ws/vnc";
+    if (frame && (!frame.src || frame.src.endsWith("about:blank") || frame.src === window.location.href)) {
+      frame.src = frame.dataset.src || "/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=ws/vnc";
+    }
+  } else if (tabId === 'clipboard') {
+    if (typeof handleClipboardTabOpen === 'function') {
+      handleClipboardTabOpen();
+    } else if (typeof pullClipboardFromPC === 'function') {
+      pullClipboardFromPC();
     }
   }
+}
+
+async function sendClipboardToPC() {
+  haptic();
+  const el = document.getElementById("clipBox");
+  let freshClip = "";
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      freshClip = (await navigator.clipboard.readText() || "").trim();
+    } catch (e) {}
+  }
+  let txt = freshClip || (el ? el.value.trim() : "");
+  if (!txt) {
+    if (typeof showDesktopToast === "function") {
+      showDesktopToast("⚠️ Pano boş! Önce bir metin kopyalayın.");
+    }
+    return;
+  }
+  if (el) el.value = txt;
+  try {
+    const res = await fetch(API_BASE + "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clipboard: txt, text: txt, t: Date.now() })
+    });
+    if (res.ok) {
+      if (typeof showDesktopToast === "function") {
+        showDesktopToast("✅ Pano PC'ye İletildi: " + (txt.length > 25 ? txt.slice(0, 25) + "..." : txt));
+      }
+      const badge = document.getElementById("connBadgeText");
+      if (badge) badge.textContent = "✅ Pano PC'ye İletildi!";
+      if (typeof fetchRadarState === "function") setTimeout(fetchRadarState, 1000);
+    }
+  } catch (e) {
+    if (typeof showDesktopToast === "function") {
+      showDesktopToast("❌ Pano iletilemedi");
+    }
+  }
+}
+
+async function pullClipboardFromPC() {
+  haptic();
+  try {
+    const res = await fetch(API_BASE + "/api/clipboard?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const el = document.getElementById("clipBox");
+    const txt = (data.text || data.clipboard || "").trim();
+    if (el) {
+      if (txt) {
+        el.value = txt;
+      }
+      el.placeholder = txt ? ("PC Panosu: " + (txt.length > 30 ? txt.slice(0, 30) + "..." : txt)) : "Pano boş...";
+    }
+    if (txt && navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(txt); } catch (e) {}
+    }
+    const badge = document.getElementById("connBadgeText");
+    if (badge) badge.textContent = "📥 Pano iPhone'a Alındı!";
+  } catch (e) {}
 }
 
 async function fetchWithTimeout(url, ms = 2500) {
@@ -1476,160 +1614,37 @@ let currentStreamBlobUrl = null;
 
 // --- NO-VNC & RUSTDESK 60 FPS ULTRA-FAST REMOTE ENGINE ---
 function toggleVncFullscreen() {
+  haptic('medium');
   const container = document.getElementById("vncContainer");
   if (!container) return;
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+  const isPseudo = container.classList.contains("vnc-pseudo-fullscreen");
+  if (!isPseudo) {
     if (container.requestFullscreen) {
-      container.requestFullscreen();
+      container.requestFullscreen().catch(() => {
+        container.classList.add("vnc-pseudo-fullscreen");
+        document.body.style.overflow = "hidden";
+      });
     } else if (container.webkitRequestFullscreen) {
-      container.webkitRequestFullscreen();
+      try { container.webkitRequestFullscreen(); } catch(e) {
+        container.classList.add("vnc-pseudo-fullscreen");
+        document.body.style.overflow = "hidden";
+      }
+    } else {
+      container.classList.add("vnc-pseudo-fullscreen");
+      document.body.style.overflow = "hidden";
     }
+    const fsControls = document.getElementById("vncFsControls");
+    if (fsControls) fsControls.style.display = "flex";
   } else {
     if (document.exitFullscreen) {
-      document.exitFullscreen();
+      document.exitFullscreen().catch(() => {});
     } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
+      try { document.webkitExitFullscreen(); } catch(e) {}
     }
-  }
-}
-
-function escapeHTML(str) {
-  return String(str || '').replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-  );
-}
-
-function renderIncoming(files) {
-  const box = document.getElementById("incomingList");
-  if (!files || !files.length) {
-    box.innerHTML = `<div style="text-align:center; padding:22px; color:var(--sub); font-size:13px;">PC'den paylaşılan dosya bulunmuyor.</div>`;
-    return;
-  }
-  box.innerHTML = files.map(f => `
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">
-      <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:10px;">
-        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(f.name)}</div>
-        <div style="font-size:11px; color:var(--sub);">${f.size ? (f.size/1024/1024).toFixed(2) + " MB" : ""}</div>
-      </div>
-      <div style="display:flex; gap:8px; flex-shrink:0;">
-        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">👁️</button>
-        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${escapeHTML(f.name)}" onclick="event.stopPropagation()">⬇️</a>
-      </div>
-    </div>
-  `).join("");
-}
-
-let currentLightboxParams = null;
-
-async function openLightbox(urlOrId, name, mime) {
-  currentLightboxParams = { urlOrId, name, mime };
-  const modal = document.getElementById("lightboxModal");
-  const spinner = document.getElementById("lightboxSpinner");
-  const errBox = document.getElementById("lightboxErrorBox");
-  const imgEl = document.getElementById("lightboxImg");
-  const titleEl = document.getElementById("lightboxTitle");
-  const dlBtn = document.getElementById("lightboxDownloadBtn");
-  const shareBtn = document.getElementById("lightboxShareBtn");
-
-  titleEl.textContent = name || "PC Ekran Görüntüsü";
-  modal.style.display = "flex";
-  imgEl.style.display = "none";
-  if (errBox) errBox.style.display = "none";
-  if (spinner) spinner.style.display = "flex";
-
-  let targetUrl = urlOrId || "";
-  if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://") && !targetUrl.startsWith("blob:") && !targetUrl.startsWith("data:")) {
-    if (targetUrl === "live_pc_screen" || targetUrl.includes("screen") || targetUrl.includes("Ekran")) {
-      targetUrl = API_BASE + "/api/screenshot/pc?t=" + Date.now();
-    } else if (targetUrl.startsWith("/")) {
-      targetUrl = API_BASE + targetUrl;
-    } else {
-      targetUrl = API_BASE + "/api/preview/" + targetUrl;
-    }
-  }
-
-  let blob = null;
-  // 1. Fetch target as Blob
-  try {
-    const res = await fetch(targetUrl, { cache: "no-store" });
-    if (res.ok) {
-      const b = await res.blob();
-      if (b && b.size > 50) blob = b;
-    }
-  } catch (e) {}
-
-  // 2. Fallback to live stream frame if target failed
-  if (!blob) {
-    try {
-      const fb = await fetch(API_BASE + "/api/remote/screen/frame?t=" + Date.now(), { cache: "no-store" });
-      if (fb.ok) {
-        const b = await fb.blob();
-        if (b && b.size > 50) blob = b;
-      }
-    } catch (e2) {}
-  }
-
-  // 3. Fallback to local snapshot endpoint
-  if (!blob) {
-    try {
-      const fb2 = await fetch(API_BASE + "/live_pc_screen?t=" + Date.now(), { cache: "no-store" });
-      if (fb2.ok) {
-        const b = await fb2.blob();
-        if (b && b.size > 50) blob = b;
-      }
-    } catch (e3) {}
-  }
-
-  if (blob && blob.size > 50) {
-    const blobUrl = URL.createObjectURL(blob);
-    imgEl.onload = () => {
-      if (spinner) spinner.style.display = "none";
-      imgEl.style.display = "block";
-    };
-    imgEl.src = blobUrl;
-    dlBtn.onclick = (e) => {
-      e.preventDefault();
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = name || "PC_Ekran.png";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    };
-    shareBtn.onclick = async () => {
-      haptic();
-      try {
-        const file = new File([blob], name || "PC_Ekran.png", { type: blob.type || mime || "image/png" });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: name });
-        } else {
-          window.open(blobUrl, "_blank");
-        }
-      } catch (err) {
-        window.open(blobUrl, "_blank");
-      }
-    };
-  } else {
-    if (spinner) spinner.style.display = "none";
-    if (errBox) errBox.style.display = "flex";
-  }
-}
-
-function retryLightboxLoad() {
-  if (currentLightboxParams) {
-    openLightbox(currentLightboxParams.urlOrId, currentLightboxParams.name, currentLightboxParams.mime);
-  }
-}
-
-function closeLightbox(ev) {
-  if (!ev || ev.target.id === "lightboxModal" || ev.target.classList.contains("lightbox-close-btn")) {
-    const modal = document.getElementById("lightboxModal");
-    const imgEl = document.getElementById("lightboxImg");
-    if (modal) modal.style.display = "none";
-    if (imgEl && imgEl.src && imgEl.src.startsWith("blob:")) {
-      try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
-      imgEl.src = "";
-    }
+    container.classList.remove("vnc-pseudo-fullscreen");
+    document.body.style.overflow = "";
+    const fsControls = document.getElementById("vncFsControls");
+    if (fsControls) fsControls.style.display = "none";
   }
 }
 
@@ -1823,24 +1838,126 @@ setInterval(fetchRadarState, 5000);
       </div>
 
 
+
+
+<!-- Auto-updating PWA Service Worker Registration -->
 <script>
-function toggleVncFullscreen() {
-  const container = document.getElementById("vncContainer");
-  if (!container) return;
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    if (container.requestFullscreen) {
-      container.requestFullscreen();
-    } else if (container.webkitRequestFullscreen) {
-      container.webkitRequestFullscreen();
+(function() {
+  if (!('serviceWorker' in navigator)) return;
+  let refreshing = false;
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !refreshing) {
+      refreshing = true;
+      window.location.reload();
     }
-  } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
+  });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js?v=12&t=' + Date.now(), {
+        scope: './',
+        updateViaCache: 'none'
+      });
+      reg.update();
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+      window.addEventListener('focus', () => reg.update());
+      window.addEventListener('pageshow', () => reg.update());
+    } catch (err) {}
+  });
+})();
+
+// --- iOS / VisionOS Toast & Helper Functions ---
+function showDesktopToast(msg, duration = 2500) {
+  let toast = document.getElementById("windropToastHud");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "windropToastHud";
+    toast.style.position = "fixed";
+    toast.style.bottom = "84px";
+    toast.style.left = "50%";
+    toast.style.transform = "translateX(-50%) translateY(20px)";
+    toast.style.background = "rgba(28, 28, 30, 0.94)";
+    toast.style.color = "#FFFFFF";
+    toast.style.padding = "10px 18px";
+    toast.style.borderRadius = "20px";
+    toast.style.fontSize = "13px";
+    toast.style.fontWeight = "600";
+    toast.style.boxShadow = "0 8px 30px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.15)";
+    toast.style.backdropFilter = "blur(20px)";
+    toast.style.webkitBackdropFilter = "blur(20px)";
+    toast.style.zIndex = "99999";
+    toast.style.opacity = "0";
+    toast.style.transition = "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)";
+    toast.style.pointerEvents = "none";
+    document.body.appendChild(toast);
+  }
+  toast.innerText = msg;
+  toast.style.opacity = "1";
+  toast.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateX(-50%) translateY(20px)";
+  }, duration);
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+  } catch (err) {}
+  document.body.removeChild(ta);
+  return Promise.resolve();
+}
+
+async function openUrlOnPC() {
+  haptic('medium');
+  const el = document.getElementById("clipBox");
+  let txt = el ? el.value.trim() : "";
+  if (!txt && navigator.clipboard && navigator.clipboard.readText) {
+    try { txt = (await navigator.clipboard.readText() || "").trim(); } catch (e) {}
+  }
+  if (!txt) {
+    txt = prompt("PC tarayıcısında açılacak web linki:", "https://");
+    if (!txt || txt.trim() === "https://" || !txt.trim()) return;
+  }
+  try {
+    const res = await fetch(API_BASE + "/api/open-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: txt.trim() })
+    });
+    if (res.ok) {
+      showDesktopToast("🌐 Link PC Tarayıcısında Açıldı!");
+    } else {
+      showDesktopToast("⚠️ Geçersiz web bağlantısı");
     }
+  } catch (e) {
+    showDesktopToast("❌ PC tarayıcısı açılamadı");
   }
 }
+
 </script>
 </body>
 </html>
