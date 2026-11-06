@@ -590,9 +590,6 @@ window.addEventListener('error', function(e) {
     display: block !important;
   }
   .anydesk-fab-btn {
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -633,6 +630,9 @@ window.addEventListener('error', function(e) {
     padding: 12px;
     width: 250px;
     max-width: 82vw;
+    max-height: 82svh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -735,6 +735,47 @@ window.addEventListener('error', function(e) {
   }
 
   input[type="file"] { display: none; }
+  .anydesk-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000001;
+    display: none;
+    background: transparent;
+    touch-action: none;
+  }
+  .anydesk-menu-backdrop.is-open {
+    display: block !important;
+  }
+  /* Upright alignment for Modals & Drawers in Forced Landscape Mode */
+  body.is-landscape-forced #desktopSettingsModal {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100svh !important;
+    height: 100vw !important;
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform-origin: center center !important;
+    z-index: 2000000 !important;
+  }
+  body.is-landscape-forced #desktopSettingsModal > div {
+    max-height: 85vw !important;
+    width: 100% !important;
+    max-width: min(540px, 92svh) !important;
+  }
+  body.is-landscape-forced #keyboardDrawer {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100svh !important;
+    height: auto !important;
+    bottom: auto !important;
+    right: auto !important;
+    transform: translate(-50%, -50%) rotate(90deg) translateY(calc(50vw - 100%)) !important;
+    transform-origin: center center !important;
+    z-index: 2100050 !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
 </style>
 </head>
 <body style="background:#000000; color:#ffffff;">
@@ -787,10 +828,10 @@ window.addEventListener('error', function(e) {
           <span class="action-sub">Orijinal HEIC & 4K MOV</span>
         </button>
 
-        <button class="action-btn action-btn-green" onclick="capturePhoneScreenToPC()">
-          <span class="action-icon">📸</span>
+        <button class="action-btn action-btn-green" onclick="haptic(); document.getElementById('screenshotInput').click()">
+          <span class="action-icon">📱</span>
           <span class="action-title">Ekran Görüntüsü</span>
-          <span class="action-sub">Anlık SS ➔ PC Masaüstü</span>
+          <span class="action-sub">Telefon ➔ Masaüstü</span>
         </button>
 
         <button class="action-btn" onclick="haptic(); document.getElementById('anyFileInput').click()">
@@ -817,7 +858,40 @@ window.addEventListener('error', function(e) {
       </div>
     </div>
 
-    </main>
+    <!-- Quick Shortcuts Card -->
+    <div class="ios-card">
+      <div class="card-header">
+        <span class="card-header-title">⚡ iOS Paylaşım Sayfası (Kestirme)</span>
+      </div>
+      <div class="card-header-desc">
+        Fotoğraflar uygulamasından veya Safari'den tek tıkla dosya ve link fırlatmak için kestirmeyi tek dokunuşla kurabilirsin:
+      </div>
+      <a class="action-btn action-btn-primary" style="padding:14px; text-decoration:none;" href="./WinDrop.shortcut" download="WinDrop.shortcut" onclick="haptic()">
+        <span>📲 WinDrop Kestirmesini İndir</span>
+      </a>
+    </div>
+
+    <!-- Wireless OTA & Profile Install Card (Zero Cable) -->
+    <div class="ios-card" style="border: 1px solid rgba(10,132,255,0.35); background: linear-gradient(145deg, rgba(28,28,30,0.85), rgba(10,132,255,0.12));">
+      <div class="card-header">
+        <span class="card-header-title">📲 Kablosuz Güncelle & Yükle (Sıfır Kablo)</span>
+      </div>
+      <div class="card-header-desc">
+        Kablo takmadan uygulamayı doğrudan iPhone'una yükleyebilir veya güncelleyebilirsin:
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+        <a class="action-btn action-btn-primary" style="padding:12px; text-decoration:none; justify-content:center;" href="/WinDrop.mobileconfig" onclick="haptic()">
+          <span>📱 1. Kablosuz Profili Kur (7 Gün Limiti Yok, Tam Ekran)</span>
+        </a>
+        <a class="action-btn action-btn-green" style="padding:12px; text-decoration:none; justify-content:center;" href="itms-services://?action=download-manifest&url=https://foot-hotel-modified-shoe.trycloudflare.com/manifest.plist" onclick="haptic()">
+          <span>🚀 2. Doğrudan OTA İle Güncelle</span>
+        </a>
+        <a class="action-btn" style="padding:12px; text-decoration:none; justify-content:center;" href="/WinDrop.ipa" onclick="haptic()">
+          <span>📦 3. Güncel WinDrop.ipa İndir (TrollStore / Sideloadly)</span>
+        </a>
+      </div>
+    </div>
+  </main>
 
   <!-- TAB 2: EVRENSEL PANO (CLIPBOARD) -->
   <section id="tab-clipboard" class="tab-pane">
@@ -868,13 +942,13 @@ window.addEventListener('error', function(e) {
       </div>
 
       <!-- THE LIVE DESKTOP VIEWPORT (INTERACTIVE TOUCH CANVAS) -->
-      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:6px; overflow:visible; border:1px solid rgba(255,255,255,0.22); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);" onclick="resetFullscreenControlsTimer()">
+      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.18); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);" onclick="resetFullscreenControlsTimer()">
         <!-- Native Video Element for Native iOS Movie Player Mode -->
         <video id="desktopNativeVideo" playsinline webkit-playsinline muted autoplay style="position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none;"></video>
         <canvas id="desktopCanvas" width="1280" height="720" style="display:none;"></canvas>
 
         <!-- Live Desktop Image / Canvas -->
-        <img id="desktopStreamImg" src="" alt="Windows 11 Masaüstü" style="width:100%; height:100%; object-fit:contain; display:none; pointer-events:none; image-rendering:-webkit-optimize-contrast; image-rendering:crisp-edges;">
+        <img id="desktopStreamImg" src="" alt="Windows 11 Masaüstü" style="width:100%; height:100%; object-fit:fill; display:none; pointer-events:none;">
         
         <!-- Loading State -->
         <div id="desktopLoading" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--sub); background:#05070c;">
@@ -884,6 +958,7 @@ window.addEventListener('error', function(e) {
         </div>
 
         <!-- AnyDesk-Style Floating Action Bubble (FAB) & Menu -->
+        <div id="anydeskMenuBackdrop" class="anydesk-menu-backdrop" onclick="closeAnydeskMenu()"></div>
         <div id="anydeskFabContainer" class="anydesk-fab-container" 
              onpointerdown="event.stopPropagation()" 
              ontouchstart="event.stopPropagation()" 
@@ -966,7 +1041,6 @@ window.addEventListener('error', function(e) {
       <!-- Minimalist Floating Control Bar -->
       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:6px 10px; background:rgba(255,255,255,0.05); border-radius:14px; border:0.5px solid var(--border);">
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="key-pill" id="trackpadToggleBtn" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);" onclick="toggleTrackpadQuick()">👆 Dokunmatik</button>
           <button class="key-pill" style="background:rgba(255,255,255,0.15);" onclick="toggleSettingsDrawer()">⚙️ Ayarlar</button>
           <button class="key-pill" style="background:var(--blue); border-color:var(--blue);" onclick="toggleKeyboardInput()">⌨️ Klavye</button>
           <button class="key-pill" onclick="sendRemoteKey('win')">⊞ Başlat</button>
@@ -978,7 +1052,151 @@ window.addEventListener('error', function(e) {
         <div style="font-size:11px; color:var(--sub); font-family:monospace;" id="desktopFpsText">~15 FPS • 35ms</div>
       </div>
 
+      <!-- Universal High-Z-Index Floating Keyboard Overlay -->
+      <div id="keyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:2000005; background:rgba(20,20,26,0.97); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-top:1px solid rgba(255,255,255,0.22); border-radius:24px 24px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom, 12px)); box-shadow:0 -10px 40px rgba(0,0,0,0.85);" onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
+        <!-- Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:15px; font-weight:700; color:#fff;">⌨️ Windows Klavye</span>
+            <span style="font-size:11px; color:#30D158; background:rgba(48,209,88,0.15); padding:2px 8px; border-radius:999px;">Canlı Giriş</span>
+          </div>
+          <button class="key-pill" style="padding:6px 14px; background:rgba(255,255,255,0.15); color:#fff; border-radius:999px; font-weight:600;" onclick="toggleKeyboardInput()">✕ Kapat</button>
+        </div>
+        
+        <!-- Live Input Field -->
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input id="keyboardRealInput" type="text" placeholder="Yaz ve Gönder'e bas..." style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:#fff; padding:12px 14px; font-size:16px; outline:none; -webkit-user-select:text; user-select:text;" onkeydown="handleRealKeyDown(event)">
+          <button class="action-btn action-btn-primary" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; flex-shrink:0;" onclick="sendKeyboardDrawerText()">
+            <span>↵ Gönder</span>
+          </button>
+        </div>
+
+        <!-- Key Row 1 -->
+        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-bottom:6px;">
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('enter')">↵ Enter</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('backspace')">⌫ Sil</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('esc')">Esc</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('tab')">Tab</button>
+          <button class="key-pill" style="padding:11px 0; font-size:13px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('space')">␣ Boşluk</button>
+        </div>
+
+        <!-- Key Row 2 -->
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('win')">⊞ Win</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+c')">Ctrl+C</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+v')">Ctrl+V</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+z')">Ctrl+Z</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+a')">Ctrl+A</button>
+          <button class="key-pill" style="padding:9px 0; font-size:12px; font-weight:600; justify-content:center; color:#FF453A;" onclick="sendRemoteKey('delete')">Del</button>
+        </div>
       </div>
+
+      <!-- AnyDesk-Style Unified Settings Sheet (Overlay Modal) -->
+      <div id="desktopSettingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:2000000; align-items:flex-end; justify-content:center;" onclick="closeSettingsDrawer(event)">
+        <div style="width:100%; max-width:440px; background:rgba(28,28,32,0.96); border-top:0.5px solid rgba(255,255,255,0.2); border-radius:24px 24px 0 0; padding:20px; box-shadow:0 -10px 40px rgba(0,0,0,0.8); max-height:85vh; overflow-y:auto;" onclick="event.stopPropagation()">
+          
+          <!-- Handle bar -->
+          <div style="width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px;"></div>
+          
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="font-size:17px; font-weight:700; display:flex; align-items:center; gap:8px;">
+              <span>⚙️ Masaüstü Ayarları</span>
+              <span style="font-size:11px; font-weight:600; color:var(--green); background:rgba(48,209,88,0.15); border:0.5px solid rgba(48,209,88,0.35); padding:2px 8px; border-radius:999px;">AnyDesk Modu</span>
+            </div>
+            <button class="key-pill" style="padding:4px 10px;" onclick="toggleSettingsDrawer()">Kapat</button>
+          </div>
+
+          <!-- Section 1: Giriş ve Kontrol -->
+          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Giriş & Etkileşim</div>
+          
+          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
+            <!-- 1. Pinch to Zoom -->
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:14px; font-weight:600;">🔍 İki Parmakla Yakınlaştır (Zoom)</div>
+                <div style="font-size:11px; color:var(--sub);">Ekrana 2 parmakla yaklaşıp ince detayları büyüt</div>
+              </div>
+              <label class="ios-switch">
+                <input type="checkbox" id="settingPinchZoom" checked onchange="togglePinchZoomSetting(this.checked)">
+                <span class="ios-slider"></span>
+              </label>
+            </div>
+            
+            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
+
+            <!-- 2. Trackpad Modu -->
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:14px; font-weight:600;">🖱️ Sanal Hassas Trackpad Modu</div>
+                <div style="font-size:11px; color:var(--sub);">Laptop dokunmatik yüzeyi gibi fare imlecini gezdir</div>
+              </div>
+              <label class="ios-switch">
+                <input type="checkbox" id="settingTrackpadMode" onchange="toggleTrackpadSetting(this.checked)">
+                <span class="ios-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 2: Ekran ve Monitör -->
+          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ekran & Gizlilik</div>
+          
+          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
+            <!-- 3. Çoklu Monitör -->
+            <div>
+              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📺 Çoklu Monitör Değiştirici</div>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button class="key-pill active-mode" id="btnMon1" onclick="switchMonitor(1)">🖥️ Monitör 1 (Ana)</button>
+                <button class="key-pill" id="btnMon2" onclick="switchMonitor(2)">🖥️ Monitör 2</button>
+              </div>
+            </div>
+
+            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
+
+            <!-- 4. Curtain Mode (Karartma) -->
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:14px; font-weight:600;">🕶️ Gizlilik / Karartma Modu</div>
+                <div style="font-size:11px; color:var(--sub);">Fiziksel PC monitörünü kapat, telefondan izlemeye devam et</div>
+              </div>
+              <label class="ios-switch">
+                <input type="checkbox" id="settingCurtain" onchange="toggleCurtainSetting(this.checked)">
+                <span class="ios-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 3: Windows Medya ve Ses -->
+          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ses & Medya Kontrolü</div>
+          
+          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px;">
+            <div style="display:flex; justify-content:space-between; gap:6px; margin-bottom:8px;">
+              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('voldown')">🔉 Ses Kıs</button>
+              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('volup')">🔊 Ses Aç</button>
+              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('mute')">🔇 Sustur</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; gap:6px;">
+              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('prev')">⏮️ Geri</button>
+              <button class="key-pill" style="flex:1; background:var(--blue);" onclick="sendMediaCmd('playpause')">⏯️ Oynat/Duraklat</button>
+              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('next')">⏭️ İleri</button>
+            </div>
+          </div>
+
+          <!-- Section 4: Telefondan Masaüstüne Dosya Sürükleme / Bırakma -->
+          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Dosya Aktarımı</div>
+          
+          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px;">
+            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📁 Doğrudan Masaüstüne Dosya Bırak</div>
+            <div style="font-size:11px; color:var(--sub); margin-bottom:10px;">Seçtiğin medya veya belgeler doğrudan Windows Masaüstüne kaydedilir.</div>
+            <input type="file" id="desktopDropFileInput" multiple onchange="handleDesktopDropUpload(this.files)" style="display:none;">
+            <button class="action-btn action-btn-primary" style="width:100%; padding:10px; flex-direction:row; font-size:13px;" onclick="document.getElementById('desktopDropFileInput').click()">
+              <span>➕ Dosya Seç ve Masaüstüne Bırak</span>
+            </button>
+            <div id="desktopDropStatus" style="font-size:11.5px; color:var(--green); margin-top:8px; display:none; text-align:center;"></div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -1083,16 +1301,6 @@ function switchMainTab(tabId, el) {
     }
     connectDesktopWebSocket();
     startHttpFrameFallback();
-  } else {
-    // Gracefully pause screen streaming when not in screen tab (saves battery & network)
-    if (httpFallbackTimer) {
-      clearInterval(httpFallbackTimer);
-      httpFallbackTimer = null;
-    }
-    if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
-      try { desktopWS.close(); } catch(e){}
-      desktopWS = null;
-    }
   }
 }
 
@@ -1198,7 +1406,7 @@ function connectDesktopWebSocket() {
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) return;
   const wsProto = API_BASE.startsWith("https") ? "wss:" : "ws:";
   const wsHost = API_BASE.replace(/^https?:\/\//, "");
-  const wsUrl = `${wsProto}//${wsHost}/ws/remote/desktop?mode=mobile`;
+  const wsUrl = `${wsProto}//${wsHost}/ws/remote/desktop`;
 
   try {
     desktopWS = new WebSocket(wsUrl);
@@ -1212,28 +1420,19 @@ function connectDesktopWebSocket() {
       }
     };
 
-    let lastFramePerfTs = 0;
-    let measuredStreamLatency = 24;
     desktopWS.onmessage = (ev) => {
       if (ev.data instanceof Blob) {
-        const nowPerf = performance.now();
-        if (lastFramePerfTs > 0) {
-          const delta = Math.round(nowPerf - lastFramePerfTs);
-          if (delta > 0 && delta < 500) {
-            measuredStreamLatency = Math.round(measuredStreamLatency * 0.75 + delta * 0.25);
-          }
-        }
-        lastFramePerfTs = nowPerf;
         lastFrameReceivedTime = Date.now();
         desktopStreaming = true;
         const img = document.getElementById("desktopStreamImg");
         const loading = document.getElementById("desktopLoading");
         if (img) {
-          const oldUrl = currentStreamBlobUrl;
+          if (currentStreamBlobUrl) {
+            try { URL.revokeObjectURL(currentStreamBlobUrl); } catch(e) {}
+          }
           currentStreamBlobUrl = URL.createObjectURL(ev.data);
           img.src = currentStreamBlobUrl;
           img.style.display = "block";
-          if (oldUrl) setTimeout(() => { try { URL.revokeObjectURL(oldUrl); } catch(e){} }, 800);
         }
         if (loading) loading.style.display = "none";
         frameCount++;
@@ -1333,13 +1532,9 @@ function toggleKeyboardInput() {
   const drawer = document.getElementById("keyboardDrawer");
   const input = document.getElementById("keyboardRealInput");
   if (!drawer) return;
-  if (drawer.parentNode !== document.body) {
-    document.body.appendChild(drawer);
-  }
   const isHidden = (drawer.style.display === "none" || !drawer.style.display);
   drawer.style.display = isHidden ? "block" : "none";
   if (isHidden) {
-    closeAnydeskMenu();
     setTimeout(() => {
       if (input) {
         input.focus();
@@ -1414,21 +1609,19 @@ function toggleAnydeskMenu(ev) {
   anydeskMenuOpen = !anydeskMenuOpen;
   const menu = document.getElementById("anydeskFabMenu");
   const fab = document.getElementById("anydeskFabBtn");
-  if (menu) {
-    menu.classList.toggle("is-open", anydeskMenuOpen);
-  }
-  if (fab) {
-    fab.classList.remove("is-dimmed");
-  }
-  if (!anydeskMenuOpen) {
-    resetFabDimTimer();
-  }
+  const backdrop = document.getElementById("anydeskMenuBackdrop");
+  if (menu) menu.classList.toggle("is-open", anydeskMenuOpen);
+  if (backdrop) backdrop.classList.toggle("is-open", anydeskMenuOpen);
+  if (fab) fab.classList.remove("is-dimmed");
+  if (!anydeskMenuOpen) resetFabDimTimer();
 }
 
 function closeAnydeskMenu() {
   anydeskMenuOpen = false;
   const menu = document.getElementById("anydeskFabMenu");
+  const backdrop = document.getElementById("anydeskMenuBackdrop");
   if (menu) menu.classList.remove("is-open");
+  if (backdrop) backdrop.classList.remove("is-open");
   resetFabDimTimer();
 }
 
@@ -1499,6 +1692,7 @@ function exitFullscreenDOM() {
   container.classList.remove("is-fullscreen");
   container.classList.remove("is-landscape-force");
   container.classList.remove("is-stretched");
+  document.body.classList.remove("is-landscape-forced");
   closeAnydeskMenu();
   document.body.style.overflow = "";
   if (fsOriginalParent && fsPlaceholder && fsPlaceholder.parentNode === fsOriginalParent) {
@@ -1525,6 +1719,7 @@ function handleOrientationChange() {
 
   if (isLandscape) {
     container.classList.remove("is-landscape-force");
+    document.body.classList.remove("is-landscape-forced");
     if (isScreenActive && !container.classList.contains("is-fullscreen")) {
       enterFullscreenDOM();
     }
@@ -1547,9 +1742,9 @@ function toggleDesktopFullscreen() {
     exitDesktopFullscreen();
   } else {
     enterFullscreenDOM();
-    // Keep natural upright portrait orientation without forcing sideways rotation.
-    // User can freely rotate phone to landscape for edge-to-edge view, or tap [Döndür].
-    if (window.innerWidth > window.innerHeight) {
+    if (window.innerHeight > window.innerWidth) {
+      container.classList.add("is-landscape-force");
+    } else {
       container.classList.remove("is-landscape-force");
     }
     resetFabDimTimer();
@@ -1581,6 +1776,7 @@ function toggleForceLandscape() {
   if (!container) return;
   haptic();
   const isNowForced = container.classList.toggle("is-landscape-force");
+  document.body.classList.toggle("is-landscape-forced", isNowForced && (window.innerHeight > window.innerWidth));
   resetZoom();
   resetFabDimTimer();
   showDesktopToast(isNowForced ? "🔄 90° Yatay Mod Aktif" : "📱 Doğal Dikey Mod Aktif");
@@ -1596,20 +1792,6 @@ let initialPinchDist = 0;
 let initialPinchScale = 1.0;
 let lastTrackpadX = 0;
 let lastTrackpadY = 0;
-
-
-function toggleTrackpadQuick() {
-  haptic();
-  settingTrackpadEnabled = !settingTrackpadEnabled;
-  const btn = document.getElementById("trackpadToggleBtn");
-  if (btn) {
-    btn.textContent = settingTrackpadEnabled ? "🖱️ İmleç Modu" : "👆 Dokunmatik";
-    btn.style.background = settingTrackpadEnabled ? "var(--green)" : "rgba(255,255,255,0.15)";
-    btn.style.color = settingTrackpadEnabled ? "#000" : "#fff";
-    btn.style.fontWeight = settingTrackpadEnabled ? "700" : "500";
-  }
-  showDesktopToast(settingTrackpadEnabled ? "🖱️ İmleç (Trackpad) Modu: Parmağınla imleci yönlendir!" : "👆 Dokunmatik Mod: Bastığın yere tıklar!");
-}
 
 function toggleSettingsDrawer() {
   haptic();
@@ -1659,21 +1841,6 @@ function resetZoom() {
   panOffsetX = 0;
   panOffsetY = 0;
   applyZoomTransform(true);
-}
-
-
-function setDesktopQuality(mode) {
-  haptic();
-  const bM = document.getElementById("btnQualMobile");
-  const bU = document.getElementById("btnQualUltra");
-  const bT = document.getElementById("btnQualTurbo");
-  if (bM) bM.classList.toggle("active-mode", mode === "mobile");
-  if (bU) bU.classList.toggle("active-mode", mode === "ultra");
-  if (bT) bT.classList.toggle("active-mode", mode === "turbo");
-  if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
-    desktopWS.send(JSON.stringify({ action: "set_quality", mode: mode }));
-    showDesktopToast(mode === "ultra" ? "🖥️ Ultra HD 1080p Aktif" : (mode === "turbo" ? "⚡ Turbo 576p Aktif" : "📱 Akıcı HD 720p Aktif"));
-  }
 }
 
 function switchMonitor(idx) {
@@ -1745,231 +1912,70 @@ function armNextRightClick() {
   closeAnydeskMenu();
 }
 
-// [Unified Image Geometry moved to global interactive engine]
-
-// Interactive Desktop Touch & Focal-Point Zoom Engine
-window.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById("desktopContainer");
-  const ripple = document.getElementById("desktopRipple");
-  const imgStream = document.getElementById("desktopStreamImg");
-  if (imgStream) {
-    // Canvas listener removed for maximum iOS WebKit 60 FPS performance
-  }
-  // Guarantee keyboardDrawer and desktopSettingsModal stay in document.body on top of fullscreen
-  const kbDrawer = document.getElementById("keyboardDrawer");
-  if (kbDrawer && kbDrawer.parentNode !== document.body) {
-    document.body.appendChild(kbDrawer);
-  }
-  const settingsModal = document.getElementById("desktopSettingsModal");
-  if (settingsModal && settingsModal.parentNode !== document.body) {
-    document.body.appendChild(settingsModal);
-  }
-
-  initAnydeskFabDrag();
-  if (!container) return;
-
-  let longPressTimer = null;
-  let isDragging = false;
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let isPinching = false;
-  let initialPinchDist = 0;
-  let initialScale = 1.0;
-  let initialFocalX = 0;
-  let initialFocalY = 0;
-  let initialPanX = 0;
-  let initialPanY = 0;
-  let isPanning = false;
-  let panStartX = 0;
-  let panStartY = 0;
-  let lastTapTime = 0;
-  let lastTapX = 0;
-  let lastTapY = 0;
-
-  // Multi-Touch Focal-Point Pinch-to-Zoom
-  container.addEventListener('touchstart', (ev) => {
-    resetFabDimTimer();
-    if (!settingPinchZoomEnabled) return;
-
-    if (ev.touches.length === 2) {
-      isPinching = true;
-      isDragging = false;
-      isPanning = false;
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-      
-      const t1 = ev.touches[0];
-      const t2 = ev.touches[1];
-      const geom = getDesktopImageGeometry();
-      initialPinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      initialScale = currentZoomScale;
-      
-      // Calculate focal midpoint anchored strictly to Windows desktop content
-      initialFocalX = (t1.clientX + t2.clientX) / 2 - geom.left;
-      initialFocalY = (t1.clientY + t2.clientY) / 2 - geom.top;
-      initialPanX = panOffsetX;
-      initialPanY = panOffsetY;
-    } else if (ev.touches.length === 1 && currentZoomScale > 1.05) {
-      isPanning = true;
-      panStartX = ev.touches[0].clientX;
-      panStartY = ev.touches[0].clientY;
-      initialPanX = panOffsetX;
-      initialPanY = panOffsetY;
-    }
-  }, { passive: true });
-
-  container.addEventListener('touchmove', (ev) => {
-    if (!settingPinchZoomEnabled) return;
-
-    if (ev.touches.length === 2 && isPinching && initialPinchDist > 0) {
-      ev.preventDefault();
-      const t1 = ev.touches[0];
-      const t2 = ev.touches[1];
-      const geom = getDesktopImageGeometry();
-      const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const factor = newDist / initialPinchDist;
-
-      // Two-Finger Smooth Scroll detection (when pinch distance is relatively stable)
-      const curFocalY_raw = (t1.clientY + t2.clientY) / 2;
-      const curFocalX_raw = (t1.clientX + t2.clientX) / 2;
-      if (Math.abs(factor - 1.0) < 0.12 && currentZoomScale <= 1.05) {
-        const deltaY = curFocalY_raw - (initialFocalY + geom.top);
-        if (Math.abs(deltaY) > 18) {
-          const isPortrait = window.innerHeight > window.innerWidth;
-          const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
-          const scrollStep = deltaY > 0 ? -120 : 120;
-          sendDesktopAction({ action: "scroll", dy: isRotated ? -scrollStep : scrollStep });
-          initialFocalY = curFocalY_raw - geom.top;
-          return;
-        }
-      }
-      
-      const newScale = Math.max(1.0, Math.min(6.0, initialScale * factor));
-      const curFocalX = (t1.clientX + t2.clientX) / 2 - geom.left;
-      const curFocalY = (t1.clientY + t2.clientY) / 2 - geom.top;
-
-      // Exact unscaled desktop point under initial pinch center
-      const imgPointX = (initialFocalX - initialPanX) / initialScale;
-      const imgPointY = (initialFocalY - initialPanY) / initialScale;
-
-      // Pan offset dynamically solved so point under fingers remains stationary
-      const targetPanX = curFocalX - imgPointX * newScale;
-      const targetPanY = curFocalY - imgPointY * newScale;
-
-      currentZoomScale = newScale;
-      if (currentZoomScale <= 1.02) {
-        panOffsetX = 0;
-        panOffsetY = 0;
-        currentZoomScale = 1.0;
-      } else {
-        const minPanX = geom.width * (1 - currentZoomScale);
-        const minPanY = geom.height * (1 - currentZoomScale);
-        panOffsetX = Math.min(0, Math.max(minPanX, targetPanX));
-        panOffsetY = Math.min(0, Math.max(minPanY, targetPanY));
-      }
-      applyZoomTransform(false);
-    } else if (ev.touches.length === 1 && isPanning && currentZoomScale > 1.05) {
-      ev.preventDefault();
-      const isPortrait = window.innerHeight > window.innerWidth;
-      const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
-      const deltaX = ev.touches[0].clientX - panStartX;
-      const deltaY = ev.touches[0].clientY - panStartY;
-      if (isRotated) {
-        panOffsetX = initialPanX + deltaY;
-        panOffsetY = initialPanY - deltaX;
-      } else {
-        panOffsetX = initialPanX + deltaX;
-        panOffsetY = initialPanY + deltaY;
-      }
-      applyZoomTransform(false);
-    }
-  }, { passive: false });
-
-  container.addEventListener('touchend', (ev) => {
-    if (ev.touches.length < 2) {
-      isPinching = false;
-      initialPinchDist = 0;
-      if (currentZoomScale < 1.08) {
-        resetZoom();
-      }
-    }
-    if (ev.touches.length === 0) {
-      isPanning = false;
-    }
-  }, { passive: true });
-
-  function checkDoubleTap(ev) {
-    const now = Date.now();
-    const clientX = (ev.clientX !== undefined) ? ev.clientX : (ev.touches?.[0]?.clientX ?? 0);
-    const clientY = (ev.clientY !== undefined) ? ev.clientY : (ev.touches?.[0]?.clientY ?? 0);
-
-    if (now - lastTapTime < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 45) {
-      lastTapTime = 0;
-      haptic();
-      if (currentZoomScale > 1.2) {
-        showDesktopToast("🔍 1.0x Zoom");
-        resetZoom();
-      } else {
-        const targetScale = 2.5;
-        currentZoomScale = targetScale;
-        const isPortrait = window.innerHeight > window.innerWidth;
-        const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
-        
-        if (isRotated) {
-          const vW = window.innerWidth;
-          const vH = window.innerHeight;
-          panOffsetX = clientY * (1 - targetScale);
-          panOffsetY = (vW - clientX) * (1 - targetScale);
-          const minPanX = vH * (1 - targetScale);
-          const minPanY = vW * (1 - targetScale);
-          panOffsetX = Math.min(0, Math.max(minPanX, panOffsetX));
-          panOffsetY = Math.min(0, Math.max(minPanY, panOffsetY));
-        } else {
-          const cRect = container ? container.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-          const tapX = clientX - cRect.left;
-          const tapY = clientY - cRect.top;
-          panOffsetX = tapX * (1 - targetScale);
-          panOffsetY = tapY * (1 - targetScale);
-          const minPanX = cRect.width * (1 - targetScale);
-          const minPanY = cRect.height * (1 - targetScale);
-          panOffsetX = Math.min(0, Math.max(minPanX, panOffsetX));
-          panOffsetY = Math.min(0, Math.max(minPanY, panOffsetY));
-        }
-        showDesktopToast("🔍 2.5x Yakınlaştı");
-        applyZoomTransform(true);
-      }
-      return true;
-    }
-    lastTapTime = now;
-    lastTapX = clientX;
-    lastTapY = clientY;
-    return false;
-  }
-
+// Compute the true visible Windows screen geometry within container (accounting for letterbox/black bars)
+  // --- Unified Mathematical Desktop Geometry Engine ---
   function getDesktopImageGeometry() {
     const container = document.getElementById("desktopContainer");
+    const img = document.getElementById("desktopStreamImg");
     const vW = window.innerWidth;
     const vH = window.innerHeight;
     const isPortrait = vH > vW;
-    const isRotated = container && container.classList.contains("is-landscape-force") && isPortrait;
-    const isStretched = container && container.classList.contains("is-stretched");
-    const targetAspect = 16 / 9;
+    const isRotated = !!(container && container.classList.contains("is-landscape-force") && isPortrait);
+    const isStretched = !!(container && container.classList.contains("is-stretched"));
+
+    // Dynamically resolve real aspect ratio of Windows PC screen (fallback to 16/9)
+    let targetAspect = 16 / 9;
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      targetAspect = img.naturalWidth / img.naturalHeight;
+    }
 
     if (isRotated) {
-      // Container rotated 90deg CW: unrotated width is vH (100svh), height is vW (100vw).
-      // Image renders along vH centered with length = vW * (16/9), height = vW.
-      const renderLen = isStretched ? vH : Math.min(vH, vW * targetAspect);
-      const offTop = (vH - renderLen) / 2;
+      // In 90deg CW rotated mode, container local dimensions are:
+      // W_c (local width along screen Y) = container.offsetWidth or vH
+      // H_c (local height along screen X) = container.offsetHeight or vW
+      const W_c = (container && container.offsetWidth) ? container.offsetWidth : vH;
+      const H_c = (container && container.offsetHeight) ? container.offsetHeight : vW;
+
+      let renderW, renderH, offU, offV;
+      if (isStretched) {
+        renderW = W_c;
+        renderH = H_c;
+        offU = 0;
+        offV = 0;
+      } else {
+        const containerAspect = W_c / H_c;
+        if (containerAspect >= targetAspect) {
+          // Pillarbox along local u (screen Y)
+          renderH = H_c;
+          renderW = H_c * targetAspect;
+          offU = (W_c - renderW) / 2;
+          offV = 0;
+        } else {
+          // Letterbox along local v (screen X inverted)
+          renderW = W_c;
+          renderH = W_c / targetAspect;
+          offU = 0;
+          offV = (H_c - renderH) / 2;
+        }
+      }
+
       return {
-        left: 0,
-        top: offTop,
-        width: vW,
-        height: renderLen,
-        isRotated: true
+        isRotated: true,
+        vW: vW,
+        vH: vH,
+        W_c: W_c,
+        H_c: H_c,
+        renderW: renderW, // Desktop width along screen Y
+        renderH: renderH, // Desktop height along screen X
+        offU: offU,       // Offset along screen Y
+        offV: offV        // Offset along screen X
       };
     } else {
+      // Natural Upright Mode (Portrait or Native Landscape)
       const cRect = container ? container.getBoundingClientRect() : { left: 0, top: 0, width: vW, height: vH };
       const cW = cRect.width || vW;
       const cH = cRect.height || vH;
+
       let renderW, renderH, offX, offY;
       if (isStretched) {
         renderW = cW;
@@ -1990,63 +1996,107 @@ window.addEventListener('DOMContentLoaded', () => {
           offY = (cH - renderH) / 2;
         }
       }
+
       return {
-        left: cRect.left + offX,
-        top: cRect.top + offY,
-        width: renderW,
-        height: renderH,
-        isRotated: false
+        isRotated: false,
+        vW: vW,
+        vH: vH,
+        cLeft: cRect.left,
+        cTop: cRect.top,
+        renderW: renderW,
+        renderH: renderH,
+        offX: offX,
+        offY: offY
       };
     }
   }
 
-  function getCoords(ev) {
-    let clientX = (ev && ev.clientX !== undefined && ev.clientX !== 0) ? ev.clientX : (touchStartClientX || 0);
-    let clientY = (ev && ev.clientY !== undefined && ev.clientY !== 0) ? ev.clientY : (touchStartClientY || 0);
-    if (ev && ev.touches && ev.touches.length > 0) {
-      clientX = ev.touches[0].clientX;
-      clientY = ev.touches[0].clientY;
-    } else if (ev && ev.changedTouches && ev.changedTouches.length > 0) {
-      clientX = ev.changedTouches[0].clientX;
-      clientY = ev.changedTouches[0].clientY;
-    }
+  let lastValidClientX = 0;
+  let lastValidClientY = 0;
 
+  function resolveClientCoords(ev) {
+    let x = undefined;
+    let y = undefined;
+    if (ev) {
+      if (ev.touches && ev.touches.length > 0) {
+        x = ev.touches[0].clientX;
+        y = ev.touches[0].clientY;
+      } else if (ev.changedTouches && ev.changedTouches.length > 0) {
+        x = ev.changedTouches[0].clientX;
+        y = ev.changedTouches[0].clientY;
+      } else if (ev.clientX !== undefined && (ev.clientX !== 0 || ev.clientY !== 0)) {
+        x = ev.clientX;
+        y = ev.clientY;
+      }
+    }
+    if ((x === undefined || (x === 0 && y === 0)) && (lastValidClientX || lastValidClientY)) {
+      x = lastValidClientX;
+      y = lastValidClientY;
+    }
+    if (x !== undefined && (x !== 0 || y !== 0)) {
+      lastValidClientX = x;
+      lastValidClientY = y;
+    }
+    return {
+      clientX: (x !== undefined) ? x : 0,
+      clientY: (y !== undefined) ? y : 0
+    };
+  }
+
+  function getCoords(ev) {
+    const { clientX, clientY } = resolveClientCoords(ev);
     const geom = getDesktopImageGeometry();
+    const S = currentZoomScale || 1.0;
 
     if (geom.isRotated) {
-      // 90° Clockwise Rotation:
-      const unscaledY = (clientY - geom.top - panOffsetX) / currentZoomScale;
-      const unscaledX = (geom.width - clientX - panOffsetY) / currentZoomScale;
+      // 1. Invert 90° CW rotation to local coordinates:
+      // u: runs along screen Y (from top to bottom), matches Windows Desktop X
+      // v: runs along screen X inverted (from right to left), matches Windows Desktop Y
+      const u = clientY;
+      const v = geom.vW - clientX;
 
-      let x_pct = unscaledY / geom.height;
-      let y_pct = unscaledX / geom.width;
+      // 2. Invert zoom & pan in container local space:
+      const u_unscaled = (u - panOffsetX) / S;
+      const v_unscaled = (v - panOffsetY) / S;
 
-      // Exact Sub-Pixel Precision Rotated with 2px Clamp
+      // 3. Subtract letterbox / pillarbox and normalize:
+      let x_pct = (u_unscaled - geom.offU) / geom.renderW;
+      let y_pct = (v_unscaled - geom.offV) / geom.renderH;
+
+      // 4. Exact Sub-Pixel Precision with edge tolerance:
       x_pct = Math.max(0.0, Math.min(1.0, x_pct));
       y_pct = Math.max(0.0, Math.min(1.0, y_pct));
-      if (clientY <= geom.top + 2 || x_pct < 0.002) x_pct = 0.0;
-      if (clientY >= geom.top + geom.height - 2 || x_pct > 0.998) x_pct = 1.0;
-      if (clientX >= geom.width - 2 || y_pct < 0.002) y_pct = 0.0;
-      if (clientX <= 2 || y_pct > 0.998) y_pct = 1.0;
+
+      if (u_unscaled <= geom.offU + 3) x_pct = 0.0;
+      if (u_unscaled >= geom.offU + geom.renderW - 3) x_pct = 1.0;
+      if (v_unscaled <= geom.offV + 3) y_pct = 0.0;
+      if (v_unscaled >= geom.offV + geom.renderH - 3) y_pct = 1.0;
+
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     } else {
-      // Upright Natural Mode (Portrait or Landscape):
-      const unscaledX = (clientX - geom.left - panOffsetX) / currentZoomScale;
-      const unscaledY = (clientY - geom.top - panOffsetY) / currentZoomScale;
+      // Upright Natural Mode:
+      const rx = clientX - geom.cLeft;
+      const ry = clientY - geom.cTop;
 
-      let x_pct = unscaledX / geom.width;
-      let y_pct = unscaledY / geom.height;
+      const unscaledX = (rx - geom.offX - panOffsetX) / S;
+      const unscaledY = (ry - geom.offY - panOffsetY) / S;
 
-      // Exact Sub-Pixel Precision with 2px Outer Clamp
+      let x_pct = unscaledX / geom.renderW;
+      let y_pct = unscaledY / geom.renderH;
+
       x_pct = Math.max(0.0, Math.min(1.0, x_pct));
       y_pct = Math.max(0.0, Math.min(1.0, y_pct));
-      if (clientX <= geom.left + 2 || x_pct < 0.002) x_pct = 0.0;
-      if (clientX >= geom.left + geom.width - 2 || x_pct > 0.998) x_pct = 1.0;
-      if (clientY <= geom.top + 2 || y_pct < 0.002) y_pct = 0.0;
-      if (clientY >= geom.top + geom.height - 2 || y_pct > 0.998) y_pct = 1.0;
+
+      if (clientX <= geom.cLeft + geom.offX + 3) x_pct = 0.0;
+      if (clientX >= geom.cLeft + geom.offX + geom.renderW - 3) x_pct = 1.0;
+      if (clientY <= geom.cTop + geom.offY + 3) y_pct = 0.0;
+      if (clientY >= geom.cTop + geom.offY + geom.renderH - 3) y_pct = 1.0;
+
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
   }
+  window.getDesktopImageGeometry = getDesktopImageGeometry;
+  window.getCoords = getCoords;
 
   let touchStartTime = 0;
   let touchStartClientX = 0;
@@ -2055,12 +2105,25 @@ window.addEventListener('DOMContentLoaded', () => {
   let longPressFired = false;
 
   container.addEventListener('pointerdown', (ev) => {
+    // If floating AnyDesk menu is open, dismiss it and consume tap (Zero remote click pass-through!)
+    if (anydeskMenuOpen) {
+      closeAnydeskMenu();
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
+
     // Ignore if touch was inside floating menu, keyboard, or settings modal!
     if (ev.target.closest('#anydeskFabContainer') || 
+        ev.target.closest('#anydeskFabMenu') || 
         ev.target.closest('#keyboardDrawer') || 
         ev.target.closest('#desktopSettingsModal')) {
       return;
     }
+
+    try {
+      if (container.setPointerCapture) container.setPointerCapture(ev.pointerId);
+    } catch(e) {}
 
     resetFabDimTimer();
 
@@ -2069,13 +2132,14 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const { clientX, clientY } = resolveClientCoords(ev);
     touchStartTime = Date.now();
-    touchStartClientX = ev.clientX;
-    touchStartClientY = ev.clientY;
-    touchStartX = ev.clientX;
-    touchStartY = ev.clientY;
-    lastTrackpadX = ev.clientX;
-    lastTrackpadY = ev.clientY;
+    touchStartClientX = clientX;
+    touchStartClientY = clientY;
+    touchStartX = clientX;
+    touchStartY = clientY;
+    lastTrackpadX = clientX;
+    lastTrackpadY = clientY;
     touchMovedFar = false;
     longPressFired = false;
 
@@ -2085,7 +2149,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const coords = getCoords(ev);
 
-    // Preemptively snap Windows hardware cursor to tap point immediately on touch down (0ms latency!)
+    // Preemptively snap Windows hardware cursor to tap point immediately on touch down
     sendDesktopAction({ action: "mouse_move", x_pct: coords.x_pct, y_pct: coords.y_pct });
 
     // Ripple visual indicator
@@ -2114,21 +2178,32 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   container.addEventListener('pointermove', (ev) => {
+    if (isDraggingFab || ev.target.closest('#anydeskFabContainer') || ev.target.closest('#anydeskFabMenu')) return;
     if (isPanning || isPinching) return;
 
+    const { clientX, clientY } = resolveClientCoords(ev);
+    const isRotated = container && container.classList.contains("is-landscape-force") && (window.innerHeight > window.innerWidth);
+
     if (settingTrackpadEnabled) {
-      const dx = (ev.clientX - lastTrackpadX) * 1.5;
-      const dy = (ev.clientY - lastTrackpadY) * 1.5;
-      lastTrackpadX = ev.clientX;
-      lastTrackpadY = ev.clientY;
+      const rawDx = (clientX - lastTrackpadX) * 1.5;
+      const rawDy = (clientY - lastTrackpadY) * 1.5;
+      lastTrackpadX = clientX;
+      lastTrackpadY = clientY;
+
+      // In 90deg CW rotated mode, swap deltas: dx = rawDy, dy = -rawDx
+      const dx = isRotated ? rawDy : rawDx;
+      const dy = isRotated ? -rawDx : rawDy;
+
       if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
         sendDesktopAction({ action: "mouse_delta", dx: Math.round(dx), dy: Math.round(dy) });
       }
       return;
     }
 
-    const dist = Math.hypot(ev.clientX - touchStartClientX, ev.clientY - touchStartClientY);
-    if (dist > 18) {
+    const dist = Math.hypot(clientX - touchStartClientX, clientY - touchStartClientY);
+    // Increased threshold (28px portrait, 34px rotated) to account for finger contact patch deformation
+    const dragThreshold = isRotated ? 34 : 28;
+    if (dist > dragThreshold) {
       touchMovedFar = true;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
@@ -2141,7 +2216,12 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   container.addEventListener('pointerup', (ev) => {
+    try {
+      if (container.releasePointerCapture) container.releasePointerCapture(ev.pointerId);
+    } catch(e) {}
+
     if (ev.target.closest('#anydeskFabContainer') || 
+        ev.target.closest('#anydeskFabMenu') || 
         ev.target.closest('#keyboardDrawer') || 
         ev.target.closest('#desktopSettingsModal')) {
       return;
@@ -2166,9 +2246,12 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const { clientX, clientY } = resolveClientCoords(ev);
+    const isRotated = container && container.classList.contains("is-landscape-force") && (window.innerHeight > window.innerWidth);
+
     if (settingTrackpadEnabled) {
-      const dist = Math.hypot(ev.clientX - touchStartX, ev.clientY - touchStartY);
-      if (dist < 8) {
+      const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
+      if (dist < 12) {
         haptic();
         sendDesktopAction({ action: "touch_click", button: nextClickIsRight ? "right" : "left" });
         if (nextClickIsRight) nextClickIsRight = false;
@@ -2177,11 +2260,11 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // NATURAL TAP DETECTION:
-    // If touch moved less than 22px and lasted less than 550ms -> 100% RELIABLE CLICK!
     const elapsed = Date.now() - touchStartTime;
-    const dist = Math.hypot(ev.clientX - touchStartClientX, ev.clientY - touchStartClientY);
+    const dist = Math.hypot(clientX - touchStartClientX, clientY - touchStartClientY);
+    const maxTapDist = isRotated ? 36 : 30;
 
-    if (!touchMovedFar && dist < 22 && elapsed < 550) {
+    if (!touchMovedFar && dist < maxTapDist && elapsed < 650) {
       const { x_pct, y_pct } = getCoords(ev);
       const clickBtn = nextClickIsRight ? "right" : "left";
       if (nextClickIsRight) {
@@ -2195,59 +2278,23 @@ window.addEventListener('DOMContentLoaded', () => {
     isDragging = false;
   });
 
+  container.addEventListener('pointercancel', (ev) => {
+    try {
+      if (container.releasePointerCapture) container.releasePointerCapture(ev.pointerId);
+    } catch(e) {}
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    isDragging = false;
+    isPanning = false;
+    isPinching = false;
+  });
+
   setInterval(() => {
     const fps = frameCount;
     frameCount = 0;
     const fpsEl = document.getElementById("desktopFpsText");
-    if (fpsEl) fpsEl.textContent = `${fps > 0 ? fps : 30} FPS • ${measuredStreamLatency || 24}ms`;
+    if (fpsEl) fpsEl.textContent = `${fps > 0 ? fps : 15} FPS • 35ms`;
   }, 1000);
 });
-
-
-async function capturePhoneScreenToPC() {
-  haptic();
-  showDesktopToast("📸 iPhone Ekranı Alınıyor...");
-  
-  // Try getDisplayMedia first (instant live screen capture)
-  if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      await video.play();
-      
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || window.innerWidth;
-      canvas.height = video.videoHeight || window.innerHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      stream.getTracks().forEach(t => t.stop());
-      
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          document.getElementById('screenshotInput').click();
-          return;
-        }
-        const d = new Date();
-        const ts = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + "_" + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
-        const filename = `iPhone_Ekran_${ts}.png`;
-        const file = new File([blob], filename, { type: "image/png" });
-        await uploadFiles([file]);
-        showDesktopToast("✅ iPhone Ekranı Masaüstüne Gönderildi!");
-      }, "image/png");
-      return;
-    } catch (err) {
-      console.log("getDisplayMedia fallback to file picker:", err);
-    }
-  }
-  
-  // Fallback: direct camera / screenshot input
-  const input = document.getElementById("screenshotInput");
-  if (input) {
-    input.click();
-  }
-}
 
 async function capturePCScreen() {
   haptic();
@@ -2328,12 +2375,6 @@ async function openUrlOnPC() {
   document.getElementById("connBadgeText").textContent = "🌐 Link PC'de Açıldı!";
 }
 
-function escapeHTML(str) {
-  return String(str || '').replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-  );
-}
-
 function renderIncoming(files) {
   const box = document.getElementById("incomingList");
   if (!files || !files.length) {
@@ -2341,14 +2382,14 @@ function renderIncoming(files) {
     return;
   }
   box.innerHTML = files.map(f => `
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">
       <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:10px;">
-        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(f.name)}</div>
+        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${f.name}</div>
         <div style="font-size:11px; color:var(--sub);">${f.size ? (f.size/1024/1024).toFixed(2) + " MB" : ""}</div>
       </div>
       <div style="display:flex; gap:8px; flex-shrink:0;">
-        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">👁️</button>
-        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${escapeHTML(f.name)}" onclick="event.stopPropagation()">⬇️</a>
+        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">👁️</button>
+        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${f.name}" onclick="event.stopPropagation()">⬇️</a>
       </div>
     </div>
   `).join("");
@@ -2457,14 +2498,8 @@ function retryLightboxLoad() {
 }
 
 function closeLightbox(ev) {
-  if (!ev || ev.target.id === "lightboxModal" || ev.target.classList.contains("lightbox-close-btn")) {
-    const modal = document.getElementById("lightboxModal");
-    const imgEl = document.getElementById("lightboxImg");
-    if (modal) modal.style.display = "none";
-    if (imgEl && imgEl.src && imgEl.src.startsWith("blob:")) {
-      try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
-      imgEl.src = "";
-    }
+  if (ev.target.id === "lightboxModal") {
+    document.getElementById("lightboxModal").style.display = "none";
   }
 }
 
@@ -2473,175 +2508,5 @@ setInterval(fetchRadarState, 5000);
 </script>
 <!-- Exact Subpixel Touch Cursor Ripple (Fixed to Body, immune to container rotation) -->
 <div id="desktopRipple" style="position:fixed; width:36px; height:36px; border-radius:50%; background:rgba(10,132,255,0.45); border:2.5px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:2000050; box-shadow:0 0 16px #0A84FF;"></div>
-
-
-<!-- Universal High-Z-Index Floating Keyboard Overlay -->
-      <div id="keyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:2100050; background:rgba(20,20,26,0.98); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-top:1px solid rgba(255,255,255,0.22); border-radius:24px 24px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom, 12px)); box-shadow:0 -10px 40px rgba(0,0,0,0.85);" onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
-        <!-- Header -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:15px; font-weight:700; color:#fff;">⌨️ Windows Klavye</span>
-            <span style="font-size:11px; color:#30D158; background:rgba(48,209,88,0.15); padding:2px 8px; border-radius:999px;">Canlı Giriş</span>
-          </div>
-          <button class="key-pill" style="padding:6px 14px; background:rgba(255,255,255,0.18); color:#fff; border-radius:999px; font-weight:600;" onclick="toggleKeyboardInput()">✕ Kapat</button>
-        </div>
-        
-        <!-- Live Input Field -->
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <input id="keyboardRealInput" type="text" placeholder="Yaz ve Gönder'e bas..." style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:#fff; padding:12px 14px; font-size:16px; outline:none; -webkit-user-select:text; user-select:text;" onkeydown="handleRealKeyDown(event)">
-          <button class="action-btn action-btn-primary" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; flex-shrink:0;" onclick="sendKeyboardDrawerText()">
-            <span>↵ Gönder</span>
-          </button>
-        </div>
-
-        <!-- Key Row 1: Action keys -->
-        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:6px;">
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('esc')">Esc</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('tab')">Tab</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; background:rgba(10,132,255,0.25); color:#64D2FF;" onclick="sendRemoteKey('win')">⊞ Win</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('backspace')">⌫ Sil</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; color:#FF453A;" onclick="sendRemoteKey('delete')">Del</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; background:rgba(48,209,88,0.25); color:#30D158;" onclick="sendRemoteKey('enter')">↵ Enter</button>
-        </div>
-
-        <!-- Key Row 2: Combos & Windows Tools -->
-        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:6px;">
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+c')">Kopyala</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+v')">Yapıştır</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+z')">Geri Al</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('win+d')">Masaüstü</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('alt+tab')">Alt+Tab</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onclick="sendRemoteCombo('ctrl+shift+esc')">Görev</button>
-        </div>
-
-        <!-- Key Row 3: Directional Nav & Space -->
-        <div style="display:flex; gap:6px;">
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('left')">◀</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('up')">▲</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('down')">▼</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('right')">▶</button>
-          <button class="key-pill" style="flex:2; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onclick="sendRemoteKey('space')">␣ Boşluk</button>
-        </div>
-      </div>
-
-      <!-- AnyDesk-Style Unified Settings Sheet (Overlay Modal) -->
-      <div id="desktopSettingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:2000000; align-items:flex-end; justify-content:center;" onclick="closeSettingsDrawer(event)">
-        <div style="width:100%; max-width:440px; background:rgba(28,28,32,0.96); border-top:0.5px solid rgba(255,255,255,0.2); border-radius:24px 24px 0 0; padding:20px; box-shadow:0 -10px 40px rgba(0,0,0,0.8); max-height:85vh; overflow-y:auto;" onclick="event.stopPropagation()">
-          
-          <!-- Handle bar -->
-          <div style="width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px;"></div>
-          
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <div style="font-size:17px; font-weight:700; display:flex; align-items:center; gap:8px;">
-              <span>⚙️ Masaüstü Ayarları</span>
-              <span style="font-size:11px; font-weight:600; color:var(--green); background:rgba(48,209,88,0.15); border:0.5px solid rgba(48,209,88,0.35); padding:2px 8px; border-radius:999px;">AnyDesk Modu</span>
-            </div>
-            <button class="key-pill" style="padding:4px 10px;" onclick="toggleSettingsDrawer()">Kapat</button>
-          </div>
-
-          <!-- Section 1: Giriş ve Kontrol -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Giriş & Etkileşim</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
-            <!-- 1. Pinch to Zoom -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🔍 İki Parmakla Yakınlaştır (Zoom)</div>
-                <div style="font-size:11px; color:var(--sub);">Ekrana 2 parmakla yaklaşıp ince detayları büyüt</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingPinchZoom" checked onchange="togglePinchZoomSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-            
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-            <!-- 2. Trackpad Modu -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🖱️ Sanal Hassas Trackpad Modu</div>
-                <div style="font-size:11px; color:var(--sub);">Laptop dokunmatik yüzeyi gibi fare imlecini gezdir</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingTrackpadMode" onchange="toggleTrackpadSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Section 2: Ekran ve Monitör -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ekran & Gizlilik</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
-<!-- AnyDesk Adaptive Stream Quality Selector -->
-            <div>
-              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">⚡ AnyDesk Akış Kalitesi & Çözünürlük</div>
-              <div style="font-size:11px; color:var(--sub); margin-bottom:8px;">Hücresel veri ve Wi-Fi hızına göre otomatik optimize</div>
-              <div style="display:flex; gap:6px;">
-                <button class="key-pill active-mode" id="btnQualMobile" style="flex:1;" onclick="setDesktopQuality('mobile')">📱 Akıcı HD (720p 30FPS)</button>
-                <button class="key-pill" id="btnQualUltra" style="flex:1;" onclick="setDesktopQuality('ultra')">🖥️ Ultra HD (1080p)</button>
-                <button class="key-pill" id="btnQualTurbo" style="flex:1;" onclick="setDesktopQuality('turbo')">⚡ Turbo (576p)</button>
-              </div>
-            </div>
-
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-                        <!-- 3. Çoklu Monitör -->
-            <div>
-              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📺 Çoklu Monitör Değiştirici</div>
-              <div style="display:flex; gap:6px; margin-top:6px;">
-                <button class="key-pill active-mode" id="btnMon1" onclick="switchMonitor(1)">🖥️ Monitör 1 (Ana)</button>
-                <button class="key-pill" id="btnMon2" onclick="switchMonitor(2)">🖥️ Monitör 2</button>
-              </div>
-            </div>
-
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-            <!-- 4. Curtain Mode (Karartma) -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🕶️ Gizlilik / Karartma Modu</div>
-                <div style="font-size:11px; color:var(--sub);">Fiziksel PC monitörünü kapat, telefondan izlemeye devam et</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingCurtain" onchange="toggleCurtainSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Section 3: Windows Medya ve Ses -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ses & Medya Kontrolü</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px;">
-            <div style="display:flex; justify-content:space-between; gap:6px; margin-bottom:8px;">
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('voldown')">🔉 Ses Kıs</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('volup')">🔊 Ses Aç</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('mute')">🔇 Sustur</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:6px;">
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('prev')">⏮️ Geri</button>
-              <button class="key-pill" style="flex:1; background:var(--blue);" onclick="sendMediaCmd('playpause')">⏯️ Oynat/Duraklat</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('next')">⏭️ İleri</button>
-            </div>
-          </div>
-
-          <!-- Section 4: Telefondan Masaüstüne Dosya Sürükleme / Bırakma -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Dosya Aktarımı</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px;">
-            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📁 Doğrudan Masaüstüne Dosya Bırak</div>
-            <div style="font-size:11px; color:var(--sub); margin-bottom:10px;">Seçtiğin medya veya belgeler doğrudan Windows Masaüstüne kaydedilir.</div>
-            <input type="file" id="desktopDropFileInput" multiple onchange="handleDesktopDropUpload(this.files)" style="display:none;">
-            <button class="action-btn action-btn-primary" style="width:100%; padding:10px; flex-direction:row; font-size:13px;" onclick="document.getElementById('desktopDropFileInput').click()">
-              <span>➕ Dosya Seç ve Masaüstüne Bırak</span>
-            </button>
-            <div id="desktopDropStatus" style="font-size:11.5px; color:var(--green); margin-top:8px; display:none; text-align:center;"></div>
-          </div>
-
-        </div>
-      </div>
-
 </body>
 </html>
