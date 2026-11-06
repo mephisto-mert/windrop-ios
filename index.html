@@ -1374,11 +1374,6 @@ function switchMainTab(tabId, el) {
       frame.src = "/novnc/vnc_lite.html?autoconnect=true&resize=scale&path=ws/vnc";
     }
   }
-    if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
-      try { desktopWS.close(); } catch(e){}
-      desktopWS = null;
-    }
-  }
 }
 
 async function fetchWithTimeout(url, ms = 2500) {
