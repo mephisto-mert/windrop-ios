@@ -2029,6 +2029,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const coords = getCoords(ev);
 
+    // Preemptively snap Windows hardware cursor to tap point immediately on touch down (0ms latency!)
+    sendDesktopAction({ action: "mouse_move", x_pct: coords.x_pct, y_pct: coords.y_pct });
+
     // Ripple visual indicator
     if (ripple && !isPanning && !isPinching) {
       ripple.style.left = coords.clickX + "px";
