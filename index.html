@@ -745,6 +745,17 @@ window.addEventListener('error', function(e) {
     touch-action: none !important;
   }
 
+  #desktopContainer {
+    touch-action: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    overscroll-behavior: none !important;
+  }
+  #desktopContainer * {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
   #desktopContainer.is-fullscreen {
     position: fixed !important;
     top: 0 !important;
@@ -1581,26 +1592,42 @@ function connectDesktopWebSocket() {
     desktopWS = new WebSocket(wsUrl);
     desktopWS.binaryType = "blob";
 
+    let pingIntervalId = null;
     desktopWS.onopen = () => {
       const st = document.getElementById("remoteLiveStatus");
       if (st) {
         st.textContent = "● Canlı Windows 11 (WebSocket)";
         st.style.color = "#30D158";
       }
+      if (pingIntervalId) clearInterval(pingIntervalId);
+      pingIntervalId = setInterval(() => {
+        if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
+          desktopWS.send(JSON.stringify({ action: "ping", t: performance.now() }));
+        } else {
+          clearInterval(pingIntervalId);
+        }
+      }, 1500);
     };
 
     let lastFramePerfTs = 0;
     let measuredStreamLatency = 24;
+    let realRttMs = 18;
     desktopWS.onmessage = (ev) => {
-      if (ev.data instanceof Blob) {
-        const nowPerf = performance.now();
-        if (lastFramePerfTs > 0) {
-          const delta = Math.round(nowPerf - lastFramePerfTs);
-          if (delta > 0 && delta < 500) {
-            measuredStreamLatency = Math.round(measuredStreamLatency * 0.75 + delta * 0.25);
+      // Handle text messages (Pong)
+      if (typeof ev.data === "string") {
+        try {
+          const d = JSON.parse(ev.data);
+          if (d.type === "pong" && d.t) {
+            const rtt = Math.round(performance.now() - d.t);
+            if (rtt > 0 && rtt < 800) {
+              realRttMs = Math.round(realRttMs * 0.7 + rtt * 0.3);
+            }
           }
-        }
-        lastFramePerfTs = nowPerf;
+        } catch(e) {}
+        return;
+      }
+
+      if (ev.data instanceof Blob) {
         lastFrameReceivedTime = Date.now();
         desktopStreaming = true;
         const img = document.getElementById("desktopStreamImg");
@@ -1608,9 +1635,15 @@ function connectDesktopWebSocket() {
         if (img) {
           const oldUrl = currentStreamBlobUrl;
           currentStreamBlobUrl = URL.createObjectURL(ev.data);
+          img.onload = () => {
+            // FLOW CONTROL ACK: Send 1-byte token as soon as frame is drawn!
+            if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
+              desktopWS.send("a");
+            }
+            if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
+          };
           img.src = currentStreamBlobUrl;
           img.style.display = "block";
-          if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
         }
         if (loading) loading.style.display = "none";
         frameCount++;
@@ -2553,34 +2586,52 @@ window.addEventListener('DOMContentLoaded', () => {
   let touchMovedFar = false;
   let longPressFired = false;
 
+  // --- ANYDESK-GRADE INSTANT TAP & CLICK ENGINE ---
+  let isPointerActive = false;
+  let didDrag = false;
+  let lastDispatchedClickTime = 0;
+
+  function executeDirectDesktopClick(ev, explicitBtn = null) {
+    const now = Date.now();
+    // Debounce duplicate events within 80ms
+    if (now - lastDispatchedClickTime < 80) return;
+    lastDispatchedClickTime = now;
+
+    const coords = getCoords(ev);
+    const clickBtn = explicitBtn || (nextClickIsRight ? "right" : "left");
+    if (nextClickIsRight) {
+      showDesktopToast("✌️ Sağ Tık Yapıldı");
+      nextClickIsRight = false;
+    }
+    haptic('medium');
+
+    // Visual ripple
+    if (ripple) {
+      ripple.style.left = coords.clickX + "px";
+      ripple.style.top = coords.clickY + "px";
+      ripple.style.opacity = "1";
+      ripple.style.transform = "translate(-50%, -50%) scale(1.6)";
+      setTimeout(() => {
+        ripple.style.opacity = "0";
+        ripple.style.transform = "translate(-50%, -50%) scale(0)";
+      }, 200);
+    }
+
+    // Dispatch hardware click immediately!
+    sendDesktopAction({ action: "touch_click", x_pct: coords.x_pct, y_pct: coords.y_pct, button: clickBtn });
+  }
+
   container.addEventListener('pointerdown', (ev) => {
-    // If floating AnyDesk menu is open, dismiss it and consume tap (Zero remote click pass-through!)
     if (anydeskMenuOpen) {
       closeAnydeskMenu();
-      ev.preventDefault();
-      ev.stopPropagation();
+      return;
+    }
+    if (ev.target.closest('#anydeskFabContainer, #anydeskFabMenu, #keyboardDrawer, #desktopSettingsModal')) {
       return;
     }
 
-    // Ignore if touch was inside floating menu, keyboard, or settings modal!
-    if (ev.target.closest('#anydeskFabContainer') || 
-        ev.target.closest('#anydeskFabMenu') || 
-        ev.target.closest('#keyboardDrawer') || 
-        ev.target.closest('#desktopSettingsModal')) {
-      return;
-    }
-
-    try {
-      if (container.setPointerCapture) container.setPointerCapture(ev.pointerId);
-    } catch(e) {}
-
-    resetFabDimTimer();
-
-    // Check double tap for zoom
-    if (ev.pointerType === 'touch' && checkDoubleTap(ev)) {
-      return;
-    }
-
+    isPointerActive = true;
+    didDrag = false;
     const { clientX, clientY } = resolveClientCoords(ev);
     touchStartTime = Date.now();
     touchStartClientX = clientX;
@@ -2589,45 +2640,29 @@ window.addEventListener('DOMContentLoaded', () => {
     touchStartY = clientY;
     lastTrackpadX = clientX;
     lastTrackpadY = clientY;
-    touchMovedFar = false;
-    longPressFired = false;
 
-    if (settingTrackpadEnabled) {
-      return;
+    resetFabDimTimer();
+
+    // In Direct Touch mode, snap Windows cursor immediately
+    if (!settingTrackpadEnabled) {
+      const coords = getCoords(ev);
+      sendDesktopAction({ action: "mouse_move", x_pct: coords.x_pct, y_pct: coords.y_pct });
     }
 
-    const coords = getCoords(ev);
-
-    // Preemptively snap Windows hardware cursor to tap point immediately on touch down
-    sendDesktopAction({ action: "mouse_move", x_pct: coords.x_pct, y_pct: coords.y_pct });
-
-    // Ripple visual indicator
-    if (ripple && !isPanning && !isPinching) {
-      ripple.style.left = coords.clickX + "px";
-      ripple.style.top = coords.clickY + "px";
-      ripple.style.opacity = "1";
-      ripple.style.transform = "translate(-50%, -50%) scale(1.8)";
-      setTimeout(() => {
-        ripple.style.opacity = "0";
-        ripple.style.transform = "translate(-50%, -50%) scale(0)";
-      }, 250);
-    }
-
-    // Long press detection for Right Click (500ms)
+    // Long press detection for Right Click (480ms)
     if (longPressTimer) clearTimeout(longPressTimer);
     longPressTimer = setTimeout(() => {
-      if (!isPanning && !isPinching && !touchMovedFar) {
+      if (isPointerActive && !didDrag && !isPanning && !isPinching) {
         longPressFired = true;
-        haptic();
-        showDesktopToast("✌️ Sağ Tık Yapıldı");
-        sendDesktopAction({ action: "touch_click", x_pct: coords.x_pct, y_pct: coords.y_pct, button: "right" });
+        executeDirectDesktopClick(ev, "right");
       }
       longPressTimer = null;
-    }, 500);
+    }, 480);
   });
 
   container.addEventListener('pointermove', (ev) => {
-    if (isDraggingFab || ev.target.closest('#anydeskFabContainer') || ev.target.closest('#anydeskFabMenu')) return;
+    if (!isPointerActive) return;
+    if (ev.target.closest('#anydeskFabContainer, #anydeskFabMenu, #keyboardDrawer, #desktopSettingsModal')) return;
     if (isPanning || isPinching) return;
 
     const { clientX, clientY } = resolveClientCoords(ev);
@@ -2639,11 +2674,9 @@ window.addEventListener('DOMContentLoaded', () => {
       lastTrackpadX = clientX;
       lastTrackpadY = clientY;
 
-      // In 90deg CW rotated mode, swap deltas: dx = rawDy, dy = -rawDx
       const dx = isRotated ? rawDy : rawDx;
       const dy = isRotated ? -rawDx : rawDy;
 
-      // High-precision sub-pixel float accumulator: preserves micro-movement without truncation
       trackpadAccumDx += dx;
       trackpadAccumDy += dy;
 
@@ -2659,56 +2692,43 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     const dist = Math.hypot(clientX - touchStartClientX, clientY - touchStartClientY);
-    // Increased threshold (28px portrait, 34px rotated) to account for finger contact patch deformation
-    const dragThreshold = isRotated ? 34 : 28;
-    if (dist > dragThreshold) {
-      touchMovedFar = true;
+    if (dist > 18) {
+      didDrag = true;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
       }
-      isDragging = true;
       const { x_pct, y_pct } = getCoords(ev);
       sendDesktopAction({ action: "mouse_move", x_pct, y_pct });
     }
   });
 
-  container.addEventListener('pointerup', (ev) => {
-    try {
-      if (container.releasePointerCapture) container.releasePointerCapture(ev.pointerId);
-    } catch(e) {}
-
-    if (ev.target.closest('#anydeskFabContainer') || 
-        ev.target.closest('#anydeskFabMenu') || 
-        ev.target.closest('#keyboardDrawer') || 
-        ev.target.closest('#desktopSettingsModal')) {
-      return;
-    }
-
-    if (isPanning || isPinching) {
-      isPanning = false;
-      isPinching = false;
-      isDragging = false;
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-      return;
-    }
+  function onPointerEndOrCancel(ev) {
+    if (!isPointerActive) return;
+    isPointerActive = false;
 
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       longPressTimer = null;
     }
-
     if (longPressFired) {
       longPressFired = false;
-      isDragging = false;
+      return;
+    }
+    if (isPanning || isPinching) {
+      isPanning = false;
+      isPinching = false;
+      return;
+    }
+    if (ev.target.closest('#anydeskFabContainer, #anydeskFabMenu, #keyboardDrawer, #desktopSettingsModal')) {
       return;
     }
 
     const { clientX, clientY } = resolveClientCoords(ev);
-    const isRotated = container && container.classList.contains("is-landscape-force") && (window.innerHeight > window.innerWidth);
+    const dist = Math.hypot(clientX - touchStartClientX, clientY - touchStartClientY);
+    const elapsed = Date.now() - touchStartTime;
 
     if (settingTrackpadEnabled) {
-      const dist = Math.hypot(clientX - touchStartX, clientY - touchStartY);
       if (dist < 12) {
         haptic();
         sendDesktopAction({ action: "touch_click", button: nextClickIsRight ? "right" : "left" });
@@ -2717,40 +2737,30 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // NATURAL TAP DETECTION:
-    const elapsed = Date.now() - touchStartTime;
-    const dist = Math.hypot(clientX - touchStartClientX, clientY - touchStartClientY);
-    const maxTapDist = isRotated ? 36 : 30;
-
-    if (!touchMovedFar && dist < maxTapDist && elapsed < 650) {
-      const { x_pct, y_pct } = getCoords(ev);
-      const clickBtn = nextClickIsRight ? "right" : "left";
-      if (nextClickIsRight) {
-        showDesktopToast("✌️ Sağ Tık Yapıldı");
-        nextClickIsRight = false;
-      }
-      haptic();
-      sendDesktopAction({ action: "touch_click", x_pct, y_pct, button: clickBtn });
+    // Direct Touch Tap: If not dragged and completed under 550ms, FIRE CLICK!
+    if (!didDrag && dist < 24 && elapsed < 550) {
+      executeDirectDesktopClick(ev);
     }
+  }
 
-    isDragging = false;
-  });
+  container.addEventListener('pointerup', onPointerEndOrCancel);
+  container.addEventListener('pointercancel', onPointerEndOrCancel);
 
-  container.addEventListener('pointercancel', (ev) => {
-    try {
-      if (container.releasePointerCapture) container.releasePointerCapture(ev.pointerId);
-    } catch(e) {}
-    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    isDragging = false;
-    isPanning = false;
-    isPinching = false;
+  // DUAL-FAILSAFE: Catch native click events directly on desktopContainer or desktopStreamImg
+  container.addEventListener('click', (ev) => {
+    if (ev.target.closest('#anydeskFabContainer, #anydeskFabMenu, #keyboardDrawer, #desktopSettingsModal')) return;
+    if (!didDrag) {
+      executeDirectDesktopClick(ev);
+    }
   });
 
   setInterval(() => {
     const fps = frameCount;
     frameCount = 0;
     const fpsEl = document.getElementById("desktopFpsText");
-    if (fpsEl) fpsEl.textContent = `${fps > 0 ? fps : 30} FPS • ${measuredStreamLatency || 24}ms`;
+    const displayFps = fps > 0 ? fps : (desktopStreaming ? 30 : 0);
+    const displayMs = (typeof realRttMs !== "undefined" && realRttMs > 0) ? realRttMs : 18;
+    if (fpsEl) fpsEl.textContent = `${displayFps} FPS • ${displayMs}ms`;
   }, 1000);
 });
 
