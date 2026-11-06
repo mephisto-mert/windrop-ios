@@ -1000,7 +1000,15 @@ window.addEventListener('error', function(e) {
     transform: translateX(18px);
   }
 
-  input[type="file"] { display: none; }
+  input[type="file"] {
+    position: absolute !important;
+    width: 0.1px !important;
+    height: 0.1px !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+    pointer-events: none !important;
+  }
   .anydesk-menu-backdrop {
     position: fixed;
     inset: 0;
@@ -1091,14 +1099,14 @@ window.addEventListener('error', function(e) {
   <!-- TAB 1: AIRDROP RADAR & MEDYA GÖNDERİMİ -->
   <main id="tab-radar" class="tab-pane active">
     <div class="radar-card">
-      <div class="radar-container" onclick="document.getElementById('mediaInput').click()">
+      <label for="mediaInput" class="radar-container" role="button" tabindex="0">
         <div class="radar-ring"></div>
         <div class="radar-ring"></div>
         <div class="radar-ring"></div>
         <div class="radar-target">
           <span class="radar-device-icon">💻</span>
         </div>
-      </div>
+      </label>
       <div id="pcName" class="radar-info-title">DESKTOP-EIJNT5O</div>
       <div id="activeHostText" class="radar-info-sub">● 24/7 Kesintisiz VPS & Yerel Ağ Aktif</div>
 
@@ -1107,25 +1115,25 @@ window.addEventListener('error', function(e) {
       <input type="file" id="screenshotInput" multiple accept="image/*" onchange="uploadFiles(this.files)">
 
       <div class="action-grid">
-        <button class="action-btn action-btn-primary" onclick="haptic(); document.getElementById('mediaInput').click()">
+        <label for="mediaInput" class="action-btn action-btn-primary touch-target-44" role="button" tabindex="0">
           <span class="action-icon">🖼️</span>
           <span class="action-title">Fotoğraf / Video</span>
           <span class="action-sub">Orijinal HEIC & 4K MOV</span>
-        </button>
+        </label>
 
-        <button class="action-btn action-btn-green" onclick="capturePhoneScreenToPC()">
+        <label for="screenshotInput" class="action-btn action-btn-green touch-target-44" role="button" tabindex="0">
           <span class="action-icon">📸</span>
           <span class="action-title">Ekran Görüntüsü</span>
           <span class="action-sub">Anlık SS ➔ PC Masaüstü</span>
-        </button>
+        </label>
 
-        <button class="action-btn" onclick="haptic(); document.getElementById('anyFileInput').click()">
+        <label for="anyFileInput" class="action-btn touch-target-44" role="button" tabindex="0">
           <span class="action-icon">📂</span>
           <span class="action-title">Dosyalar'dan Seç</span>
           <span class="action-sub">Belge, PDF, ZIP vb.</span>
-        </button>
+        </label>
 
-        <button class="action-btn" onclick="haptic(); capturePCScreen()">
+        <button type="button" class="action-btn touch-target-44" onclick="capturePCScreen()">
           <span class="action-icon">🖥️</span>
           <span class="action-title">PC Ekranını Çek</span>
           <span class="action-sub">PC ➔ iPhone'a İndir</span>
@@ -1230,7 +1238,7 @@ window.addEventListener('error', function(e) {
       <img id="lightboxImg" class="lightbox-img" src="" alt="Önizleme" style="display:none; max-width:92vw; max-height:65vh; border-radius:16px; object-fit:contain; box-shadow:0 10px 40px rgba(0,0,0,0.85);">
     <div id="lightboxTitle" style="margin-top:14px; font-weight:700; font-size:15px; color:#fff; max-width:90vw; text-align:center; word-break:break-all;"></div>
     <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; justify-content:center;">
-      <button id="lightboxShareBtn" class="action-btn action-btn-green touch-target-44" style="padding:11px 18px; flex-direction:row;">📲 Fotoğraflara Kaydet</button>
+      <button id="lightboxShareBtn" class="action-btn action-btn-green touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="shareOrSaveLightboxMedia()">📲 Fotoğraflara Kaydet</button>
       <a id="lightboxDownloadBtn" class="action-btn action-btn-primary touch-target-44" style="padding:11px 18px; text-decoration:none; flex-direction:row;" href="#" download>⬇️ İndir</a>
       <button class="action-btn touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="document.getElementById('lightboxModal').style.display='none'">✖ Kapat</button>
     </div>
@@ -1488,7 +1496,7 @@ async function openLightbox(urlOrId, name, mime) {
   const err = document.getElementById("lightboxErrorBox");
   const dl = document.getElementById("lightboxDownloadBtn");
 
-  const targetUrl = urlOrId.startsWith("http") ? urlOrId : API_BASE + "/api/download/" + urlOrId;
+  const targetUrl = (urlOrId.startsWith("http") || urlOrId.startsWith("blob:")) ? urlOrId : API_BASE + "/api/download/" + urlOrId;
   if (title) title.textContent = name || "Medya";
   if (dl) {
     dl.href = targetUrl;
@@ -1525,6 +1533,31 @@ function closeLightbox(ev) {
   }
 }
 
+
+async function shareOrSaveLightboxMedia() {
+  haptic('medium');
+  if (!currentLightboxParams) return;
+  const { urlOrId, name, mime } = currentLightboxParams;
+  const targetUrl = (urlOrId.startsWith("http") || urlOrId.startsWith("blob:")) ? urlOrId : API_BASE + "/api/download/" + urlOrId;
+  try {
+    const res = await fetch(targetUrl);
+    const blob = await res.blob();
+    const file = new File([blob], name || "media.png", { type: mime || blob.type || "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: name || "WinDrop Medya"
+      });
+      showDesktopToast("✅ Fotoğraflara Kaydedildi");
+    } else {
+      window.open(targetUrl, '_blank');
+    }
+  } catch (e) {
+    console.error("share error:", e);
+    window.open(targetUrl, '_blank');
+  }
+}
+
 function retryLightboxLoad() {
   if (currentLightboxParams) {
     openLightbox(currentLightboxParams.urlOrId, currentLightboxParams.name, currentLightboxParams.mime);
@@ -1541,20 +1574,17 @@ async function capturePCScreen() {
   haptic('medium');
   showDesktopToast("📸 PC Ekranı Alınıyor...");
   try {
-    const res = await fetch(API_BASE + "/api/screenshot/pc");
-    if (!res.ok) throw new Error("PC ekran görüntüsü hazır değil");
+    const timestamp = Date.now();
+    const targetUrl = `${API_BASE}/api/screenshot/pc?t=${timestamp}`;
+    const res = await fetch(targetUrl);
+    if (!res.ok) throw new Error("PC ekran görüntüsü hazır değil (" + res.status + ")");
     const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `PC_Ekran_${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => window.URL.revokeObjectURL(url), 3000);
-    showDesktopToast("✅ PC Ekranı iPhone'a İndirildi!");
+    const objectUrl = window.URL.createObjectURL(blob);
+    openLightbox(objectUrl, `PC_Ekran_${timestamp}.png`, "image/png");
+    showDesktopToast("✅ PC Ekranı Açıldı!");
   } catch (err) {
-    showDesktopToast("⚠️ " + err.message);
+    console.error("capturePCScreen error:", err);
+    showDesktopToast("⚠️ " + (err.message || "Ekran alınamadı"));
   }
 }
 
@@ -1635,6 +1665,11 @@ async function uploadFiles(fileList) {
     });
   }
   statusTxt.textContent = `🎉 ${fileList.length} dosya masaüstüne ulaştı!`;
+  try {
+    const m = document.getElementById('mediaInput'); if (m) m.value = '';
+    const s = document.getElementById('screenshotInput'); if (s) s.value = '';
+    const a = document.getElementById('anyFileInput'); if (a) a.value = '';
+  } catch(e) {}
   setTimeout(() => { box.style.display = "none"; }, 3500);
 }
 
