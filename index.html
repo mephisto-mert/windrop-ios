@@ -1589,14 +1589,6 @@ function insertClipSnippet(snippet) {
   updateClipCharCount();
 }
 
-,
-      body: JSON.stringify({ shortcut: "win" })
-    });
-    if (typeof showDesktopToast === "function") showDesktopToast("⊞ Windows Tuşu Basıldı");
-  } catch(e) {}
-}
-
-
 fetchRadarState();
 setInterval(fetchRadarState, 5000);
 </script>
