@@ -1324,19 +1324,21 @@ const HapticEngine = (function() {
 })();
 
 function haptic(type = 'light') {
-  if (navigator.vibrate) {
-    try {
+  try {
+    if (navigator.vibrate) {
       if (type === 'heavy') navigator.vibrate([20, 40, 20]);
       else if (type === 'medium') navigator.vibrate(25);
       else navigator.vibrate(12);
-    } catch (e) {}
-  }
-  if (type === 'heavy') HapticEngine.heavy();
-  else if (type === 'medium') HapticEngine.medium();
-  else HapticEngine.light();
+    }
+  } catch (e) {}
+  try {
+    if (typeof HapticEngine !== 'undefined' && HapticEngine) {
+      if (type === 'heavy' && typeof HapticEngine.heavy === 'function') HapticEngine.heavy();
+      else if (type === 'medium' && typeof HapticEngine.medium === 'function') HapticEngine.medium();
+      else if (typeof HapticEngine.light === 'function') HapticEngine.light();
+    }
+  } catch (e) {}
 }
-
-
 
 function switchMainTab(tabId, el) {
   haptic();
@@ -1592,194 +1594,6 @@ function insertClipSnippet(snippet) {
 fetchRadarState();
 setInterval(fetchRadarState, 5000);
 </script>
-<!-- Exact Subpixel Touch Cursor Ripple (Fixed to Body, immune to container rotation) -->
-<div id="desktopRipple" style="position:fixed; width:36px; height:36px; border-radius:50%; background:rgba(10,132,255,0.45); border:2.5px solid #64D2FF; transform:translate(-50%,-50%) scale(0); transition:transform 0.22s ease-out, opacity 0.22s; pointer-events:none; opacity:0; z-index:2000050; box-shadow:0 0 16px #0A84FF;"></div>
-
-
-<!-- Universal High-Z-Index Floating Keyboard Overlay -->
-      <div id="keyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:2100050; background:rgba(20,20,26,0.98); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-top:1px solid rgba(255,255,255,0.22); border-radius:24px 24px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom, 12px)); box-shadow:0 -10px 40px rgba(0,0,0,0.85);" onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
-        <!-- Header -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:15px; font-weight:700; color:#fff;">⌨️ Windows Klavye</span>
-            <span style="font-size:11px; color:#30D158; background:rgba(48,209,88,0.15); padding:2px 8px; border-radius:999px;">Canlı Giriş</span>
-          </div>
-          <button class="key-pill" style="padding:6px 14px; background:rgba(255,255,255,0.18); color:#fff; border-radius:999px; font-weight:600;" onclick="toggleKeyboardInput()">✕ Kapat</button>
-        </div>
-        
-        <!-- Live Input Field -->
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <input id="keyboardRealInput" type="text" placeholder="Yaz ve Gönder'e bas..." style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:#fff; padding:12px 14px; font-size:16px; outline:none; -webkit-user-select:text; user-select:text;" onkeydown="handleRealKeyDown(event)">
-          <button class="action-btn action-btn-primary" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; flex-shrink:0;" onclick="sendKeyboardDrawerText()">
-            <span>↵ Gönder</span>
-          </button>
-        </div>
-
-        <!-- Key Row 1: Action keys (preventDefault preserves mobile virtual keyboard focus) -->
-        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:6px;">
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('esc')">Esc</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('tab')">Tab</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; background:rgba(10,132,255,0.25); color:#64D2FF;" onpointerdown="event.preventDefault(); sendRemoteKey('win')">⊞ Win</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('backspace')">⌫ Sil</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; color:#FF453A;" onpointerdown="event.preventDefault(); sendRemoteKey('delete')">Del</button>
-          <button class="key-pill" style="padding:10px 0; font-size:12px; font-weight:600; justify-content:center; background:rgba(48,209,88,0.25); color:#30D158;" onpointerdown="event.preventDefault(); sendRemoteKey('enter')">↵ Enter</button>
-        </div>
-
-        <!-- Key Row 2: Combos & Windows Tools -->
-        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:6px;">
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('ctrl+c')">Kopyala</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('ctrl+v')">Yapıştır</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('ctrl+z')">Geri Al</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('win+d')">Masaüstü</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('alt+tab')">Alt+Tab</button>
-          <button class="key-pill" style="padding:9px 0; font-size:11px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteCombo('ctrl+shift+esc')">Görev</button>
-        </div>
-
-        <!-- Key Row 3: Directional Nav & Space -->
-        <div style="display:flex; gap:6px;">
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('left')">◀</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('up')">▲</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('down')">▼</button>
-          <button class="key-pill" style="flex:1; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('right')">▶</button>
-          <button class="key-pill" style="flex:2; padding:9px 0; font-size:12px; font-weight:600; justify-content:center;" onpointerdown="event.preventDefault(); sendRemoteKey('space')">␣ Boşluk</button>
-        </div>
-      </div>
-
-      <!-- AnyDesk-Style Unified Settings Sheet (Overlay Modal) -->
-      <div id="desktopSettingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:2000000; align-items:flex-end; justify-content:center;" onclick="closeSettingsDrawer(event)">
-        <div style="width:100%; max-width:440px; background:rgba(28,28,32,0.96); border-top:0.5px solid rgba(255,255,255,0.2); border-radius:24px 24px 0 0; padding:20px; box-shadow:0 -10px 40px rgba(0,0,0,0.8); max-height:85vh; overflow-y:auto;" onclick="event.stopPropagation()">
-          
-          <!-- Handle bar -->
-          <div style="width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px;"></div>
-          
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <div style="font-size:17px; font-weight:700; display:flex; align-items:center; gap:8px;">
-              <span>⚙️ Masaüstü Ayarları</span>
-              <span style="font-size:11px; font-weight:600; color:var(--green); background:rgba(48,209,88,0.15); border:0.5px solid rgba(48,209,88,0.35); padding:2px 8px; border-radius:999px;">AnyDesk Modu</span>
-            </div>
-            <button class="key-pill" style="padding:4px 10px;" onclick="toggleSettingsDrawer()">Kapat</button>
-          </div>
-
-          <!-- Section 1: Giriş ve Kontrol -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Giriş & Etkileşim</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
-            <!-- 1. Pinch to Zoom -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🔍 İki Parmakla Yakınlaştır (Zoom)</div>
-                <div style="font-size:11px; color:var(--sub);">Ekrana 2 parmakla yaklaşıp ince detayları büyüt</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingPinchZoom" checked onchange="togglePinchZoomSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-            
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-            <!-- 2. Trackpad Modu -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🖱️ Sanal Hassas Trackpad Modu</div>
-                <div style="font-size:11px; color:var(--sub);">Laptop dokunmatik yüzeyi gibi fare imlecini gezdir</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingTrackpadMode" onchange="toggleTrackpadSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-            <!-- 3. Cinema Stretch Modu -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">📺 Tam Ekran En/Boy (Cinema Stretch)</div>
-                <div style="font-size:11px; color:var(--sub);">16:9 siyah kenar boşluklarını kaldırarak ekranı kapla</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingCinemaStretch" onchange="toggleCinemaStretch(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Section 2: Ekran ve Monitör -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ekran & Gizlilik</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
-<!-- AnyDesk Adaptive Stream Quality Selector -->
-            <div>
-              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">⚡ AnyDesk Akış Kalitesi & Çözünürlük</div>
-              <div style="font-size:11px; color:var(--sub); margin-bottom:8px;">Hücresel veri ve Wi-Fi hızına göre otomatik optimize</div>
-              <div style="display:flex; gap:6px;">
-                <button class="key-pill active-mode" id="btnQualMobile" style="flex:1;" onclick="setDesktopQuality('mobile')">📱 Akıcı HD (720p 30FPS)</button>
-                <button class="key-pill" id="btnQualUltra" style="flex:1;" onclick="setDesktopQuality('ultra')">🖥️ Ultra HD (1080p)</button>
-                <button class="key-pill" id="btnQualTurbo" style="flex:1;" onclick="setDesktopQuality('turbo')">⚡ Turbo (576p)</button>
-              </div>
-            </div>
-
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-                        <!-- 3. Çoklu Monitör -->
-            <div>
-              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📺 Çoklu Monitör Değiştirici</div>
-              <div style="display:flex; gap:6px; margin-top:6px;">
-                <button class="key-pill active-mode" id="btnMon1" onclick="switchMonitor(1)">🖥️ Monitör 1 (Ana)</button>
-                <button class="key-pill" id="btnMon2" onclick="switchMonitor(2)">🖥️ Monitör 2</button>
-              </div>
-            </div>
-
-            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
-
-            <!-- 4. Curtain Mode (Karartma) -->
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:14px; font-weight:600;">🕶️ Gizlilik / Karartma Modu</div>
-                <div style="font-size:11px; color:var(--sub);">Fiziksel PC monitörünü kapat, telefondan izlemeye devam et</div>
-              </div>
-              <label class="ios-switch">
-                <input type="checkbox" id="settingCurtain" onchange="toggleCurtainSetting(this.checked)">
-                <span class="ios-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Section 3: Windows Medya ve Ses -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ses & Medya Kontrolü</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px;">
-            <div style="display:flex; justify-content:space-between; gap:6px; margin-bottom:8px;">
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('voldown')">🔉 Ses Kıs</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('volup')">🔊 Ses Aç</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('mute')">🔇 Sustur</button>
-            </div>
-            <div style="display:flex; justify-content:space-between; gap:6px;">
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('prev')">⏮️ Geri</button>
-              <button class="key-pill" style="flex:1; background:var(--blue);" onclick="sendMediaCmd('playpause')">⏯️ Oynat/Duraklat</button>
-              <button class="key-pill" style="flex:1;" onclick="sendMediaCmd('next')">⏭️ İleri</button>
-            </div>
-          </div>
-
-          <!-- Section 4: Telefondan Masaüstüne Dosya Sürükleme / Bırakma -->
-          <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Dosya Aktarımı</div>
-          
-          <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px;">
-            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📁 Doğrudan Masaüstüne Dosya Bırak</div>
-            <div style="font-size:11px; color:var(--sub); margin-bottom:10px;">Seçtiğin medya veya belgeler doğrudan Windows Masaüstüne kaydedilir.</div>
-            <input type="file" id="desktopDropFileInput" multiple onchange="handleDesktopDropUpload(this.files)" style="display:none;">
-            <button class="action-btn action-btn-primary" style="width:100%; padding:10px; flex-direction:row; font-size:13px;" onclick="document.getElementById('desktopDropFileInput').click()">
-              <span>➕ Dosya Seç ve Masaüstüne Bırak</span>
-            </button>
-            <div id="desktopDropStatus" style="font-size:11.5px; color:var(--green); margin-top:8px; display:none; text-align:center;"></div>
-          </div>
-
-        </div>
-      </div>
-
-
-
 
 <!-- Auto-updating PWA Service Worker Registration -->
 <script>
@@ -1795,7 +1609,7 @@ setInterval(fetchRadarState, 5000);
   });
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=12&t=' + Date.now(), {
+      const reg = await navigator.serviceWorker.register('./sw.js?v=13&t=' + Date.now(), {
         scope: './',
         updateViaCache: 'none'
       });
