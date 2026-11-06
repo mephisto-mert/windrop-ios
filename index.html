@@ -1198,7 +1198,7 @@ function connectDesktopWebSocket() {
   if (desktopWS && desktopWS.readyState === WebSocket.OPEN) return;
   const wsProto = API_BASE.startsWith("https") ? "wss:" : "ws:";
   const wsHost = API_BASE.replace(/^https?:\/\//, "");
-  const wsUrl = `${wsProto}//${wsHost}/ws/remote/desktop`;
+  const wsUrl = `${wsProto}//${wsHost}/ws/remote/desktop?mode=mobile`;
 
   try {
     desktopWS = new WebSocket(wsUrl);
@@ -1659,6 +1659,21 @@ function resetZoom() {
   panOffsetX = 0;
   panOffsetY = 0;
   applyZoomTransform(true);
+}
+
+
+function setDesktopQuality(mode) {
+  haptic();
+  const bM = document.getElementById("btnQualMobile");
+  const bU = document.getElementById("btnQualUltra");
+  const bT = document.getElementById("btnQualTurbo");
+  if (bM) bM.classList.toggle("active-mode", mode === "mobile");
+  if (bU) bU.classList.toggle("active-mode", mode === "ultra");
+  if (bT) bT.classList.toggle("active-mode", mode === "turbo");
+  if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
+    desktopWS.send(JSON.stringify({ action: "set_quality", mode: mode }));
+    showDesktopToast(mode === "ultra" ? "🖥️ Ultra HD 1080p Aktif" : (mode === "turbo" ? "⚡ Turbo 576p Aktif" : "📱 Akıcı HD 720p Aktif"));
+  }
 }
 
 function switchMonitor(idx) {
@@ -2559,7 +2574,20 @@ setInterval(fetchRadarState, 5000);
           <div style="font-size:11px; font-weight:700; color:var(--sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Ekran & Gizlilik</div>
           
           <div style="background:rgba(255,255,255,0.05); border:0.5px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
-            <!-- 3. Çoklu Monitör -->
+<!-- AnyDesk Adaptive Stream Quality Selector -->
+            <div>
+              <div style="font-size:14px; font-weight:600; margin-bottom:4px;">⚡ AnyDesk Akış Kalitesi & Çözünürlük</div>
+              <div style="font-size:11px; color:var(--sub); margin-bottom:8px;">Hücresel veri ve Wi-Fi hızına göre otomatik optimize</div>
+              <div style="display:flex; gap:6px;">
+                <button class="key-pill active-mode" id="btnQualMobile" style="flex:1;" onclick="setDesktopQuality('mobile')">📱 Akıcı HD (720p 30FPS)</button>
+                <button class="key-pill" id="btnQualUltra" style="flex:1;" onclick="setDesktopQuality('ultra')">🖥️ Ultra HD (1080p)</button>
+                <button class="key-pill" id="btnQualTurbo" style="flex:1;" onclick="setDesktopQuality('turbo')">⚡ Turbo (576p)</button>
+              </div>
+            </div>
+
+            <div style="height:0.5px; background:rgba(255,255,255,0.08);"></div>
+
+                        <!-- 3. Çoklu Monitör -->
             <div>
               <div style="font-size:14px; font-weight:600; margin-bottom:4px;">📺 Çoklu Monitör Değiştirici</div>
               <div style="display:flex; gap:6px; margin-top:6px;">
