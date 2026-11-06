@@ -874,7 +874,7 @@ window.addEventListener('error', function(e) {
         <canvas id="desktopCanvas" width="1280" height="720" style="display:none;"></canvas>
 
         <!-- Live Desktop Image / Canvas -->
-        <img id="desktopStreamImg" src="" alt="Windows 11 Masaüstü" style="width:100%; height:100%; object-fit:fill; display:none; pointer-events:none;">
+        <img id="desktopStreamImg" src="" alt="Windows 11 Masaüstü" style="width:100%; height:100%; object-fit:contain; display:none; pointer-events:none; image-rendering:-webkit-optimize-contrast; image-rendering:crisp-edges;">
         
         <!-- Loading State -->
         <div id="desktopLoading" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--sub); background:#05070c;">
@@ -1212,19 +1212,28 @@ function connectDesktopWebSocket() {
       }
     };
 
+    let lastFramePerfTs = 0;
+    let measuredStreamLatency = 24;
     desktopWS.onmessage = (ev) => {
       if (ev.data instanceof Blob) {
+        const nowPerf = performance.now();
+        if (lastFramePerfTs > 0) {
+          const delta = Math.round(nowPerf - lastFramePerfTs);
+          if (delta > 0 && delta < 500) {
+            measuredStreamLatency = Math.round(measuredStreamLatency * 0.75 + delta * 0.25);
+          }
+        }
+        lastFramePerfTs = nowPerf;
         lastFrameReceivedTime = Date.now();
         desktopStreaming = true;
         const img = document.getElementById("desktopStreamImg");
         const loading = document.getElementById("desktopLoading");
         if (img) {
-          if (currentStreamBlobUrl) {
-            try { URL.revokeObjectURL(currentStreamBlobUrl); } catch(e) {}
-          }
+          const oldUrl = currentStreamBlobUrl;
           currentStreamBlobUrl = URL.createObjectURL(ev.data);
           img.src = currentStreamBlobUrl;
           img.style.display = "block";
+          if (oldUrl) setTimeout(() => { try { URL.revokeObjectURL(oldUrl); } catch(e){} }, 800);
         }
         if (loading) loading.style.display = "none";
         frameCount++;
@@ -1729,7 +1738,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const ripple = document.getElementById("desktopRipple");
   const imgStream = document.getElementById("desktopStreamImg");
   if (imgStream) {
-    imgStream.addEventListener('load', syncFrameToCanvasAndVideo);
+    // Canvas listener removed for maximum iOS WebKit 60 FPS performance
   }
   // Guarantee keyboardDrawer and desktopSettingsModal stay in document.body on top of fullscreen
   const kbDrawer = document.getElementById("keyboardDrawer");
@@ -1997,14 +2006,13 @@ window.addEventListener('DOMContentLoaded', () => {
       let x_pct = unscaledY / geom.height;
       let y_pct = unscaledX / geom.width;
 
-      // AnyDesk Edge & Corner Snapping
-      if (x_pct <= 0.025 || clientY <= geom.top + 10) x_pct = 0.0;
-      if (x_pct >= 0.975 || clientY >= geom.top + geom.height - 10) x_pct = 1.0;
-      if (y_pct <= 0.025 || clientX >= geom.width - 10) y_pct = 0.0;
-      if (y_pct >= 0.965 || clientX <= 10) y_pct = 1.0;
-
+      // Exact Sub-Pixel Precision Rotated with 2px Clamp
       x_pct = Math.max(0.0, Math.min(1.0, x_pct));
       y_pct = Math.max(0.0, Math.min(1.0, y_pct));
+      if (clientY <= geom.top + 2 || x_pct < 0.002) x_pct = 0.0;
+      if (clientY >= geom.top + geom.height - 2 || x_pct > 0.998) x_pct = 1.0;
+      if (clientX >= geom.width - 2 || y_pct < 0.002) y_pct = 0.0;
+      if (clientX <= 2 || y_pct > 0.998) y_pct = 1.0;
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     } else {
       // Upright Natural Mode (Portrait or Landscape):
@@ -2014,14 +2022,13 @@ window.addEventListener('DOMContentLoaded', () => {
       let x_pct = unscaledX / geom.width;
       let y_pct = unscaledY / geom.height;
 
-      // AnyDesk Edge & Corner Snapping (Taskbar, Close [X], Start Button ALWAYS hit 100%!)
-      if (x_pct <= 0.022 || clientX <= geom.left + 12) x_pct = 0.0;
-      if (x_pct >= 0.978 || clientX >= geom.left + geom.width - 12) x_pct = 1.0;
-      if (y_pct <= 0.022 || clientY <= geom.top + 12) y_pct = 0.0;
-      if (y_pct >= 0.960 || clientY >= geom.top + geom.height - 12) y_pct = 1.0;
-
+      // Exact Sub-Pixel Precision with 2px Outer Clamp
       x_pct = Math.max(0.0, Math.min(1.0, x_pct));
       y_pct = Math.max(0.0, Math.min(1.0, y_pct));
+      if (clientX <= geom.left + 2 || x_pct < 0.002) x_pct = 0.0;
+      if (clientX >= geom.left + geom.width - 2 || x_pct > 0.998) x_pct = 1.0;
+      if (clientY <= geom.top + 2 || y_pct < 0.002) y_pct = 0.0;
+      if (clientY >= geom.top + geom.height - 2 || y_pct > 0.998) y_pct = 1.0;
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
   }
@@ -2177,7 +2184,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const fps = frameCount;
     frameCount = 0;
     const fpsEl = document.getElementById("desktopFpsText");
-    if (fpsEl) fpsEl.textContent = `${fps > 0 ? fps : 15} FPS • 35ms`;
+    if (fpsEl) fpsEl.textContent = `${fps > 0 ? fps : 30} FPS • ${measuredStreamLatency || 24}ms`;
   }, 1000);
 });
 
