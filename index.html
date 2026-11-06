@@ -974,7 +974,9 @@ window.addEventListener('error', function(e) {
         <div style="font-size:11px; color:var(--sub); font-family:monospace;" id="desktopFpsText">~15 FPS • 35ms</div>
       </div>
 
-      </section>
+      </div>
+    </div>
+  </section>
 
   <!-- TAB 4: PC'DEN GELENLER & GALERİ -->
   <section id="tab-files" class="tab-pane">
@@ -1077,6 +1079,16 @@ function switchMainTab(tabId, el) {
     }
     connectDesktopWebSocket();
     startHttpFrameFallback();
+  } else {
+    // Gracefully pause screen streaming when not in screen tab (saves battery & network)
+    if (httpFallbackTimer) {
+      clearInterval(httpFallbackTimer);
+      httpFallbackTimer = null;
+    }
+    if (desktopWS && desktopWS.readyState === WebSocket.OPEN) {
+      try { desktopWS.close(); } catch(e){}
+      desktopWS = null;
+    }
   }
 }
 
@@ -1691,53 +1703,7 @@ function armNextRightClick() {
   closeAnydeskMenu();
 }
 
-// Compute the true visible Windows screen geometry within container (accounting for letterbox/black bars)
-function getDesktopImageGeometry() {
-  const container = document.getElementById("desktopContainer");
-  const img = document.getElementById("desktopStreamImg");
-  const canvas = document.getElementById("desktopCanvas");
-  const target = (img && img.style.display !== "none") ? img : canvas;
-  
-  if (!container || !target) {
-    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight, offsetX: 0, offsetY: 0 };
-  }
-  
-  const cRect = container.getBoundingClientRect();
-  const cW = cRect.width || window.innerWidth;
-  const cH = cRect.height || window.innerHeight;
-  
-  if (container.classList.contains("is-stretched")) {
-    return { left: cRect.left, top: cRect.top, width: cW, height: cH, offsetX: 0, offsetY: 0 };
-  }
-
-  // Windows standard 16:9 aspect ratio
-  const targetAspect = 16 / 9;
-  const currentAspect = cW / cH;
-  
-  let renderW, renderH, offX, offY;
-  if (currentAspect > targetAspect) {
-    // Container is wider than 16:9 -> black bars on sides (left/right)
-    renderH = cH;
-    renderW = cH * targetAspect;
-    offX = (cW - renderW) / 2;
-    offY = 0;
-  } else {
-    // Container is taller than 16:9 -> black bars on top/bottom
-    renderW = cW;
-    renderH = cW / targetAspect;
-    offX = 0;
-    offY = (cH - renderH) / 2;
-  }
-  
-  return {
-    left: cRect.left + offX,
-    top: cRect.top + offY,
-    width: renderW,
-    height: renderH,
-    offsetX: offX,
-    offsetY: offY
-  };
-}
+// [Unified Image Geometry moved to global interactive engine]
 
 // Interactive Desktop Touch & Focal-Point Zoom Engine
 window.addEventListener('DOMContentLoaded', () => {
@@ -1947,24 +1913,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const targetAspect = 16 / 9;
 
     if (isRotated) {
-      let renderLen, renderWid;
-      if (isStretched) {
-        renderLen = vH;
-        renderWid = vW;
-      } else {
-        renderWid = vW;
-        renderLen = vW * targetAspect;
-        if (renderLen > vH) {
-          renderLen = vH;
-          renderWid = vH / targetAspect;
-        }
-      }
+      // Container rotated 90deg CW: unrotated width is vH (100svh), height is vW (100vw).
+      // Image renders along vH centered with length = vW * (16/9), height = vW.
+      const renderLen = isStretched ? vH : Math.min(vH, vW * targetAspect);
       const offTop = (vH - renderLen) / 2;
-      const offLeft = (vW - renderWid) / 2;
       return {
-        left: offLeft,
+        left: 0,
         top: offTop,
-        width: renderWid,
+        width: vW,
         height: renderLen,
         isRotated: true
       };
@@ -2003,12 +1959,12 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCoords(ev) {
-    let clientX = (ev.clientX !== undefined) ? ev.clientX : 0;
-    let clientY = (ev.clientY !== undefined) ? ev.clientY : 0;
-    if (ev.touches && ev.touches.length > 0) {
+    let clientX = (ev && ev.clientX !== undefined && ev.clientX !== 0) ? ev.clientX : (touchStartClientX || 0);
+    let clientY = (ev && ev.clientY !== undefined && ev.clientY !== 0) ? ev.clientY : (touchStartClientY || 0);
+    if (ev && ev.touches && ev.touches.length > 0) {
       clientX = ev.touches[0].clientX;
       clientY = ev.touches[0].clientY;
-    } else if (ev.changedTouches && ev.changedTouches.length > 0) {
+    } else if (ev && ev.changedTouches && ev.changedTouches.length > 0) {
       clientX = ev.changedTouches[0].clientX;
       clientY = ev.changedTouches[0].clientY;
     }
@@ -2018,9 +1974,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (geom.isRotated) {
       // 90° Clockwise Rotation:
       // Phone Y axis maps to Windows X (0 at top, 1 at bottom of phone)
-      // Phone X axis maps to Windows Y (0 at right, 1 at left of phone)
+      // Phone X axis maps to Windows Y (0 at right edge, 1 at left edge of phone)
       const unscaledY = (clientY - geom.top - panOffsetX) / currentZoomScale;
-      const unscaledX = (geom.left + geom.width - clientX - panOffsetY) / currentZoomScale;
+      const unscaledX = (geom.width - clientX - panOffsetY) / currentZoomScale;
 
       const x_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
       const y_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
@@ -2313,6 +2269,12 @@ async function openUrlOnPC() {
   document.getElementById("connBadgeText").textContent = "🌐 Link PC'de Açıldı!";
 }
 
+function escapeHTML(str) {
+  return String(str || '').replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
 function renderIncoming(files) {
   const box = document.getElementById("incomingList");
   if (!files || !files.length) {
@@ -2320,14 +2282,14 @@ function renderIncoming(files) {
     return;
   }
   box.innerHTML = files.map(f => `
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.05); border-radius:14px; margin-bottom:8px; cursor:pointer;" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON') openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">
       <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:10px;">
-        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${f.name}</div>
+        <div style="font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(f.name)}</div>
         <div style="font-size:11px; color:var(--sub);">${f.size ? (f.size/1024/1024).toFixed(2) + " MB" : ""}</div>
       </div>
       <div style="display:flex; gap:8px; flex-shrink:0;">
-        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${f.name}', '${f.mime||""}')">👁️</button>
-        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${f.name}" onclick="event.stopPropagation()">⬇️</a>
+        <button class="action-btn touch-target-44" style="padding:6px 12px; font-size:13px;" onclick="event.stopPropagation(); openLightbox('${f.id}', '${escapeHTML(f.name)}', '${f.mime||""}')">👁️</button>
+        <a class="action-btn action-btn-primary touch-target-44" style="padding:6px 12px; text-decoration:none;" href="${API_BASE}/api/download/${f.id}" download="${escapeHTML(f.name)}" onclick="event.stopPropagation()">⬇️</a>
       </div>
     </div>
   `).join("");
@@ -2436,8 +2398,14 @@ function retryLightboxLoad() {
 }
 
 function closeLightbox(ev) {
-  if (ev.target.id === "lightboxModal") {
-    document.getElementById("lightboxModal").style.display = "none";
+  if (!ev || ev.target.id === "lightboxModal" || ev.target.classList.contains("lightbox-close-btn")) {
+    const modal = document.getElementById("lightboxModal");
+    const imgEl = document.getElementById("lightboxImg");
+    if (modal) modal.style.display = "none";
+    if (imgEl && imgEl.src && imgEl.src.startsWith("blob:")) {
+      try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
+      imgEl.src = "";
+    }
   }
 }
 
@@ -2602,8 +2570,6 @@ setInterval(fetchRadarState, 5000);
 
         </div>
       </div>
-
-    </div>
 
 </body>
 </html>
