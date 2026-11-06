@@ -546,17 +546,23 @@ window.addEventListener('error', function(e) {
   /* Native Form Controls */
   .ios-textarea {
     width: 100%;
-    min-height: 80px;
+    min-height: 120px;
     border-radius: var(--radius-m);
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.55);
     border: 0.5px solid var(--border);
     color: #fff;
-    padding: 12px;
-    font-size: 14px;
-    font-family: inherit;
+    padding: 14px;
+    font-size: 16px !important; /* Strict 16px prevents iOS Safari viewport auto-zoom */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     outline: none;
     resize: vertical;
     margin-bottom: 10px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    line-height: 1.45;
+  }
+  .ios-textarea:focus {
+    border-color: var(--blue);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.4), 0 0 12px var(--blue-glow);
   }
   .ios-textarea:focus {
     border-color: var(--blue);
@@ -1038,18 +1044,91 @@ window.addEventListener('error', function(e) {
   }
 
 
-/* iOS Safari Fullscreen Fallback & Responsive Viewport */
-.vnc-pseudo-fullscreen {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
-  z-index: 999999 !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  background: #000 !important;
-}
+/* Embedded noVNC Responsive Viewport & iOS Safari Fullscreen */
+  #vncContainer {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 220px;
+    max-height: calc(100dvh - 340px);
+    background: #000000;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #vncIframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    background: #000;
+    touch-action: manipulation;
+  }
+  .vnc-fs-floating-bar {
+    position: absolute;
+    top: max(env(safe-area-inset-top), 14px);
+    right: max(env(safe-area-inset-right), 14px);
+    z-index: 1000005;
+    display: none;
+    gap: 8px;
+    background: rgba(20, 20, 26, 0.88);
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 0.5px solid rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    box-shadow: 0 6px 25px rgba(0,0,0,0.7);
+  }
+  #vncContainer.vnc-pseudo-fullscreen .vnc-fs-floating-bar {
+    display: flex !important;
+  }
+  .vnc-fs-btn {
+    padding: 6px 12px;
+    min-height: 38px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border: 0.5px solid rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+    touch-action: manipulation;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .vnc-fs-btn.vnc-fs-close {
+    background: rgba(255, 69, 58, 0.35);
+    border-color: rgba(255, 69, 58, 0.5);
+    color: #FF453A;
+  }
+  #vncContainer.vnc-pseudo-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 999999 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #000000 !important;
+    aspect-ratio: auto !important;
+  }
+  #vncContainer.vnc-pseudo-fullscreen #vncIframe {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+  }
 </style>
 </head>
 <body>
@@ -1061,37 +1140,39 @@ window.addEventListener('error', function(e) {
     <div class="aurora-blob aurora-blob-3"></div>
   </div>
 
-  <!-- Dynamic Island Header -->
-  <header class="ios-navbar">
-    <div class="ios-brand">
-      <div class="island-dot">⚡</div>
-      <div>
-        <div class="brand-title">WinDrop</div>
-        <div class="brand-sub">Kayıpsız AirDrop Hub</div>
+  <!-- Unified Sticky Frosted Header with Dynamic Island & Segmented Control -->
+  <header class="ios-header-wrapper">
+    <div class="ios-navbar">
+      <div class="ios-brand">
+        <div class="island-dot">⚡</div>
+        <div>
+          <div class="brand-title">WinDrop</div>
+          <div class="brand-sub">Kayıpsız AirDrop Hub</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <!-- 21st.dev Theme Switcher Pills -->
+        <div class="theme-switch-dock">
+          <button class="theme-pill-dot dot-cyber active" onclick="setAppTheme('cyber')" title="Midnight Cyber"></button>
+          <button class="theme-pill-dot dot-cosmic" onclick="setAppTheme('cosmic')" title="Cosmic Aurora"></button>
+          <button class="theme-pill-dot dot-titanium" onclick="setAppTheme('titanium')" title="Titanium Gold"></button>
+        </div>
+
+        <div id="connBadge" class="status-badge">
+          <span class="status-indicator"></span>
+          <span id="connBadgeText">● 24/7 Bağlı</span>
+        </div>
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <!-- 21st.dev Theme Switcher Pills -->
-      <div class="theme-switch-dock">
-        <button class="theme-pill-dot dot-cyber active" onclick="setAppTheme('cyber')" title="Midnight Cyber"></button>
-        <button class="theme-pill-dot dot-cosmic" onclick="setAppTheme('cosmic')" title="Cosmic Aurora"></button>
-        <button class="theme-pill-dot dot-titanium" onclick="setAppTheme('titanium')" title="Titanium Gold"></button>
-      </div>
 
-      <div id="connBadge" class="status-badge">
-        <span class="status-indicator"></span>
-        <span id="connBadgeText">● 24/7 Bağlı</span>
-      </div>
+    <!-- Segmented iOS Tab Control -->
+    <div class="ios-segmented">
+      <button class="ios-segment-btn active" onclick="switchMainTab('radar', this)">📡 AirDrop</button>
+      <button class="ios-segment-btn" onclick="switchMainTab('clipboard', this)">📋 Pano</button>
+      <button class="ios-segment-btn" onclick="switchMainTab('screen', this)">🖥️ PC Ekranı</button>
+      <button class="ios-segment-btn" onclick="switchMainTab('files', this)">📥 Gelenler</button>
     </div>
   </header>
-
-  <!-- Segmented Sub Tabs -->
-  <div class="ios-segmented">
-    <button class="ios-segment-btn active" onclick="switchMainTab('radar', this)">📡 AirDrop</button>
-    <button class="ios-segment-btn" onclick="switchMainTab('clipboard', this)">📋 Pano</button>
-    <button class="ios-segment-btn" onclick="switchMainTab('screen', this)">🖥️ PC Ekranı</button>
-    <button class="ios-segment-btn" onclick="switchMainTab('files', this)">📥 Gelenler</button>
-  </div>
 
   <!-- TAB 1: AIRDROP RADAR & MEDYA GÖNDERİMİ -->
   <main id="tab-radar" class="tab-pane active">
@@ -1613,17 +1694,20 @@ let lastFrameReceivedTime = 0;
 let currentStreamBlobUrl = null;
 
 // --- NO-VNC & RUSTDESK 60 FPS ULTRA-FAST REMOTE ENGINE ---
-function toggleVncFullscreen() {
+async function toggleVncFullscreen() {
   haptic('medium');
   const container = document.getElementById("vncContainer");
   if (!container) return;
+  const isNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
   const isPseudo = container.classList.contains("vnc-pseudo-fullscreen");
-  if (!isPseudo) {
+  if (!isNativeFs && !isPseudo) {
     if (container.requestFullscreen) {
-      container.requestFullscreen().catch(() => {
+      try {
+        await container.requestFullscreen();
+      } catch(e) {
         container.classList.add("vnc-pseudo-fullscreen");
         document.body.style.overflow = "hidden";
-      });
+      }
     } else if (container.webkitRequestFullscreen) {
       try { container.webkitRequestFullscreen(); } catch(e) {
         container.classList.add("vnc-pseudo-fullscreen");
@@ -1636,9 +1720,9 @@ function toggleVncFullscreen() {
     const fsControls = document.getElementById("vncFsControls");
     if (fsControls) fsControls.style.display = "flex";
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if (document.webkitExitFullscreen) {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      try { await document.exitFullscreen(); } catch(e) {}
+    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
       try { document.webkitExitFullscreen(); } catch(e) {}
     }
     container.classList.remove("vnc-pseudo-fullscreen");
@@ -1647,6 +1731,157 @@ function toggleVncFullscreen() {
     if (fsControls) fsControls.style.display = "none";
   }
 }
+
+document.addEventListener("fullscreenchange", () => {
+  const container = document.getElementById("vncContainer");
+  const fsControls = document.getElementById("vncFsControls");
+  if (!document.fullscreenElement && container) {
+    container.classList.remove("vnc-pseudo-fullscreen");
+    document.body.style.overflow = "";
+    if (fsControls) fsControls.style.display = "none";
+  }
+});
+document.addEventListener("webkitfullscreenchange", () => {
+  const container = document.getElementById("vncContainer");
+  const fsControls = document.getElementById("vncFsControls");
+  if (!document.webkitFullscreenElement && container) {
+    container.classList.remove("vnc-pseudo-fullscreen");
+    document.body.style.overflow = "";
+    if (fsControls) fsControls.style.display = "none";
+  }
+});
+
+
+// --- Universal Clipboard Mobile Helpers ---
+function updateClipCharCount() {
+  const el = document.getElementById("clipBox");
+  const countEl = document.getElementById("clipCharCount");
+  if (!el || !countEl) return;
+  const val = el.value || "";
+  const lines = val ? val.split("\n").length : 0;
+  countEl.textContent = `${val.length} Karakter` + (lines > 1 ? ` • ${lines} Satır` : "");
+}
+
+async function copyClipBoxToPhone() {
+  haptic('medium');
+  const el = document.getElementById("clipBox");
+  const txt = el ? el.value.trim() : "";
+  if (!txt) {
+    if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Pano kutusu boş!");
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(txt);
+      if (typeof showDesktopToast === "function") showDesktopToast("📋 iPhone Panosuna Kopyalandı!");
+      const countEl = document.getElementById("clipCharCount");
+      if (countEl) countEl.textContent = "✅ Kopyalandı!";
+      setTimeout(updateClipCharCount, 2000);
+    } catch(e) {
+      if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Panoya kopyalanamadı");
+    }
+  }
+}
+
+async function pasteFromPhoneToClipBox() {
+  haptic('medium');
+  const el = document.getElementById("clipBox");
+  if (!el) return;
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        el.value = text;
+        updateClipCharCount();
+        if (typeof showDesktopToast === "function") showDesktopToast("📥 iPhone Panosu Yapıştırıldı!");
+      } else {
+        if (typeof showDesktopToast === "function") showDesktopToast("⚠️ iPhone panosu boş");
+      }
+    } catch(e) {
+      if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Panoyu yapıştırmak için kutuyu basılı tutun");
+    }
+  } else {
+    el.focus();
+  }
+}
+
+function clearClipBox() {
+  haptic('heavy');
+  const el = document.getElementById("clipBox");
+  if (el) {
+    el.value = "";
+    updateClipCharCount();
+    if (typeof showDesktopToast === "function") showDesktopToast("🧹 Pano Temizlendi");
+  }
+}
+
+function insertClipSnippet(snippet) {
+  haptic('light');
+  const el = document.getElementById("clipBox");
+  if (!el) return;
+  el.value = (el.value ? el.value + " " : "") + snippet;
+  el.focus();
+  updateClipCharCount();
+}
+
+function reloadVncIframe() {
+  haptic('medium');
+  const frame = document.getElementById("vncIframe");
+  if (frame) {
+    frame.src = "/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=ws/vnc&t=" + Date.now();
+    if (typeof showDesktopToast === "function") showDesktopToast("🔄 Ekran Yenileniyor...");
+  }
+}
+
+async function sendKeystrokePrompt() {
+  haptic('medium');
+  const text = prompt("PC'ye göndermek istediğiniz metni yazın:");
+  if (!text) return;
+  try {
+    const res = await fetch(API_BASE + "/api/remote/keystrokes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    });
+    if (res.ok) {
+      if (typeof showDesktopToast === "function") showDesktopToast("⌨ Tuşlar PC'ye İletildi!");
+    } else {
+      await fetch(API_BASE + "/api/clipboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clipboard: text, text: text })
+      });
+      if (typeof showDesktopToast === "function") showDesktopToast("📋 Metin PC Panosuna Gönderildi!");
+    }
+  } catch(e) {
+    if (typeof showDesktopToast === "function") showDesktopToast("⚠️ İletilemedi");
+  }
+}
+
+async function sendRemoteClick(btn = 'left') {
+  haptic('light');
+  try {
+    await fetch(API_BASE + "/api/remote/mouse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "click", button: btn })
+    });
+    if (typeof showDesktopToast === "function") showDesktopToast(btn === 'left' ? "🖱️ Sol Tık" : "🖱️ Sağ Tık");
+  } catch(e) {}
+}
+
+async function sendWinKey() {
+  haptic('medium');
+  try {
+    await fetch(API_BASE + "/api/remote/shortcut", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shortcut: "win" })
+    });
+    if (typeof showDesktopToast === "function") showDesktopToast("⊞ Windows Tuşu Basıldı");
+  } catch(e) {}
+}
+
 
 fetchRadarState();
 setInterval(fetchRadarState, 5000);
