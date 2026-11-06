@@ -1435,6 +1435,125 @@ async function fetchWithTimeout(url, ms = 2500) {
   }
 }
 
+function escapeHTML(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+let currentLightboxParams = null;
+
+function renderIncoming(files) {
+  window.currentOutgoingFiles = files || [];
+  const container = document.getElementById("incomingList");
+  if (!container) return;
+  if (!files || files.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:32px 16px; color:var(--sub);"><div style="font-size:36px; margin-bottom:8px;">📂</div><div style="font-size:14px; font-weight:600; color:#fff;">Henüz Dosya Yok</div><div style="font-size:12px; margin-top:4px;">PC\'den gönderilen dosyalar burada görünecektir</div></div>';
+    return;
+  }
+  container.innerHTML = files.map(f => `
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; margin-bottom:8px; gap:10px;">
+      <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1; cursor:pointer;" onclick="openLightbox('${f.id}', '${escapeHTML(f.filename)}', '${f.mime || ""}')">
+        <span style="font-size:24px;">${f.filename.match(/\.(jpe?g|png|heic|webp)$/i) ? '🖼️' : f.filename.match(/\.(mp4|mov|m4v)$/i) ? '🎬' : '📄'}</span>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(f.filename)}</div>
+          <div style="font-size:11px; color:var(--sub); margin-top:2px;">${(f.size / (1024*1024)).toFixed(2)} MB • Önizlemek için dokun</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <a href="${API_BASE}/api/download/${f.id}" download="${escapeHTML(f.filename)}" class="action-btn touch-target-44" style="padding:6px 12px; font-size:12px; background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); text-decoration:none; border-radius:8px;">
+          ⬇️ İndir
+        </a>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openLightbox(urlOrId, name, mime) {
+  haptic('medium');
+  currentLightboxParams = { urlOrId, name, mime };
+  const modal = document.getElementById("lightboxModal");
+  const img = document.getElementById("lightboxImg");
+  const video = document.getElementById("lightboxVideo");
+  const title = document.getElementById("lightboxTitle");
+  const spin = document.getElementById("lightboxSpinner");
+  const err = document.getElementById("lightboxErrorBox");
+  const dl = document.getElementById("lightboxDownloadBtn");
+
+  const targetUrl = urlOrId.startsWith("http") ? urlOrId : API_BASE + "/api/download/" + urlOrId;
+  if (title) title.textContent = name || "Medya";
+  if (dl) {
+    dl.href = targetUrl;
+    dl.download = name || "Dosya";
+  }
+
+  if (modal) modal.style.display = "flex";
+  if (spin) spin.style.display = "flex";
+  if (err) err.style.display = "none";
+  if (img) img.style.display = "none";
+  if (video) { video.style.display = "none"; video.pause(); }
+
+  const isVideo = (mime && mime.startsWith("video/")) || /\.(mp4|mov|m4v|webm)$/i.test(name);
+  if (isVideo && video) {
+    video.src = targetUrl;
+    video.onloadeddata = () => { if (spin) spin.style.display = "none"; video.style.display = "block"; };
+    video.onerror = () => { if (spin) spin.style.display = "none"; if (err) err.style.display = "flex"; };
+  } else if (img) {
+    img.src = targetUrl;
+    img.onload = () => { if (spin) spin.style.display = "none"; img.style.display = "block"; };
+    img.onerror = () => { if (spin) spin.style.display = "none"; if (err) err.style.display = "flex"; };
+  }
+}
+
+function closeLightbox(ev) {
+  if (!ev || ev.target.id === "lightboxModal" || (ev.target.classList && ev.target.classList.contains("lightbox-close-btn"))) {
+    const modal = document.getElementById("lightboxModal");
+    const imgEl = document.getElementById("lightboxImg");
+    if (modal) modal.style.display = "none";
+    if (imgEl && imgEl.src && imgEl.src.startsWith("blob:")) {
+      try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
+      imgEl.src = "";
+    }
+  }
+}
+
+function retryLightboxLoad() {
+  if (currentLightboxParams) {
+    openLightbox(currentLightboxParams.urlOrId, currentLightboxParams.name, currentLightboxParams.mime);
+  }
+}
+
+function capturePhoneScreenToPC() {
+  haptic('medium');
+  const input = document.getElementById('screenshotInput') || document.getElementById('mediaInput');
+  if (input) input.click();
+}
+
+async function capturePCScreen() {
+  haptic('medium');
+  showDesktopToast("📸 PC Ekranı Alınıyor...");
+  try {
+    const res = await fetch(API_BASE + "/api/screenshot/pc");
+    if (!res.ok) throw new Error("PC ekran görüntüsü hazır değil");
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `PC_Ekran_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => window.URL.revokeObjectURL(url), 3000);
+    showDesktopToast("✅ PC Ekranı iPhone'a İndirildi!");
+  } catch (err) {
+    showDesktopToast("⚠️ " + err.message);
+  }
+}
+
 async function fetchRadarState() {
   try {
     const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2800);
