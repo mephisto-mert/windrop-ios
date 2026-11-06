@@ -590,6 +590,9 @@ window.addEventListener('error', function(e) {
     display: block !important;
   }
   .anydesk-fab-btn {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -865,7 +868,7 @@ window.addEventListener('error', function(e) {
       </div>
 
       <!-- THE LIVE DESKTOP VIEWPORT (INTERACTIVE TOUCH CANVAS) -->
-      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,0.18); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);" onclick="resetFullscreenControlsTimer()">
+      <div id="desktopContainer" style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:6px; overflow:visible; border:1px solid rgba(255,255,255,0.22); touch-action:none; user-select:none; -webkit-user-select:none; box-shadow:0 8px 30px rgba(0,0,0,0.8);" onclick="resetFullscreenControlsTimer()">
         <!-- Native Video Element for Native iOS Movie Player Mode -->
         <video id="desktopNativeVideo" playsinline webkit-playsinline muted autoplay style="position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none;"></video>
         <canvas id="desktopCanvas" width="1280" height="720" style="display:none;"></canvas>
@@ -963,6 +966,7 @@ window.addEventListener('error', function(e) {
       <!-- Minimalist Floating Control Bar -->
       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:6px 10px; background:rgba(255,255,255,0.05); border-radius:14px; border:0.5px solid var(--border);">
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="key-pill" id="trackpadToggleBtn" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);" onclick="toggleTrackpadQuick()">👆 Dokunmatik</button>
           <button class="key-pill" style="background:rgba(255,255,255,0.15);" onclick="toggleSettingsDrawer()">⚙️ Ayarlar</button>
           <button class="key-pill" style="background:var(--blue); border-color:var(--blue);" onclick="toggleKeyboardInput()">⌨️ Klavye</button>
           <button class="key-pill" onclick="sendRemoteKey('win')">⊞ Başlat</button>
@@ -1584,6 +1588,20 @@ let initialPinchScale = 1.0;
 let lastTrackpadX = 0;
 let lastTrackpadY = 0;
 
+
+function toggleTrackpadQuick() {
+  haptic();
+  settingTrackpadEnabled = !settingTrackpadEnabled;
+  const btn = document.getElementById("trackpadToggleBtn");
+  if (btn) {
+    btn.textContent = settingTrackpadEnabled ? "🖱️ İmleç Modu" : "👆 Dokunmatik";
+    btn.style.background = settingTrackpadEnabled ? "var(--green)" : "rgba(255,255,255,0.15)";
+    btn.style.color = settingTrackpadEnabled ? "#000" : "#fff";
+    btn.style.fontWeight = settingTrackpadEnabled ? "700" : "500";
+  }
+  showDesktopToast(settingTrackpadEnabled ? "🖱️ İmleç (Trackpad) Modu: Parmağınla imleci yönlendir!" : "👆 Dokunmatik Mod: Bastığın yere tıklar!");
+}
+
 function toggleSettingsDrawer() {
   haptic();
   const modal = document.getElementById("desktopSettingsModal");
@@ -1973,21 +1991,37 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (geom.isRotated) {
       // 90° Clockwise Rotation:
-      // Phone Y axis maps to Windows X (0 at top, 1 at bottom of phone)
-      // Phone X axis maps to Windows Y (0 at right edge, 1 at left edge of phone)
       const unscaledY = (clientY - geom.top - panOffsetX) / currentZoomScale;
       const unscaledX = (geom.width - clientX - panOffsetY) / currentZoomScale;
 
-      const x_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
-      const y_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
+      let x_pct = unscaledY / geom.height;
+      let y_pct = unscaledX / geom.width;
+
+      // AnyDesk Edge & Corner Snapping
+      if (x_pct <= 0.025 || clientY <= geom.top + 10) x_pct = 0.0;
+      if (x_pct >= 0.975 || clientY >= geom.top + geom.height - 10) x_pct = 1.0;
+      if (y_pct <= 0.025 || clientX >= geom.width - 10) y_pct = 0.0;
+      if (y_pct >= 0.965 || clientX <= 10) y_pct = 1.0;
+
+      x_pct = Math.max(0.0, Math.min(1.0, x_pct));
+      y_pct = Math.max(0.0, Math.min(1.0, y_pct));
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     } else {
       // Upright Natural Mode (Portrait or Landscape):
       const unscaledX = (clientX - geom.left - panOffsetX) / currentZoomScale;
       const unscaledY = (clientY - geom.top - panOffsetY) / currentZoomScale;
 
-      const x_pct = Math.max(0.0, Math.min(1.0, unscaledX / geom.width));
-      const y_pct = Math.max(0.0, Math.min(1.0, unscaledY / geom.height));
+      let x_pct = unscaledX / geom.width;
+      let y_pct = unscaledY / geom.height;
+
+      // AnyDesk Edge & Corner Snapping (Taskbar, Close [X], Start Button ALWAYS hit 100%!)
+      if (x_pct <= 0.022 || clientX <= geom.left + 12) x_pct = 0.0;
+      if (x_pct >= 0.978 || clientX >= geom.left + geom.width - 12) x_pct = 1.0;
+      if (y_pct <= 0.022 || clientY <= geom.top + 12) y_pct = 0.0;
+      if (y_pct >= 0.960 || clientY >= geom.top + geom.height - 12) y_pct = 1.0;
+
+      x_pct = Math.max(0.0, Math.min(1.0, x_pct));
+      y_pct = Math.max(0.0, Math.min(1.0, y_pct));
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
   }
