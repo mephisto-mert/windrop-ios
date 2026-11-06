@@ -36,6 +36,17 @@ try {
 window.addEventListener('error', function(e) {
   console.warn('[WinDrop SafeGuard]', e.message);
 });
+
+  // Missing functions implementation
+  function downloadAllBundle() {
+    haptic();
+    window.location.href = API_BASE + "/api/download-all-store";
+  }
+
+  function resetFullscreenControlsTimer() {
+    resetFabDimTimer();
+  }
+
 </script>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-180.png">
@@ -990,7 +1001,7 @@ window.addEventListener('error', function(e) {
 
 </style>
 </head>
-<body style="background:#000000; color:#ffffff;">
+<body>
 
   <!-- 21st.dev Ambient Aurora Mesh Glow -->
   <div class="aurora-bg" aria-hidden="true">
@@ -1509,7 +1520,7 @@ function connectDesktopWebSocket() {
           currentStreamBlobUrl = URL.createObjectURL(ev.data);
           img.src = currentStreamBlobUrl;
           img.style.display = "block";
-          if (oldUrl) setTimeout(() => { try { URL.revokeObjectURL(oldUrl); } catch(e){} }, 800);
+          if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
         }
         if (loading) loading.style.display = "none";
         frameCount++;
@@ -2402,8 +2413,8 @@ window.addEventListener('DOMContentLoaded', () => {
       const rx = clientX - geom.cLeft;
       const ry = clientY - geom.cTop;
 
-      const unscaledX = (rx - geom.offX - panOffsetX) / S;
-      const unscaledY = (ry - geom.offY - panOffsetY) / S;
+      const unscaledX = (rx - panOffsetX) / S - geom.offX;
+      const unscaledY = (ry - panOffsetY) / S - geom.offY;
 
       let x_pct = unscaledX / geom.renderW;
       let y_pct = unscaledY / geom.renderH;
@@ -2411,10 +2422,12 @@ window.addEventListener('DOMContentLoaded', () => {
       x_pct = Math.max(0.0, Math.min(1.0, x_pct));
       y_pct = Math.max(0.0, Math.min(1.0, y_pct));
 
-      if (clientX <= geom.cLeft + geom.offX + 3) x_pct = 0.0;
-      if (clientX >= geom.cLeft + geom.offX + geom.renderW - 3) x_pct = 1.0;
-      if (clientY <= geom.cTop + geom.offY + 3) y_pct = 0.0;
-      if (clientY >= geom.cTop + geom.offY + geom.renderH - 3) y_pct = 1.0;
+      const tolX = 3 / Math.max(1, geom.renderW);
+      const tolY = 3 / Math.max(1, geom.renderH);
+      if (x_pct <= tolX) x_pct = 0.0;
+      else if (x_pct >= 1.0 - tolX) x_pct = 1.0;
+      if (y_pct <= tolY) y_pct = 0.0;
+      else if (y_pct >= 1.0 - tolY) y_pct = 1.0;
 
       return { x_pct, y_pct, clickX: clientX, clickY: clientY };
     }
