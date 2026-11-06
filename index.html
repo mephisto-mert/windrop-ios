@@ -1302,7 +1302,7 @@ window.addEventListener('error', function(e) {
           <button class="header-action-btn touch-target-44" style="background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); padding:6px 12px; border-radius:10px; font-size:12px; font-weight:600; cursor:pointer;" onclick="toggleVncFullscreen()">
             <span>⛶ Tam Ekran</span>
           </button>
-          <a href="/novnc/vnc.html?autoconnect=true&resize=scale&path=/ws/vnc" target="_blank" class="header-action-btn touch-target-44" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.28); padding:6px 12px; border-radius:10px; font-size:12px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center;">
+          <a id="vncSeparateTabLink" href="#" onclick="window.open(getVncFullUrl(), '_blank'); return false;" class="header-action-btn touch-target-44" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.28); padding:6px 12px; border-radius:10px; font-size:12px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center;">
             <span>↗ Ayrı Sekme</span>
           </a>
         </div>
@@ -1319,7 +1319,7 @@ window.addEventListener('error', function(e) {
 
         <iframe id="vncIframe" 
                 src="about:blank"
-                data-src="/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=/ws/vnc" 
+                data-src="/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=ws/vnc" 
                 allow="fullscreen; clipboard-read; clipboard-write; autoplay">
         </iframe>
       </div>
@@ -1505,6 +1505,24 @@ function haptic(type = 'light') {
   else HapticEngine.light();
 }
 
+function getVncBaseUrl() {
+  if (typeof API_BASE !== 'undefined' && API_BASE && API_BASE.startsWith('http')) {
+    return API_BASE.replace(/\/+$/, '');
+  }
+  if (window.location.origin && window.location.origin.startsWith('http') && !window.location.hostname.includes('github.io')) {
+    return window.location.origin.replace(/\/+$/, '');
+  }
+  return (typeof DEFAULT_CLOUD_TUNNEL !== 'undefined' ? DEFAULT_CLOUD_TUNNEL : 'https://foot-hotel-modified-shoe.trycloudflare.com').replace(/\/+$/, '');
+}
+
+function getVncLiteUrl() {
+  return getVncBaseUrl() + "/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=ws/vnc";
+}
+
+function getVncFullUrl() {
+  return getVncBaseUrl() + "/novnc/vnc.html?autoconnect=true&resize=scale&path=/ws/vnc";
+}
+
 function switchMainTab(tabId, el) {
   haptic();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -1524,7 +1542,9 @@ function switchMainTab(tabId, el) {
   if (tabId === 'screen') {
     const frame = document.getElementById("vncIframe");
     if (frame && (!frame.src || frame.src.endsWith("about:blank") || frame.src === window.location.href)) {
-      frame.src = frame.dataset.src || "/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=/ws/vnc";
+      frame.src = getVncLiteUrl();
+    const sepLink = document.getElementById("vncSeparateTabLink");
+    if (sepLink) { sepLink.href = getVncFullUrl(); }
     }
   } else if (tabId === 'clipboard') {
     if (typeof handleClipboardTabOpen === 'function') {
@@ -1828,7 +1848,9 @@ function reloadVncIframe() {
   haptic('medium');
   const frame = document.getElementById("vncIframe");
   if (frame) {
-    frame.src = "/novnc/vnc_lite.html?autoconnect=true&scale=true&resize=scale&path=/ws/vnc&t=" + Date.now();
+    frame.src = getVncLiteUrl() + "&t=" + Date.now();
+    const sepLink = document.getElementById("vncSeparateTabLink");
+    if (sepLink) { sepLink.href = getVncFullUrl(); }
     if (typeof showDesktopToast === "function") showDesktopToast("🔄 Ekran Yenileniyor...");
   }
 }
