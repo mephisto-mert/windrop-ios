@@ -1,5 +1,5 @@
-// WinDrop Immortal High-Speed PWA Service Worker v15
-const CACHE_NAME = 'windrop-immortal-pwa-v15';
+// WinDrop Immortal High-Speed PWA Service Worker v16
+const CACHE_NAME = 'windrop-immortal-pwa-v16';
 const SHELL_ASSETS = [
   './',
   './index.html',
@@ -23,7 +23,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW v15] Purged old cache:', key);
+            console.log('[SW v16] Purged old cache:', key);
             return caches.delete(key);
           }
         })

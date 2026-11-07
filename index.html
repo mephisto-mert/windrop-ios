@@ -1434,6 +1434,10 @@ async function pullClipboardFromPC() {
     }
     const badge = document.getElementById("connBadgeText");
     if (badge) badge.textContent = "📥 Pano iPhone'a Alındı!";
+    if (typeof updateClipCharCount === "function") updateClipCharCount();
+    if (typeof showDesktopToast === "function") {
+      showDesktopToast("📥 PC Panosu Alındı: " + (txt ? (txt.length > 25 ? txt.slice(0, 25) + "..." : txt) : "Boş"));
+    }
   } catch (e) {}
 }
 
