@@ -237,7 +237,7 @@
             if (lbl) lbl.innerText = text;
         }
 
-        // --- ENDPOINT AUTO-DISCOVERY (USB -> LAN -> CLOUDFLARE) ---
+        // --- ENDPOINT AUTO-DISCOVERY (CLOUDFLARE -> LAN -> USB) ---
         let isDiscovering = false;
         async function discoverAndConnect() {
             if (isDiscovering) return;
@@ -248,13 +248,11 @@
             let candidates = [];
             const customEp = localStorage.getItem('omnimic_custom_endpoint');
             if (customEp) {
-                candidates.push({ url: customEp.trim().replace(/\/$/, ''), label: "Özel / Tünel Girişi" });
+                candidates.push({ url: customEp.trim().replace(/\/$/, ''), label: "Özel Tünel" });
             }
-            candidates.push({ url: "https://172.20.10.3:8443", label: "USB Kablolu (1ms)" });
-            candidates.push({ url: "https://192.168.1.158:8443", label: "Wi-Fi (Yerel Ağ)" });
 
+            // 1. Fetch dynamic Cloudflare Tunnel from live_endpoint.json FIRST
             try {
-                // Fetch dynamic cloud tunnel from live_endpoint.json
                 const res = await fetch('./live_endpoint.json?t=' + Date.now(), { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
@@ -266,30 +264,21 @@
                 console.warn("Could not read live_endpoint.json:", e);
             }
 
-            console.log("Probing candidates:", candidates);
+            // 2. Wi-Fi & USB Local Fallbacks
+            candidates.push({ url: "https://192.168.1.158:8443", label: "Wi-Fi (Yerel Ağ)" });
+            candidates.push({ url: "https://172.20.10.3:8443", label: "USB Kablolu" });
 
-            for (let c of candidates) {
-                try {
-                    const ctrl = new AbortController();
-                    const timeoutId = setTimeout(() => ctrl.abort(), 1200);
-                    const probe = await fetch(c.url + '/install', { method: 'HEAD', signal: ctrl.signal, mode: 'no-cors' });
-                    clearTimeout(timeoutId);
-                    console.log("[+] Active endpoint found via fetch:", c);
-                    connectWebSocket(c.url, c.label);
-                    return;
-                } catch(err) {
-                    // Try next candidate
-                }
-            }
+            console.log("Connecting to candidates:", candidates);
 
-            // Fallback: Direct WebSocket connection to candidate
+            // Connect directly via WebSocket without dummy probing
             for (let c of candidates) {
                 const connected = await tryWsProbe(c.url, c.label);
                 if (connected) return;
             }
 
             setStatus(false, 'Sunucuya Ulaşılamadı (Yeniden Deneniyor...)');
-            isDiscovering = false; setTimeout(discoverAndConnect, 3000);
+            isDiscovering = false;
+            setTimeout(discoverAndConnect, 2500);
         }
 
         function tryWsProbe(baseUrl, label) {
@@ -300,20 +289,37 @@
                 let testWs;
                 try {
                     testWs = new WebSocket(wsUrl);
+                    testWs.binaryType = 'arraybuffer';
                 } catch(e) {
                     return resolve(false);
                 }
                 let resolved = false;
 
-                testWs.onopen = () => {
+                testWs.onopen = function() {
                     if (!resolved) {
                         resolved = true;
-                        try { testWs.close(); } catch(e){}
-                        connectWebSocket(baseUrl, label);
+                        ws = testWs;
+                        activeBaseUrl = baseUrl;
+                        isDiscovering = false;
+                        console.log("[+] Audio WebSocket Connected to", wsUrl);
+                        setStatus(true, '🟢 Bağlandı [' + label + ']');
+
+                        try {
+                            ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
+                        } catch(err){}
+                        showToast('🟢 Stüdyoya Bağlandı (' + label + ')!', true);
+
+                        ws.onclose = () => {
+                            setStatus(false, '🔴 Bağlantı Kesildi (Yeniden Bağlanılıyor...)');
+                            setTimeout(discoverAndConnect, 2500);
+                        };
+                        ws.onerror = (e) => {
+                            console.warn("WS error:", e);
+                        };
                         resolve(true);
                     }
                 };
-                testWs.onerror = () => {
+                testWs.onerror = function() {
                     if (!resolved) {
                         resolved = true;
                         try { testWs.close(); } catch(e){}
@@ -326,7 +332,7 @@
                         try { testWs.close(); } catch(e){}
                         resolve(false);
                     }
-                }, 1800);
+                }, 2500);
             });
         }
 
