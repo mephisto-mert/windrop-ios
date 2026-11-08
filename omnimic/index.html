@@ -307,6 +307,12 @@
                         try {
                             ws.send(JSON.stringify({ type: 'register', id: phoneId, name: 'Tris iPhone (' + label + ')' }));
                         } catch(err){}
+                        if (window._hb) clearInterval(window._hb);
+                        window._hb = setInterval(() => {
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                try { ws.send(JSON.stringify({ type: 'ping' })); } catch(e){}
+                            }
+                        }, 4000);
                         showToast('🟢 Stüdyoya Bağlandı (' + label + ')!', true);
 
                         ws.onclose = () => {
@@ -408,6 +414,9 @@
                 const source = audioCtx.createMediaStreamSource(mediaStream);
                 const bufferSize = 1024;
                 processorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+                window._processorNode = processorNode;
+                window._audioCtx = audioCtx;
+                window._mediaStream = mediaStream;
 
                 processorNode.onaudioprocess = (e) => {
                     if (!isTransmitting || isHardwareFlipped) return;
@@ -427,6 +436,11 @@
 
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         try { ws.send(pcm16.buffer); } catch(e){}
+                    } else {
+                        if (!window._lastWarn || Date.now() - window._lastWarn > 3000) {
+                            window._lastWarn = Date.now();
+                            discoverAndConnect();
+                        }
                     }
                 };
 
