@@ -157,7 +157,10 @@
             <span class="status-dot status-offline" id="status-dot"></span>
             <span id="status-text">Sunucu Aranıyor...</span>
         </div>
-        <div style="font-weight:800; font-size:0.9rem; color:var(--accent);">OmniMic Sovereign</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="font-weight:800; font-size:0.9rem; color:var(--accent);">OmniMic Sovereign</div>
+            <button onclick="promptCustomEndpoint()" style="background:#1e293b; border:1px solid #334155; color:#38bdf8; border-radius:8px; padding:4px 8px; font-size:0.75rem; cursor:pointer;">⚙️ Tünel / IP</button>
+        </div>
     </div>
 
     <div class="mic-btn-wrap" id="mic-wrap">
@@ -242,10 +245,13 @@
             isDiscovering = true;
             setStatus(false, 'Sunucu Aranıyor...');
 
-            let candidates = [
-                { url: "https://172.20.10.3:8443", label: "USB Kablolu (1ms)" },
-                { url: "https://192.168.1.158:8443", label: "Wi-Fi (Yerel Ağ)" }
-            ];
+            let candidates = [];
+            const customEp = localStorage.getItem('omnimic_custom_endpoint');
+            if (customEp) {
+                candidates.push({ url: customEp.trim().replace(/\/$/, ''), label: "Özel / Tünel Girişi" });
+            }
+            candidates.push({ url: "https://172.20.10.3:8443", label: "USB Kablolu (1ms)" });
+            candidates.push({ url: "https://192.168.1.158:8443", label: "Wi-Fi (Yerel Ağ)" });
 
             try {
                 // Fetch dynamic cloud tunnel from live_endpoint.json
