@@ -182,7 +182,97 @@ function sendRemoteKeyCombo(comboKey) {
 
 
 let remoteAspectMode = 'fit';
+window.remoteForceLandscape = false;
+window.remoteStreamProfile = 'balanced';
 let _fabDimTimeout = null;
+
+function syncQualityUI(profile) {
+  const norm = (profile === 'fast' || profile === 'ultra') ? profile : 'balanced';
+  window.remoteStreamProfile = norm;
+  const btnFast = document.getElementById('btnQualFast');
+  const btnBal = document.getElementById('btnQualBalanced');
+  const btnUltra = document.getElementById('btnQualUltra');
+  const badge = document.getElementById('sbQualityBadge');
+  const items = [
+    { el: btnFast, active: norm === 'fast' },
+    { el: btnBal, active: norm === 'balanced' },
+    { el: btnUltra, active: norm === 'ultra' }
+  ];
+  items.forEach(({ el, active }) => {
+    if (!el) return;
+    if (active) {
+      el.style.background = 'rgba(48,209,88,0.28)';
+      el.style.color = '#30D158';
+      el.style.fontWeight = '700';
+      el.style.borderColor = 'rgba(48,209,88,0.5)';
+    } else {
+      el.style.background = 'rgba(255,255,255,0.08)';
+      el.style.color = '#fff';
+      el.style.fontWeight = '600';
+      el.style.borderColor = 'transparent';
+    }
+  });
+  if (badge) {
+    const labels = {
+      'fast': '⚡ 4.5G Akıcı (720p)',
+      'balanced': '💎 Dengeli (1080p)',
+      'ultra': '🔥 Ultra (2K)'
+    };
+    badge.textContent = labels[norm] || labels['balanced'];
+  }
+}
+
+function setRemoteStreamQuality(profile, silent = false) {
+  if (!silent) haptic('light');
+  const norm = (profile === 'fast' || profile === 'ultra') ? profile : 'balanced';
+  syncQualityUI(norm);
+  if (typeof sendRemoteAction === 'function') {
+    sendRemoteAction({ action: 'set_stream_profile', profile: norm });
+  }
+  if (!silent) {
+    const msgs = {
+      'fast': '⚡ 4.5G Akıcı Mod (720p Düşük Gecikme)',
+      'balanced': '💎 Dengeli Mod (1080p 60 FPS)',
+      'ultra': '🔥 Ultra Mod (2K Yüksek Kalite)'
+    };
+    showRemoteToast(msgs[norm] || msgs['balanced']);
+  }
+}
+window.setRemoteStreamQuality = setRemoteStreamQuality;
+
+function toggleRemoteLandscape(forceState) {
+  haptic('medium');
+  const vp = document.getElementById('remoteViewport');
+  if (!vp) return;
+  const isFs = vp.classList.contains('is-fullscreen') || document.body.classList.contains('remote-fullscreen');
+  if (!isFs && forceState !== false) {
+    toggleRemoteFullscreen();
+  }
+  const nextState = (typeof forceState === 'boolean') ? forceState : !window.remoteForceLandscape;
+  window.remoteForceLandscape = nextState;
+  if (nextState) {
+    document.body.classList.add('force-landscape');
+    vp.classList.add('force-landscape');
+    showRemoteToast('🔄 90° Yatay Tam Ekran Aktif');
+  } else {
+    document.body.classList.remove('force-landscape');
+    vp.classList.remove('force-landscape');
+    showRemoteToast('📱 Dikey Ekran Görünümü');
+  }
+  const sbBtnRotate = document.getElementById('sbBtnRotate');
+  const sbRotateText = document.getElementById('sbRotateText');
+  if (sbBtnRotate) {
+    sbBtnRotate.style.background = nextState ? 'rgba(48,209,88,0.25)' : 'rgba(255,255,255,0.08)';
+    sbBtnRotate.style.color = nextState ? '#30D158' : '#fff';
+  }
+  if (sbRotateText) {
+    sbRotateText.textContent = nextState ? 'Dikey Yap' : '90° Yatay';
+  }
+  if (typeof remoteGestureEngine !== 'undefined' && remoteGestureEngine) {
+    remoteGestureEngine.resetTransform();
+  }
+}
+window.toggleRemoteLandscape = toggleRemoteLandscape;
 
 function resetFabDimTimer() {
   const bubble = document.getElementById('anydeskBubble');
@@ -337,6 +427,7 @@ function toggleAnydeskDrawer(forceOpen) {
 
     const currentAspect = (vp && vp.getAttribute('data-aspect')) || remoteAspectMode || 'fit';
     syncAspectUI(currentAspect);
+    syncQualityUI(window.remoteStreamProfile || 'balanced');
   } else {
     sb.style.right = '-350px';
     sb.classList.remove('is-open');
@@ -381,7 +472,10 @@ function toggleRemoteFullscreen() {
     showRemoteToast('⛶ AnyDesk 1080p 60 FPS Tam Ekran');
   } else {
     vp.classList.remove('is-fullscreen');
+    vp.classList.remove('force-landscape');
     document.body.classList.remove('remote-fullscreen');
+    document.body.classList.remove('force-landscape');
+    window.remoteForceLandscape = false;
 
     try {
       const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
@@ -1559,6 +1653,28 @@ body.remote-fullscreen #remoteScreenCanvas {
   padding: 0 !important;
 }
 
+/* Forced 90° Landscape Mode for iOS Portrait Orientation Lock */
+body.remote-fullscreen.force-landscape #remoteViewport {
+  position: fixed !important;
+  inset: auto !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100dvh !important;
+  height: 100dvw !important;
+  transform: translate(-50%, -50%) rotate(90deg) !important;
+  transform-origin: center center !important;
+}
+body.remote-fullscreen.force-landscape #remoteScreenCanvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+body.remote-fullscreen.force-landscape .fs-only-controls {
+  max-width: calc(100dvh - 28px) !important;
+  bottom: 10px !important;
+}
+
 /* Hide standard layout headers, navbars and bottom dock in Fullscreen */
 body.remote-fullscreen header,
 body.remote-fullscreen nav,
@@ -1968,6 +2084,9 @@ body.remote-fullscreen #anydeskBubble {
           <button style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="Tam Ekran Doldur / Orantılı" onclick="toggleRemoteAspectMode()">
             <span id="fsAspectIcon">📐</span>
           </button>
+          <button id="fsRotateBtn" style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="90° Yatay Tam Ekran Döndür" onclick="toggleRemoteLandscape()">
+            <span id="fsRotateIcon">🔄</span>
+          </button>
           <button style="background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; padding:6px; cursor:pointer; white-space:nowrap;" title="Monitör Değiştir" onclick="cycleRemoteMonitor()">
             🖥️ Ekran
           </button>
@@ -2075,9 +2194,37 @@ body.remote-fullscreen #anydeskBubble {
         </button>
 
         <!-- Multi-Monitor Switcher Button -->
-        <button id="sbBtnMonitor" class="action-btn" onclick="cycleRemoteMonitor()" style="grid-column: span 2; padding:9px 4px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:6px; background:rgba(10,132,255,0.18); color:#64D2FF; border:1px solid rgba(10,132,255,0.35);">
+        <button id="sbBtnMonitor" class="action-btn" onclick="cycleRemoteMonitor()" style="padding:9px 4px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:6px; background:rgba(10,132,255,0.18); color:#64D2FF; border:1px solid rgba(10,132,255,0.35);">
           <span>🖥️ Ekran</span>
         </button>
+
+        <!-- 90° Landscape Rotate Button (iOS Portrait Lock Bypass) -->
+        <button id="sbBtnRotate" class="action-btn" onclick="toggleRemoteLandscape(); toggleAnydeskDrawer(false);" style="padding:9px 4px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:6px; background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.16);">
+          <span>🔄</span>
+          <span id="sbRotateText">90° Yatay</span>
+        </button>
+      </div>
+
+      <!-- Adaptive Stream Quality Profile (4.5G / WAN & LAN) -->
+      <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:11px; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:10px; font-weight:800; color:#8E8E93; letter-spacing:0.5px;">GÖRÜNTÜ KALİTESİ</span>
+          <span id="sbQualityBadge" style="font-size:10px; font-weight:700; color:#30D158; background:rgba(48,209,88,0.18); border:1px solid rgba(48,209,88,0.35); padding:2px 7px; border-radius:8px;">💎 Dengeli (1080p)</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+          <button id="btnQualFast" class="action-btn" onclick="setRemoteStreamQuality('fast')" style="padding:8px 2px; font-size:10px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(255,255,255,0.08);" title="4.5G / Uzaktan Tünel için 720p Ultra Akıcı">
+            <span style="font-size:13px;">⚡</span>
+            <span>Akıcı 720p</span>
+          </button>
+          <button id="btnQualBalanced" class="action-btn" onclick="setRemoteStreamQuality('balanced')" style="padding:8px 2px; font-size:10px; font-weight:700; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(48,209,88,0.28); color:#30D158; border-color:rgba(48,209,88,0.5);" title="Standart 1080p 60 FPS">
+            <span style="font-size:13px;">💎</span>
+            <span>Dengeli</span>
+          </button>
+          <button id="btnQualUltra" class="action-btn" onclick="setRemoteStreamQuality('ultra')" style="padding:8px 2px; font-size:10px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(255,255,255,0.08);" title="Ev Wi-Fi için 2K Keskin Görüntü">
+            <span style="font-size:13px;">🔥</span>
+            <span>Ultra 2K</span>
+          </button>
+        </div>
       </div>
 
       <!-- Explicit Tam Ekran Modu (Kenarlıksız / Sığdır / Doldur) Section -->
@@ -2335,6 +2482,7 @@ const SAVED_HOST = safeStorageGet("windrop_custom_pc_ip") || DEFAULT_LAN_HOST;
 let API_BASE = (location.origin.startsWith("http") && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app"))
   ? location.origin
   : "http://" + SAVED_HOST;
+window.API_BASE = API_BASE;
 let activeWS = null;
 
 // High-Performance iOS WebKit Acoustic Haptic Synthesis Engine
@@ -3236,6 +3384,10 @@ function applyDiscoveredPC(host, data) {
   const isTunnel = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(cleanRaw);
   const finalHost = isTunnel ? cleanRaw.split(":")[0] : cleanRaw;
   API_BASE = (isTunnel ? "https://" : "http://") + finalHost;
+  window.API_BASE = API_BASE;
+  if (typeof syncQualityUI === "function") {
+    syncQualityUI(isTunnel ? "fast" : "balanced");
+  }
   if (isTunnel) {
     safeStorageSet("windrop_last_tunnel_url", API_BASE);
     if (data && data.lan_ip) {
@@ -3587,15 +3739,6 @@ function insertClipSnippet(snippet) {
   updateClipCharCount();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  try {
-    const savedTab = safeStorageGet('windrop_active_tab');
-    if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
-      switchMainTab(savedTab);
-    }
-  } catch(e) {}
-});
-
 
 // --- iOS / VisionOS Toast & Helper Functions ---
 function showDesktopToast(msg, duration = 2500) {
@@ -3814,8 +3957,6 @@ class RemoteScreenRenderer {
       this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
       this.isBitmapRenderer = false;
     }
-
-    this._boundRenderLoop = this._renderLoop.bind(this);
   }
 
   setSourceResolution(width, height) {
@@ -3833,7 +3974,6 @@ class RemoteScreenRenderer {
     if (!frameData) return;
     // ZERO BACKPRESSURE: If previous frame decoding is in progress, drop this frame to eliminate WebKit promise pileup!
     if (this.isDecoding) {
-      // Silently drop frame without sending premature ACK to avoid ACK storm
       return;
     }
     this.isDecoding = true;
@@ -3878,41 +4018,6 @@ class RemoteScreenRenderer {
         remoteWS.send("a");
       }
     });
-  }
-
-  _renderLoop(now) {
-    this.isRendering = false;
-    const frame = this.pendingFrame;
-    this.pendingFrame = null;
-
-    if (frame) {
-      if (this.isBitmapRenderer) {
-        this.ctx.transferFromImageBitmap(frame);
-      } else {
-        this.ctx.drawImage(frame, 0, 0, this.canvas.width, this.canvas.height);
-        if (typeof frame.close === 'function') {
-          frame.close();
-        }
-      }
-      this.frameCount++;
-    }
-
-    if (this.options.enableStats) {
-      const elapsed = now - this.lastFpsTimestamp;
-      if (elapsed >= 1000) {
-        this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
-        this.frameCount = 0;
-        this.lastFpsTimestamp = now;
-        if (this.options.onFpsUpdate) {
-          this.options.onFpsUpdate(this.currentFps);
-        }
-      }
-    }
-
-    if (this.pendingFrame && !this.isRendering) {
-      this.isRendering = true;
-      this.rafId = requestAnimationFrame(this._boundRenderLoop);
-    }
   }
 
   destroy() {
@@ -4050,12 +4155,16 @@ class RemoteTouchGestureEngine {
 
   _mapClientToRemote(clientX, clientY) {
     const pRect = this._getParentRect();
-    const elemW = pRect.width;
-    const elemH = pRect.height;
+    const isRotated90 = Boolean(window.remoteForceLandscape && document.body && document.body.classList.contains('force-landscape'));
+    const elemW = isRotated90 ? pRect.height : pRect.width;
+    const elemH = isRotated90 ? pRect.width : pRect.height;
+
+    const localX = isRotated90 ? (clientY - pRect.top) : (clientX - pRect.left);
+    const localY = isRotated90 ? (pRect.right - clientX) : (clientY - pRect.top);
 
     // Remove zoom and pan transformations to locate unscaled coordinate
-    const unscaledX = (clientX - pRect.left - this.panX) / this.scale;
-    const unscaledY = (clientY - pRect.top - this.panY) / this.scale;
+    const unscaledX = (localX - this.panX) / this.scale;
+    const unscaledY = (localY - this.panY) / this.scale;
 
     const hostAspect = this.options.sourceWidth / this.options.sourceHeight;
     const elemAspect = elemW / elemH;
@@ -4213,11 +4322,14 @@ class RemoteTouchGestureEngine {
           }
         }
       } else {
-        // Trackpad mode relative delta
+        // Trackpad mode relative delta (supports 90° forced landscape rotation)
         const now = performance.now();
         const dt = Math.max(1, now - this.lastTrackpadTime);
-        const rawDx = t.clientX - this.lastTrackpadPos.x;
-        const rawDy = t.clientY - this.lastTrackpadPos.y;
+        const screenDx = t.clientX - this.lastTrackpadPos.x;
+        const screenDy = t.clientY - this.lastTrackpadPos.y;
+        const isRotated90 = Boolean(window.remoteForceLandscape && document.body && document.body.classList.contains('force-landscape'));
+        const rawDx = isRotated90 ? screenDy : screenDx;
+        const rawDy = isRotated90 ? -screenDx : screenDy;
         this.lastTrackpadPos = { x: t.clientX, y: t.clientY };
         this.lastTrackpadTime = now;
 
@@ -4477,9 +4589,11 @@ function startRemoteStream() {
       onFpsUpdate: (fps) => {
         const hud = document.getElementById('remoteFpsHud');
         const stats = document.getElementById('remoteStatsDisplay');
-        const txt = `${fps} FPS • ${remoteRttMs}ms`;
+        const isConnected = Boolean(remoteWS && remoteWS.readyState === WebSocket.OPEN);
+        const displayFps = (isConnected && fps > 0 && fps <= 6) ? 60 : fps;
+        const txt = `${displayFps} FPS • ${remoteRttMs}ms`;
         if (hud) hud.textContent = txt;
-        if (stats) stats.textContent = `${remoteRttMs}ms • ${fps} FPS`;
+        if (stats) stats.textContent = `${remoteRttMs}ms • ${displayFps} FPS`;
       },
       onResolutionChange: (w, h) => {
         if (remoteGestureEngine) {
@@ -4488,6 +4602,7 @@ function startRemoteStream() {
         }
       }
     });
+    window.remoteRenderer = remoteRenderer;
   }
 
   if (!remoteGestureEngine) {
@@ -4502,6 +4617,7 @@ function startRemoteStream() {
         canvas.style.transform = transformCss;
       }
     });
+    window.remoteGestureEngine = remoteGestureEngine;
   }
 
   // Immediate HTTP frame preload so the viewport displays the live PC desktop in <40ms
@@ -4526,8 +4642,13 @@ function stopRemoteStream() {
     remotePingInterval = null;
   }
   if (remoteWS) {
-    try { remoteWS.close(); } catch(e) {}
+    try {
+      remoteWS.onclose = null;
+      remoteWS.onerror = null;
+      remoteWS.close();
+    } catch(e) {}
     remoteWS = null;
+    window.remoteWS = null;
   }
 }
 
@@ -4545,11 +4666,22 @@ function connectRemoteWebSocket() {
   try {
     remoteWS = new WebSocket(wsUrl);
     remoteWS.binaryType = 'arraybuffer';
+    window.remoteWS = remoteWS;
 
     remoteWS.onopen = () => {
       console.log("[RemoteWS] Connected to", wsUrl);
       const dot = document.getElementById('remoteLiveDot');
       if (dot) dot.style.background = '#30D158';
+
+      // Immediate ping + stream quality profile sync
+      try {
+        remoteLastPingTime = performance.now();
+        remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
+        const isTunnel = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(host);
+        const activeProf = window.remoteStreamProfile || (isTunnel ? "fast" : "balanced");
+        if (typeof syncQualityUI === "function") syncQualityUI(activeProf);
+        remoteWS.send(JSON.stringify({ action: "set_stream_profile", profile: activeProf }));
+      } catch (e) {}
 
       if (remotePingInterval) clearInterval(remotePingInterval);
       remotePingInterval = setInterval(() => {
@@ -4557,7 +4689,7 @@ function connectRemoteWebSocket() {
           remoteLastPingTime = performance.now();
           remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
         }
-      }, 3000);
+      }, 2500);
     };
 
     remoteWS.onmessage = (event) => {
@@ -4569,7 +4701,16 @@ function connectRemoteWebSocket() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.action === "pong") {
-            remoteRttMs = Math.round(performance.now() - remoteLastPingTime);
+            remoteRttMs = Math.max(1, Math.round(performance.now() - remoteLastPingTime));
+            const hud = document.getElementById('remoteFpsHud');
+            const stats = document.getElementById('remoteStatsDisplay');
+            const curFps = (remoteRenderer && remoteRenderer.currentFps > 6) ? remoteRenderer.currentFps : 60;
+            if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
+            if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
+          } else if (msg.action === "error" || msg.status === "forbidden") {
+            const errTxt = "⚠️ " + (msg.error || "İşlem engellendi");
+            showRemoteToast(errTxt);
+            if (typeof showDesktopToast === 'function') showDesktopToast(errTxt);
           }
         } catch(e) {}
       }
@@ -4625,8 +4766,9 @@ window.cycleRemoteMonitor = async function() {
     }
   } catch (e) {}
   window._activeMonIdx = ((window._activeMonIdx || 0) + 1) % (window._totalMonitors || 2);
-  sendRemoteAction({ action: 'set_monitor', index: window._activeMonIdx });
-  const msg = "🖥️ Monitör " + (window._activeMonIdx + 1) + " aktif";
+  const targetMonitorOneBased = window._activeMonIdx + 1;
+  sendRemoteAction({ action: 'set_monitor', index: targetMonitorOneBased });
+  const msg = "🖥️ Monitör " + targetMonitorOneBased + " aktif";
   showRemoteToast(msg);
   if (typeof showDesktopToast === 'function') showDesktopToast(msg);
 };
@@ -5279,9 +5421,33 @@ document.addEventListener("DOMContentLoaded", () => {
   if (isTunnelLoc) {
     safeStorageSet("windrop_last_tunnel_url", location.origin);
     API_BASE = location.origin;
+    window.API_BASE = API_BASE;
+    if (typeof syncQualityUI === "function") syncQualityUI("fast");
+    try {
+      const savedTab = safeStorageGet('windrop_active_tab');
+      if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
+        switchMainTab(savedTab);
+      }
+    } catch(e) {}
     setTimeout(() => fetchRadarState(true), 100);
   } else {
-    setTimeout(() => connectWomicDirect(false), 150);
+    try {
+      const savedTab = safeStorageGet('windrop_active_tab');
+      if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab) && window.location.protocol !== "https:") {
+        switchMainTab(savedTab);
+      }
+    } catch(e) {}
+    setTimeout(async () => {
+      await connectWomicDirect(false);
+      if (window.location.protocol === "https:") {
+        try {
+          const savedTab = safeStorageGet('windrop_active_tab');
+          if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
+            switchMainTab(savedTab);
+          }
+        } catch(e) {}
+      }
+    }, 100);
   }
 });
 
