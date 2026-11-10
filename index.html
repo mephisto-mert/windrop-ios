@@ -2497,7 +2497,7 @@ body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
     <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; justify-content:center;">
       <button id="lightboxShareBtn" class="action-btn action-btn-green touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="shareOrSaveLightboxMedia()">📲 Fotoğraflara Kaydet</button>
       <a id="lightboxDownloadBtn" class="action-btn action-btn-primary touch-target-44" style="padding:11px 18px; text-decoration:none; flex-direction:row;" href="#" download>⬇️ İndir</a>
-      <button class="action-btn touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="document.getElementById('lightboxModal').style.display='none'">✖ Kapat</button>
+      <button class="action-btn lightbox-close-btn touch-target-44" style="padding:11px 18px; flex-direction:row;" onclick="closeLightbox()">✖ Kapat</button>
     </div>
   </div>
 
@@ -2532,6 +2532,10 @@ try {
     if (_clean) {
       safeStorageSet("windrop_custom_pc_ip", _clean.includes(":") ? _clean : (_clean + ":8765"));
     }
+  }
+  const _qTunnel = _qp.get("tunnel");
+  if (_qTunnel && _qTunnel.startsWith("https://")) {
+    safeStorageSet("windrop_last_tunnel_url", _qTunnel.replace(/\/+$/, ""));
   }
 } catch (e) {}
 const DEFAULT_LAN_HOST = "192.168.1.158:8765";
@@ -2656,6 +2660,10 @@ function switchMainTab(tabId, el) {
     if (typeof fetchPcClipboard === 'function') {
       fetchPcClipboard(false);
     }
+  } else if (tabId === 'files' || tabId === 'radar') {
+    if (typeof fetchRadarState === 'function') {
+      fetchRadarState(false);
+    }
   }
 }
 
@@ -2667,6 +2675,8 @@ function switchMainTab(tabId, el) {
 
 window._currentPcClipText = "";
 window._clipHistoryMap = new Map();
+window._clearedClipIds = new Set();
+window._clearedAtClipText = null;
 let lastSeenPcClipText = "";
 
 function copyTextSafely(text) {
@@ -2781,6 +2791,7 @@ async function sendClipboardToPC() {
       body: JSON.stringify({ clipboard: txt, text: txt, t: Date.now() })
     });
     if (res.ok) {
+      window._clearedAtClipText = null;
       if (typeof showDesktopToast === "function") {
         showDesktopToast("✅ PC Panosuna Aktarıldı (Ctrl+V)");
       }
@@ -2823,15 +2834,27 @@ function clearClipBox() {
 function renderClipboardHistory(historyList) {
   const cont = document.getElementById("clipboardHistoryList");
   if (!cont) return;
-  if (!historyList || historyList.length === 0) {
+  const rawList = Array.isArray(historyList) ? historyList : [];
+  if (window._clearedAtClipText !== null && window._currentPcClipText && window._currentPcClipText !== window._clearedAtClipText) {
+    window._clearedAtClipText = null;
+  }
+  const filteredList = rawList.filter(item => {
+    if (!item) return false;
+    if (window._clearedClipIds && window._clearedClipIds.has(String(item.id))) return false;
+    if (window._clearedAtClipText !== null && (item.text || "") === window._clearedAtClipText) return false;
+    return true;
+  });
+  if (filteredList.length === 0) {
+    window._clipHistoryMap.clear();
     cont.innerHTML = '<div style="text-align:center; padding:18px; color:#8E8E93; font-size:13px;">Henüz senkronize edilmiş pano öğesi yok.</div>';
     return;
   }
   
   window._clipHistoryMap.clear();
 
-  cont.innerHTML = historyList.map(item => {
-    window._clipHistoryMap.set(item.id, item.text || "");
+  cont.innerHTML = filteredList.map(item => {
+    const sid = String(item.id);
+    window._clipHistoryMap.set(sid, item.text || "");
     const isPc = item.source === "PC";
     const badgeColor = isPc ? "#0A84FF" : "#30D158";
     const badgeBg = isPc ? "rgba(10,132,255,0.18)" : "rgba(48,209,88,0.18)";
@@ -2852,8 +2875,8 @@ function renderClipboardHistory(historyList) {
         </div>
         <div style="font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; font-size:14px; color:#FFFFFF; word-break:break-word; max-height:140px; overflow-y:auto; line-height:1.5; white-space:pre-wrap; user-select:text; -webkit-user-select:text;">${displayText}</div>
         <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:4px;">
-          <button class="key-pill" style="font-size:12px; padding:6px 14px; border-radius:8px; font-weight:600; color:#FFFFFF; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);" onclick="haptic('light'); copyHistoryById('${item.id}')">📋 Kopyala</button>
-          <button class="key-pill" style="font-size:12px; padding:6px 14px; border-radius:8px; font-weight:600; background:rgba(10,132,255,0.2); border:1px solid rgba(10,132,255,0.4); color:#0A84FF;" onclick="haptic('medium'); sendHistoryByIdToPc('${item.id}')">📤 PC'ye Ver</button>
+          <button class="key-pill" style="font-size:12px; padding:6px 14px; border-radius:8px; font-weight:600; color:#FFFFFF; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);" onclick="haptic('light'); copyHistoryById('${sid}')">📋 Kopyala</button>
+          <button class="key-pill" style="font-size:12px; padding:6px 14px; border-radius:8px; font-weight:600; background:rgba(10,132,255,0.2); border:1px solid rgba(10,132,255,0.4); color:#0A84FF;" onclick="haptic('medium'); sendHistoryByIdToPc('${sid}')">📤 PC'ye Ver</button>
         </div>
       </div>
     `;
@@ -2861,7 +2884,7 @@ function renderClipboardHistory(historyList) {
 }
 
 function copyHistoryById(id) {
-  const fullText = window._clipHistoryMap.get(id);
+  const fullText = window._clipHistoryMap.get(String(id));
   if (!fullText) {
     if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Metin bulunamadı");
     return;
@@ -2876,7 +2899,7 @@ function copyHistoryById(id) {
 }
 
 async function sendHistoryByIdToPc(id) {
-  const fullText = window._clipHistoryMap.get(id);
+  const fullText = window._clipHistoryMap.get(String(id));
   if (!fullText) return;
   try {
     const res = await fetch(API_BASE + "/api/clipboard", {
@@ -2885,6 +2908,7 @@ async function sendHistoryByIdToPc(id) {
       body: JSON.stringify({ clipboard: fullText, text: fullText, t: Date.now() })
     });
     if (res.ok) {
+      window._clearedAtClipText = null;
       if (typeof showDesktopToast === "function") showDesktopToast("✅ PC Panosuna Aktarıldı (Ctrl+V)");
       setTimeout(() => fetchPcClipboard(false), 300);
     }
@@ -2893,10 +2917,16 @@ async function sendHistoryByIdToPc(id) {
 
 async function clearClipboardHistory() {
   try {
-    await fetch(API_BASE + "/api/clipboard/clear", { method: "POST" });
+    if (window._clipHistoryMap) {
+      for (const k of window._clipHistoryMap.keys()) {
+        window._clearedClipIds.add(String(k));
+      }
+    }
+    window._clearedAtClipText = window._currentPcClipText || "";
     window._clipHistoryMap.clear();
     renderClipboardHistory([]);
     if (typeof showDesktopToast === "function") showDesktopToast("🧹 Pano Geçmişi Temizlendi");
+    await fetch(API_BASE + "/api/clipboard/clear", { method: "POST" }).catch(() => {});
   } catch(e) {}
 }
 
@@ -3115,15 +3145,65 @@ function initAirDropWebSocket() {
 setTimeout(initAirDropWebSocket, 1000);
 
 
+function openIncomingFileById(fileId) {
+  const files = window.currentOutgoingFiles || [];
+  const f = files.find(item => String(item.id) === String(fileId));
+  if (!f) return;
+  const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+  const fn = f.filename || f.name || "Dosya";
+  const isImg = (f.mime || "").startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(fn);
+  const isVid = (f.mime || "").startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(fn);
+  if (!isImg && !isVid) {
+    window.location.href = `${base}/api/download/${encodeURIComponent(f.id)}`;
+  } else {
+    openLightbox(`${base}/api/preview/${encodeURIComponent(f.id)}`, fn, f.mime || "");
+  }
+}
+
 function renderIncoming(files) {
   window.currentOutgoingFiles = files || [];
   const container = document.getElementById("incomingList");
+  const galleryGrid = document.getElementById("liveGalleryGrid");
   if (!container) return;
   if (!files || files.length === 0) {
+    if (galleryGrid) {
+      galleryGrid.style.display = "none";
+      galleryGrid.innerHTML = "";
+    }
     container.innerHTML = '<div style="text-align:center; padding:32px 16px; color:var(--sub);"><div style="font-size:36px; margin-bottom:8px;">📂</div><div style="font-size:14px; font-weight:600; color:#fff;">Henüz Dosya Yok</div><div style="font-size:12px; margin-top:4px;">PC\'den gönderilen dosyalar burada görünecektir</div></div>';
     return;
   }
   const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+  const mediaFiles = files.filter(f => {
+    const fn = f.filename || f.name || "";
+    return (f.mime || "").startsWith("image/") || (f.mime || "").startsWith("video/") || /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg|mp4|mov|m4v|webm)$/i.test(fn);
+  });
+  if (galleryGrid) {
+    if (mediaFiles.length > 0) {
+      galleryGrid.style.display = "grid";
+      galleryGrid.innerHTML = mediaFiles.map(f => {
+        const fn = f.filename || f.name || "Medya";
+        const isVid = (f.mime || "").startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(fn);
+        const safeId = String(f.id || "").replace(/[^a-zA-Z0-9_-]/g, "");
+        if (isVid) {
+          return `
+            <div onclick="openIncomingFileById('${safeId}')" style="aspect-ratio:1/1; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; position:relative; padding:6px;">
+              <span style="font-size:26px;">🎬</span>
+              <span style="font-size:10px; color:#EBEBF5; margin-top:4px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(fn)}</span>
+            </div>
+          `;
+        }
+        return `
+          <div onclick="openIncomingFileById('${safeId}')" style="aspect-ratio:1/1; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); cursor:pointer; position:relative;">
+            <img src="${base}/api/preview/${encodeURIComponent(f.id)}" alt="${escapeHTML(fn)}" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+        `;
+      }).join("");
+    } else {
+      galleryGrid.style.display = "none";
+      galleryGrid.innerHTML = "";
+    }
+  }
   container.innerHTML = files.map(f => {
     const fn = f.filename || f.name || "Dosya";
     const isImg = (f.mime || "").startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(fn);
@@ -3131,12 +3211,10 @@ function renderIncoming(files) {
     const icon = isImg ? '🖼️' : (isVid ? '🎬' : '📄');
     const sizeMb = ((f.size || 0) / (1024 * 1024)).toFixed(2);
     const subActionLabel = (isImg || isVid) ? 'Dokunarak Önizle' : 'Dokunarak İndir';
-    const clickAction = (!isVid && !/\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(fn))
-      ? `window.location.href='${base}/api/download/${f.id}'`
-      : `openLightbox('${base}/api/preview/${f.id}', '${escapeHTML(fn)}', '${f.mime || ""}')`;
+    const safeId = String(f.id || "").replace(/[^a-zA-Z0-9_-]/g, "");
     return `
       <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; margin-bottom:8px; gap:10px;">
-        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1; cursor:pointer;" onclick="${clickAction}">
+        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1; cursor:pointer;" onclick="openIncomingFileById('${safeId}')">
           <span style="font-size:24px;">${icon}</span>
           <div style="min-width:0; flex:1;">
             <div style="font-size:13px; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(fn)}</div>
@@ -3144,7 +3222,7 @@ function renderIncoming(files) {
           </div>
         </div>
         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-          <a href="${base}/api/download/${f.id}" download="${escapeHTML(fn)}" class="action-btn touch-target-44" style="padding:6px 12px; font-size:12px; flex-direction:row; white-space:nowrap; background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); text-decoration:none; border-radius:8px;">
+          <a href="${base}/api/download/${encodeURIComponent(f.id)}" download="${escapeHTML(fn)}" class="action-btn touch-target-44" style="padding:6px 12px; font-size:12px; flex-direction:row; white-space:nowrap; background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); text-decoration:none; border-radius:8px;">
             ⬇️ İndir
           </a>
         </div>
@@ -3205,10 +3283,22 @@ function closeLightbox(ev) {
   if (!ev || ev.target.id === "lightboxModal" || (ev.target.classList && ev.target.classList.contains("lightbox-close-btn"))) {
     const modal = document.getElementById("lightboxModal");
     const imgEl = document.getElementById("lightboxImg");
+    const videoEl = document.getElementById("lightboxVideo");
     if (modal) modal.style.display = "none";
-    if (imgEl && imgEl.src && imgEl.src.startsWith("blob:")) {
-      try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
+    if (videoEl) {
+      try {
+        videoEl.pause();
+        videoEl.removeAttribute("src");
+        videoEl.load();
+      } catch(e) {}
+      videoEl.style.display = "none";
+    }
+    if (imgEl && imgEl.src) {
+      if (imgEl.src.startsWith("blob:")) {
+        try { URL.revokeObjectURL(imgEl.src); } catch(e) {}
+      }
       imgEl.src = "";
+      imgEl.style.display = "none";
     }
   }
 }
@@ -5364,7 +5454,7 @@ async function resolveLiveCloudTunnelUrl() {
   const cachedTun = safeStorageGet("windrop_last_tunnel_url");
   if (cachedTun) addFresh(cachedTun);
 
-  const list = freshCandidates.slice(0, 4);
+  const list = freshCandidates.slice(0, 8);
   if (!list.length) return null;
 
   const probeTunnel = async (baseUrl) => {
@@ -5554,17 +5644,30 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch(e) {}
     setTimeout(() => fetchRadarState(true), 80);
-    // Zero-Lag Same-Wi-Fi Upgrade: If phone is in regular Safari on the same local Wi-Fi as PC, auto-switch from 100ms Cloud Tunnel to 2ms Direct LAN!
+    // Zero-Lag Same-Wi-Fi Upgrade & Immortal Host Upgrade:
+    // If phone is on local Wi-Fi -> switch to 2ms Direct LAN; otherwise switch address bar to immortal GitHub Pages so Safari NEVER hits Error 1033 on future tunnel rotations!
     if (!window.navigator.standalone) {
       setTimeout(() => {
         const lanTarget = "http://192.168.1.158:8765";
+        const immortalTarget = "https://mephisto-mert.github.io/windrop-ios/?tunnel=" + encodeURIComponent(location.origin);
+        let settled = false;
+        const switchToImmortal = () => {
+          if (settled) return;
+          settled = true;
+          window.location.replace(immortalTarget);
+        };
         const probeImg = new Image();
-        const t = setTimeout(() => { probeImg.src = ""; }, 650);
+        const t = setTimeout(() => { probeImg.src = ""; switchToImmortal(); }, 650);
         probeImg.onload = () => {
+          if (settled) return;
+          settled = true;
           clearTimeout(t);
           window.location.replace(lanTarget + "/");
         };
-        probeImg.onerror = () => clearTimeout(t);
+        probeImg.onerror = () => {
+          clearTimeout(t);
+          switchToImmortal();
+        };
         probeImg.src = lanTarget + "/icon-180.png?t=" + Date.now();
       }, 150);
     }
