@@ -1782,14 +1782,18 @@ body.remote-fullscreen #remoteModeToast {
       <div id="pcName" class="radar-info-title">WinDrop Canlı Radar</div>
       <div id="activeHostText" class="radar-info-sub" style="color: #FF453A;">🔴 PC Bağlantısı Bekleniyor — QR Kod Okutun</div>
 
-      <!-- Quick PC Pairing Bar -->
+      <!-- Quick PC Pairing Bar & P2P Auto-Discovery -->
       <div class="qr-action-banner">
-        <button type="button" class="qr-btn-primary touch-target-44" onclick="openQRScannerModal()">
-          <span style="font-size: 18px;">📷</span>
-          <span>PC QR Kodu Okut</span>
+        <button type="button" class="qr-btn-primary touch-target-44" onclick="triggerManualP2PDiscovery()" style="background: linear-gradient(135deg, #30D158, #248A3D); color: #fff;">
+          <span style="font-size: 18px;">⚡</span>
+          <span>P2P Otomatik Bağlan</span>
+        </button>
+        <button type="button" class="qr-btn-manual touch-target-44" onclick="openQRScannerModal()">
+          <span style="font-size: 16px;">📷</span>
+          <span>Kamera</span>
         </button>
         <button type="button" class="qr-btn-manual touch-target-44" onclick="openManualIPModal()">
-          <span>⌨️ IP Gir</span>
+          <span>⌨️ IP</span>
         </button>
       </div>
 
@@ -2959,54 +2963,167 @@ async function capturePCScreen() {
   }
 }
 
+// ==========================================
+// WinDrop P2P Zero-Config Auto-Discovery Engine
+// ==========================================
+let isDiscovering = false;
+let lastDiscoveryTime = 0;
+
+function triggerManualP2PDiscovery() {
+  showDesktopToast("⚡ P2P Ağ Taraması Başlatıldı...");
+  autoDiscoverPCPeer(true);
+}
+
+async function autoDiscoverPCPeer(force = false) {
+  const now = Date.now();
+  if (isDiscovering || (!force && (now - lastDiscoveryTime < 6000))) return;
+  isDiscovering = true;
+  lastDiscoveryTime = now;
+
+  const sub = document.getElementById("activeHostText");
+  const badge = document.getElementById("connBadgeText");
+  if (badge && !badge.textContent.includes("🟢")) {
+    badge.textContent = "🔍 P2P PC Aranıyor...";
+    document.getElementById("connBadge").style.borderColor = "rgba(255, 159, 10, 0.4)";
+    document.getElementById("connBadge").style.color = "#FF9F0A";
+  }
+  if (sub && !sub.textContent.includes("🟢")) {
+    sub.textContent = "🔍 Yerel Ağ Taranıyor (PC Otomatik Aranıyor)...";
+    sub.style.color = "#FF9F0A";
+  }
+
+  // 1. Direct high-probability targets
+  const candidates = [];
+  const saved = safeStorageGet("windrop_custom_pc_ip");
+  if (saved) candidates.push(saved);
+  candidates.push("192.168.1.158:8765");
+  candidates.push("172.20.10.1:8765");
+  candidates.push("172.20.10.2:8765");
+  candidates.push("192.168.1.1:8765");
+  candidates.push("192.168.0.1:8765");
+  candidates.push("192.168.0.100:8765");
+
+  const tested = new Set();
+  for (const host of candidates) {
+    if (!host || tested.has(host)) continue;
+    tested.add(host);
+    try {
+      const res = await fetchWithTimeout("http://" + host + "/api/ping", 350);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === "ok" || data.protocol === "windrop_p2p_v3") {
+          applyDiscoveredPC(host, data);
+          isDiscovering = false;
+          return true;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Parallel sweep across local /24 subnets in concurrent chunks of 30
+  let baseSubnet = "192.168.1.";
+  if (saved && saved.includes(".")) {
+    const parts = saved.split(":")[0].split(".");
+    if (parts.length === 4) {
+      baseSubnet = parts[0] + "." + parts[1] + "." + parts[2] + ".";
+    }
+  }
+
+  const subnetsToSweep = [baseSubnet];
+  if (!subnetsToSweep.includes("192.168.1.")) subnetsToSweep.push("192.168.1.");
+  if (!subnetsToSweep.includes("172.20.10.")) subnetsToSweep.push("172.20.10.");
+
+  for (const snet of subnetsToSweep) {
+    const ipBatch = [];
+    for (let i = 2; i <= 254; i++) {
+      const host = snet + i + ":8765";
+      if (!tested.has(host)) {
+        tested.add(host);
+        ipBatch.push(host);
+      }
+    }
+
+    const CHUNK_SIZE = 30;
+    for (let c = 0; c < ipBatch.length; c += CHUNK_SIZE) {
+      const chunk = ipBatch.slice(c, c + CHUNK_SIZE);
+      const probePromises = chunk.map(h => {
+        return fetchWithTimeout("http://" + h + "/api/ping", 500)
+          .then(async r => {
+            if (r.ok) {
+              const d = await r.json();
+              if (d.status === "ok" || d.protocol === "windrop_p2p_v3") {
+                return { host: h, data: d };
+              }
+            }
+            throw new Error("fail");
+          });
+      });
+
+      try {
+        const winner = await Promise.any(probePromises);
+        if (winner && winner.host) {
+          applyDiscoveredPC(winner.host, winner.data);
+          isDiscovering = false;
+          return true;
+        }
+      } catch (err) {}
+    }
+  }
+
+  isDiscovering = false;
+  if (!document.getElementById("connBadgeText").textContent.includes("🟢")) {
+    document.getElementById("connBadgeText").textContent = "🔴 PC Bağlantısı Yok";
+    document.getElementById("connBadge").style.borderColor = "rgba(255, 69, 58, 0.4)";
+    document.getElementById("connBadge").style.color = "#FF453A";
+    if (sub) {
+      sub.textContent = "⚠️ PC Bekleniyor — Aynı Wi-Fi'da Olduğunuzdan Emin Olun";
+      sub.style.color = "#FF453A";
+    }
+  }
+  return false;
+}
+
+function applyDiscoveredPC(host, data) {
+  API_BASE = "http://" + host;
+  safeStorageSet("windrop_custom_pc_ip", host);
+  const pcName = data.pc_name || "DESKTOP-EIJNT5O";
+  const lanIp = data.lan_ip || host.split(":")[0];
+  document.getElementById("pcName").textContent = pcName;
+  document.getElementById("connBadgeText").textContent = "🟢 P2P Bağlandı (" + lanIp + ")";
+  document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
+  document.getElementById("connBadge").style.color = "#30D158";
+  const sub = document.getElementById("activeHostText");
+  if (sub) {
+    sub.textContent = "🟢 " + pcName + " ile P2P Eşleşildi (Kayıpsız & Sunucusuz)";
+    sub.style.color = "#30D158";
+  }
+  if (typeof HapticEngine !== "undefined" && HapticEngine.trigger) {
+    HapticEngine.trigger("success");
+  }
+  if (typeof initAirDropWebSocket === "function") {
+    initAirDropWebSocket();
+  }
+}
+
 async function fetchRadarState() {
   try {
-    const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2800);
+    const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2200);
     if (!res.ok) throw new Error("Bad status");
     const data = await res.json();
     document.getElementById("pcName").textContent = data.pc_name || "DESKTOP-EIJNT5O";
-    document.getElementById("connBadgeText").textContent = "🟢 PC Bağlandı (" + (data.lan_ip || "Yerel Ağ") + ")";
+    document.getElementById("connBadgeText").textContent = "🟢 P2P Bağlandı (" + (data.lan_ip || "Yerel Ağ") + ")";
     document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
     document.getElementById("connBadge").style.color = "#30D158";
     const sub = document.getElementById("activeHostText");
     if (sub) {
-      sub.textContent = "🟢 " + (data.pc_name || "PC") + " ile Canlı Eşleşildi (Kayıpsız)";
+      sub.textContent = "🟢 " + (data.pc_name || "PC") + " ile Canlı Eşleşildi (Kayıpsız & Sunucusuz)";
       sub.style.color = "#30D158";
     }
     renderIncoming(data.outgoing_files || []);
     checkNewOutgoingFiles(data.outgoing_files || []);
   } catch (e) {
-    let reconnected = false;
-    if (API_BASE !== "http://192.168.1.158:8765") {
-      try {
-        const locRes = await fetchWithTimeout("http://192.168.1.158:8765/api/state", 1500);
-        if (locRes.ok) {
-          const locData = await locRes.json();
-          API_BASE = "http://192.168.1.158:8765";
-          safeStorageSet("windrop_custom_pc_ip", "192.168.1.158:8765");
-          document.getElementById("pcName").textContent = locData.pc_name || "DESKTOP-EIJNT5O";
-          document.getElementById("connBadgeText").textContent = "🟢 Wi-Fi Bağlı (" + (locData.lan_ip || "192.168.1.158") + ")";
-          document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
-          document.getElementById("connBadge").style.color = "#30D158";
-          const sub = document.getElementById("activeHostText");
-          if (sub) {
-            sub.textContent = "🟢 " + (locData.pc_name || "PC") + " ile Canlı Eşleşildi";
-            sub.style.color = "#30D158";
-          }
-          reconnected = true;
-        }
-      } catch (e2) {}
-    }
-    if (!reconnected) {
-      document.getElementById("connBadgeText").textContent = "🔴 PC Bağlantısı Yok";
-      document.getElementById("connBadge").style.borderColor = "rgba(255, 69, 58, 0.4)";
-      document.getElementById("connBadge").style.color = "#FF453A";
-      const sub = document.getElementById("activeHostText");
-      if (sub) {
-        sub.textContent = "⚠️ PC Bekleniyor — QR Kod Okutun veya IP Girin";
-        sub.style.color = "#FF453A";
-      }
-    }
+    // Connection lost or host moved -> Trigger zero-config auto-discovery
+    autoDiscoverPCPeer();
   }
 }
 
