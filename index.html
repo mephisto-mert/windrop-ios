@@ -491,23 +491,26 @@ function toggleRemoteFullscreen() {
     vp.classList.add('is-fullscreen');
     document.body.classList.add('remote-fullscreen');
 
-    try {
-      const rootEl = document.documentElement;
-      const reqFs = rootEl.requestFullscreen || rootEl.webkitRequestFullscreen;
-      if (reqFs) {
-        Promise.resolve(reqFs.call(rootEl)).catch(() => {});
-      }
-    } catch (e) {}
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isIOS) {
+      try {
+        const rootEl = document.documentElement;
+        const reqFs = rootEl.requestFullscreen || rootEl.webkitRequestFullscreen;
+        if (reqFs) {
+          Promise.resolve(reqFs.call(rootEl)).catch(() => {});
+        }
+      } catch (e) {}
+    }
     try {
       window.scrollTo(0, 1);
     } catch (e) {}
 
-    // Preserve host resolution dynamically (No 1080p distortion)
-    if (remoteRenderer && remoteRenderer.canvas) {
-      const sw = remoteRenderer.sourceWidth || 1920;
-      const sh = remoteRenderer.sourceHeight || 1080;
-      remoteRenderer.canvas.width = sw;
-      remoteRenderer.canvas.height = sh;
+    if (remoteRenderer && typeof remoteRenderer.redrawLastFrame === 'function') {
+      remoteRenderer.redrawLastFrame();
+    }
+    if (typeof sendRemoteAction === 'function') {
+      sendRemoteAction({ action: 'force_refresh' });
     }
 
     try {
@@ -524,18 +527,29 @@ function toggleRemoteFullscreen() {
     document.body.classList.remove('force-landscape');
     window.remoteForceLandscape = false;
 
-    try {
-      const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-      if (exit) {
-        exit.call(document).catch(() => {});
-      }
-    } catch(e) {}
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isIOS) {
+      try {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+        if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) {
+          Promise.resolve(exit.call(document)).catch(() => {});
+        }
+      } catch(e) {}
+    }
 
     try {
       if (screen.orientation && screen.orientation.unlock) {
         screen.orientation.unlock().catch(() => {});
       }
     } catch(e) {}
+
+    if (remoteRenderer && typeof remoteRenderer.redrawLastFrame === 'function') {
+      remoteRenderer.redrawLastFrame();
+    }
+    if (typeof sendRemoteAction === 'function') {
+      sendRemoteAction({ action: 'force_refresh' });
+    }
 
     showRemoteToast('⤢ Tam Ekrandan Çıkıldı');
   }
@@ -4145,10 +4159,11 @@ class RemoteScreenRenderer {
     this.frameCount = 0;
     this.lastFpsTimestamp = performance.now();
     this.currentFps = 0;
+    this._lastBlob = null;
 
-    // Force 2D context universally (iOS Safari WebKit leaks Metal IOSurface buffers with bitmaprenderer)
+    // Standard 2D context WITHOUT desynchronized/alpha:false (fixes iOS Metal RemoteLayerTree solid-black canvas bug!)
     this.isBitmapRenderer = false;
-    this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true }) || this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d');
   }
 
   setSourceResolution(width, height) {
@@ -4187,41 +4202,62 @@ class RemoteScreenRenderer {
     this._decodeAndDraw(frameData, Boolean(needsAck));
   }
 
+  _drawDecodedSource(src, w, h) {
+    if (!src || !w || !h) return;
+    if (w !== this.sourceWidth || h !== this.sourceHeight) {
+      this.setSourceResolution(w, h);
+    }
+    if (this.ctx) {
+      this.ctx.imageSmoothingEnabled = true;
+      this.ctx.drawImage(src, 0, 0, this.canvas.width, this.canvas.height);
+    }
+    this.frameCount++;
+    const now = performance.now();
+    const elapsed = now - this.lastFpsTimestamp;
+    if (elapsed >= 1000) {
+      this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
+      this.frameCount = 0;
+      this.lastFpsTimestamp = now;
+      if (this.options.onFpsUpdate) {
+        this.options.onFpsUpdate(this.currentFps);
+      }
+    }
+  }
+
+  _decodeViaImgElement(sourceBlob) {
+    return new Promise((resolve) => {
+      const objUrl = URL.createObjectURL(sourceBlob);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          this._drawDecodedSource(img, img.naturalWidth || img.width, img.naturalHeight || img.height);
+        } finally {
+          URL.revokeObjectURL(objUrl);
+          resolve();
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        resolve();
+      };
+      img.src = objUrl;
+    });
+  }
+
+  redrawLastFrame() {
+    if (this._lastBlob && !this.isDecoding) {
+      this._decodeAndDraw(this._lastBlob, false);
+    }
+  }
+
   _decodeAndDraw(frameData, needsAck = false) {
     this.isDecoding = true;
     const sourceBlob = (frameData instanceof ArrayBuffer)
       ? new Blob([frameData], { type: 'image/jpeg' })
       : frameData;
+    this._lastBlob = sourceBlob;
 
-    createImageBitmap(sourceBlob).then((bmp) => {
-      if (bmp) {
-        try {
-          if (bmp.width !== this.sourceWidth || bmp.height !== this.sourceHeight) {
-            this.setSourceResolution(bmp.width, bmp.height);
-          }
-          if (this.ctx) {
-            this.ctx.imageSmoothingEnabled = true;
-            this.ctx.imageSmoothingQuality = 'medium';
-            this.ctx.drawImage(bmp, 0, 0, this.canvas.width, this.canvas.height);
-          }
-          this.frameCount++;
-          const now = performance.now();
-          const elapsed = now - this.lastFpsTimestamp;
-          if (elapsed >= 1000) {
-            this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
-            this.frameCount = 0;
-            this.lastFpsTimestamp = now;
-            if (this.options.onFpsUpdate) {
-              this.options.onFpsUpdate(this.currentFps);
-            }
-          }
-        } finally {
-          if (typeof bmp.close === 'function') {
-            try { bmp.close(); } catch (e) {}
-          }
-        }
-      }
-    }).catch(() => {}).finally(() => {
+    const finishDecode = () => {
       this.isDecoding = false;
       if (needsAck && this.options.onFrameConsumed) {
         try { this.options.onFrameConsumed(); } catch (e) {}
@@ -4231,7 +4267,25 @@ class RemoteScreenRenderer {
         this._queuedItem = null;
         this._decodeAndDraw(next.data, next.needsAck);
       }
-    });
+    };
+
+    if (typeof createImageBitmap === 'function') {
+      createImageBitmap(sourceBlob).then((bmp) => {
+        if (bmp) {
+          try {
+            this._drawDecodedSource(bmp, bmp.width, bmp.height);
+          } finally {
+            if (typeof bmp.close === 'function') {
+              try { bmp.close(); } catch (e) {}
+            }
+          }
+        }
+      }).catch(() => {
+        return this._decodeViaImgElement(sourceBlob);
+      }).finally(finishDecode);
+    } else {
+      this._decodeViaImgElement(sourceBlob).finally(finishDecode);
+    }
   }
 
   clearQueue() {
@@ -4845,20 +4899,40 @@ function startRemoteStream() {
     window.remoteGestureEngine = remoteGestureEngine;
   }
 
-  // Immediate HTTP frame preload so the viewport displays the live PC desktop in <40ms
-  try {
-    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
-    if (base && base.startsWith('http')) {
-      fetch(`${base}/api/remote/screen/frame?q=70&t=${Date.now()}`, { cache: 'no-store' })
-        .then(r => r.ok ? r.arrayBuffer() : null)
-        .then(buf => {
-          if (buf && remoteRenderer) remoteRenderer.pushFrame(buf);
-        })
-        .catch(() => {});
+  const resolvePlayableBase = async () => {
+    let base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+    const isInvalidStaticHost = !base || /github\.io|vercel\.app/i.test(base) ||
+      (window.location.protocol === 'https:' && base.startsWith('http:'));
+    if (isInvalidStaticHost) {
+      const cachedTun = safeStorageGet('windrop_last_tunnel_url');
+      if (cachedTun && cachedTun.startsWith('https://') && !/github\.io|vercel\.app/i.test(cachedTun)) {
+        API_BASE = cachedTun;
+        window.API_BASE = cachedTun;
+        base = cachedTun;
+      } else if (typeof connectCloudTunnelAuto === 'function') {
+        showRemoteToast('⏳ PC Ekranına Bağlanıyor...');
+        await connectCloudTunnelAuto(false);
+        base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+      }
     }
-  } catch (e) {}
+    return base;
+  };
 
-  connectRemoteWebSocket();
+  resolvePlayableBase().then((base) => {
+    if (!base || /github\.io|vercel\.app/i.test(base)) return;
+    // Immediate HTTP frame preload so the viewport displays the live PC desktop in <40ms
+    try {
+      if (base.startsWith('http')) {
+        fetch(`${base}/api/remote/screen/frame?q=75&t=${Date.now()}`, { cache: 'no-store' })
+          .then(r => r.ok ? r.arrayBuffer() : null)
+          .then(buf => {
+            if (buf && remoteRenderer) remoteRenderer.pushFrame(buf, false);
+          })
+          .catch(() => {});
+      }
+    } catch (e) {}
+    connectRemoteWebSocket();
+  });
 }
 
 function stopRemoteStream() {
@@ -4901,13 +4975,15 @@ function connectRemoteWebSocket() {
       const dot = document.getElementById('remoteLiveDot');
       if (dot) dot.style.background = '#30D158';
 
-      // Immediate ping + stream quality profile sync
+      // Immediate ping + stream quality profile sync + instant first frame trigger
       try {
         remoteLastPingTime = performance.now();
         remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
-        const activeProf = window.remoteStreamProfile || "ultra";
+        const defaultProf = isHttps ? "balanced" : "ultra";
+        const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
         if (typeof syncQualityUI === "function") syncQualityUI(activeProf);
         remoteWS.send(JSON.stringify({ action: "set_stream_profile", profile: activeProf }));
+        remoteWS.send(JSON.stringify({ action: "force_refresh" }));
       } catch (e) {}
 
       if (remotePingInterval) clearInterval(remotePingInterval);
