@@ -1711,6 +1711,18 @@ body.remote-fullscreen #remoteModeToast {
   transform: scale(0.97);
 }
 
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.radar-ring {
+  will-change: transform, opacity !important;
+  transform: translateZ(0) !important;
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+}
+
 </style>
 
 <script>/* jsQR Library */
@@ -2976,6 +2988,128 @@ function triggerManualP2PDiscovery() {
 
 async function autoDiscoverPCPeer(force = false) {
   const now = Date.now();
+  if (isDiscovering || (!force && (now - lastDiscoveryTime < 4000))) return;
+  isDiscovering = true;
+  lastDiscoveryTime = now;
+
+  try {
+    const sub = document.getElementById("activeHostText");
+    const badge = document.getElementById("connBadgeText");
+    if (badge && !badge.textContent.includes("🟢")) {
+      badge.textContent = "🔍 P2P PC Aranıyor...";
+      const bEl = document.getElementById("connBadge");
+      if (bEl) { bEl.style.borderColor = "rgba(255, 159, 10, 0.4)"; bEl.style.color = "#FF9F0A"; }
+    }
+    if (sub && !sub.textContent.includes("🟢")) {
+      sub.textContent = "🔍 Yerel Ağ Taranıyor (PC Otomatik Aranıyor)...";
+      sub.style.color = "#FF9F0A";
+    }
+
+    // 1. Concurrent probe of high-probability candidate targets
+    const candidates = [];
+    const saved = safeStorageGet("windrop_custom_pc_ip");
+    if (saved) candidates.push(saved);
+    if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      candidates.push(location.hostname + ":8765");
+    }
+    candidates.push("192.168.1.158:8765");
+    candidates.push("172.20.10.1:8765");
+    candidates.push("172.20.10.2:8765");
+    candidates.push("192.168.137.1:8765");
+    candidates.push("192.168.0.1:8765");
+    candidates.push("192.168.1.1:8765");
+
+    const tested = new Set();
+    const candidatePromises = candidates.filter(h => h && !tested.has(h)).map(host => {
+      tested.add(host);
+      return fetchWithTimeout("http://" + host + "/api/ping", 350)
+        .then(async res => {
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === "ok" || data.protocol === "windrop_p2p_v3") {
+              return { host, data };
+            }
+          }
+          throw new Error("fail");
+        });
+    });
+
+    try {
+      const winner = await Promise.any(candidatePromises);
+      if (winner && winner.host) {
+        applyDiscoveredPC(winner.host, winner.data);
+        return true;
+      }
+    } catch(e) {}
+
+    // 2. Subnet sweeps with chunking
+    let baseSubnet = "192.168.1.";
+    if (saved && saved.includes(".")) {
+      const parts = saved.split(":")[0].split(".");
+      if (parts.length === 4) {
+        baseSubnet = parts[0] + "." + parts[1] + "." + parts[2] + ".";
+      }
+    }
+
+    const subnetsToSweep = [baseSubnet];
+    ["192.168.1.", "192.168.0.", "172.20.10.", "192.168.137."].forEach(s => {
+      if (!subnetsToSweep.includes(s)) subnetsToSweep.push(s);
+    });
+
+    for (const snet of subnetsToSweep) {
+      const maxIp = (snet === "172.20.10.") ? 15 : 254;
+      const ipBatch = [];
+      for (let i = 1; i <= maxIp; i++) {
+        const host = snet + i + ":8765";
+        if (!tested.has(host)) {
+          tested.add(host);
+          ipBatch.push(host);
+        }
+      }
+
+      const CHUNK_SIZE = 30;
+      for (let c = 0; c < ipBatch.length; c += CHUNK_SIZE) {
+        const chunk = ipBatch.slice(c, c + CHUNK_SIZE);
+        const probePromises = chunk.map(h => {
+          return fetchWithTimeout("http://" + h + "/api/ping", 450)
+            .then(async r => {
+              if (r.ok) {
+                const d = await r.json();
+                if (d.status === "ok" || d.protocol === "windrop_p2p_v3") {
+                  return { host: h, data: d };
+                }
+              }
+              throw new Error("fail");
+            });
+        });
+
+        try {
+          const winner = await Promise.any(probePromises);
+          if (winner && winner.host) {
+            applyDiscoveredPC(winner.host, winner.data);
+            return true;
+          }
+        } catch (err) {}
+      }
+    }
+
+    const badgeText = document.getElementById("connBadgeText");
+    if (badgeText && !badgeText.textContent.includes("🟢")) {
+      badgeText.textContent = "🔴 PC Bağlantısı Yok";
+      const bEl = document.getElementById("connBadge");
+      if (bEl) { bEl.style.borderColor = "rgba(255, 69, 58, 0.4)"; bEl.style.color = "#FF453A"; }
+      if (sub) {
+        sub.textContent = "⚠️ PC Bekleniyor — Aynı Wi-Fi'da Olduğunuzdan Emin Olun";
+        sub.style.color = "#FF453A";
+      }
+    }
+    return false;
+  } finally {
+    isDiscovering = false;
+  }
+}
+async function _legacyAutoDiscover() {
+  const now = Date.now();
   if (isDiscovering || (!force && (now - lastDiscoveryTime < 6000))) return;
   isDiscovering = true;
   lastDiscoveryTime = now;
@@ -3084,6 +3218,14 @@ async function autoDiscoverPCPeer(force = false) {
 }
 
 function applyDiscoveredPC(host, data) {
+  if (window.activeRadarWS) {
+    try {
+      window.activeRadarWS.onclose = null;
+      window.activeRadarWS.onerror = null;
+      window.activeRadarWS.close();
+    } catch(e) {}
+    window.activeRadarWS = null;
+  }
   API_BASE = "http://" + host;
   safeStorageSet("windrop_custom_pc_ip", host);
   const pcName = data.pc_name || "DESKTOP-EIJNT5O";
@@ -3543,8 +3685,6 @@ setInterval(fetchRadarState, 5000);
   </div>
 </div>
 
-</body>
-</html>
 <script>
 
 // ========================================================
@@ -3604,9 +3744,7 @@ class RemoteScreenRenderer {
     if (!frameData) return;
     // ZERO BACKPRESSURE: If previous frame decoding is in progress, drop this frame to eliminate WebKit promise pileup!
     if (this.isDecoding) {
-      if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
-        remoteWS.send("a");
-      }
+      // Silently drop frame without sending premature ACK to avoid ACK storm
       return;
     }
     this.isDecoding = true;
@@ -4364,4 +4502,591 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+
+
+// ==========================================
+// UNIFIED MASTER AUDIO & HAPTIC ENGINE (iOS SAFARI COMPLIANT)
+// ==========================================
+const MasterAudioManager = (function() {
+  let masterCtx = null;
+  let clickBufferLight = null, clickBufferMedium = null, clickBufferHeavy = null;
+
+  function getContext() {
+    if (!masterCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        masterCtx = new AudioCtx({ latencyHint: 'interactive' });
+        initBuffers(masterCtx);
+      }
+    }
+    if (masterCtx && masterCtx.state === 'suspended') {
+      masterCtx.resume().catch(() => {});
+    }
+    return masterCtx;
+  }
+
+  function initBuffers(ctx) {
+    try {
+      const sr = ctx.sampleRate;
+      const makeBuf = (dur, freq, gain) => {
+        const count = Math.floor(sr * dur);
+        const buf = ctx.createBuffer(1, count, sr);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < count; i++) {
+          const t = i / sr;
+          d[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / (dur * 0.35)) * gain;
+        }
+        return buf;
+      };
+      clickBufferLight = makeBuf(0.010, 110, 0.45);
+      clickBufferMedium = makeBuf(0.016, 85, 0.75);
+      clickBufferHeavy = makeBuf(0.024, 65, 0.95);
+    } catch(e) {}
+  }
+
+  function playBuf(buf) {
+    const ctx = getContext();
+    if (!ctx || !buf) return;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch(e) {}
+  }
+
+  const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown'];
+  function unlock() {
+    getContext();
+    unlockEvents.forEach(evt => window.removeEventListener(evt, unlock, true));
+  }
+  unlockEvents.forEach(evt => window.addEventListener(evt, unlock, { capture: true, passive: true }));
+
+  return {
+    getContext,
+    hapticLight: () => playBuf(clickBufferLight),
+    hapticMedium: () => playBuf(clickBufferMedium),
+    hapticHeavy: () => playBuf(clickBufferHeavy)
+  };
+})();
+
+function playPingSound() {
+  const ctx = MasterAudioManager.getContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(640, now);
+    osc.frequency.exponentialRampToValueAtTime(420, now + 0.18);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+  } catch(e) {}
+}
+
+function playSuccessChime() {
+  const ctx = MasterAudioManager.getContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + (i * 0.07);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch(e) {}
+}
+
+// ==========================================
+// LIVE QR SCANNER & MANUAL IP CONTROLLERS
+// ==========================================
+let _qrMediaStream = null;
+let _qrScannerRunning = false;
+
+function openQRScannerModal() {
+  haptic('medium');
+  const modal = document.getElementById('qrScannerModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+  startLiveCameraScan();
+}
+
+function closeQRScannerModal() {
+  haptic('light');
+  _qrScannerRunning = false;
+  if (_qrMediaStream) {
+    try {
+      _qrMediaStream.getTracks().forEach(t => t.stop());
+    } catch(e) {}
+    _qrMediaStream = null;
+  }
+  const modal = document.getElementById('qrScannerModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+function startLiveCameraScan() {
+  const st = document.getElementById('qrScannerStatus');
+  const video = document.getElementById('qrVideoFeed');
+  if (st) st.textContent = "Kamera başlatılıyor...";
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (st) st.textContent = "Kamera bu tarayıcıda desteklenmiyor.";
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false
+  }).then(stream => {
+    _qrMediaStream = stream;
+    if (video) {
+      video.srcObject = stream;
+      video.setAttribute("playsinline", "true");
+      video.play();
+    }
+    if (st) st.textContent = "QR Kodu çerçeveye ortalayın...";
+    _qrScannerRunning = true;
+    requestAnimationFrame(_scanVideoFrameTick);
+  }).catch(err => {
+    if (st) st.textContent = "Kamera izni verilmedi: " + (err.message || err);
+  });
+}
+
+function _scanVideoFrameTick() {
+  if (!_qrScannerRunning) return;
+  const video = document.getElementById('qrVideoFeed');
+  const canvas = document.getElementById('qrScanCanvas');
+  const st = document.getElementById('qrScannerStatus');
+
+  if (video && video.readyState === video.HAVE_ENOUGH_DATA && canvas) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    if (typeof jsQR === 'function') {
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+      if (code && code.data) {
+        let clean = code.data.trim();
+        clean = clean.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        if (clean) {
+          if (st) st.textContent = "✅ QR Okundu: " + clean;
+          haptic('heavy');
+          playSuccessChime();
+          applyDiscoveredPC(clean, {});
+          setTimeout(closeQRScannerModal, 600);
+          return;
+        }
+      }
+    }
+  }
+  requestAnimationFrame(_scanVideoFrameTick);
+}
+
+function openManualIPModal() {
+  haptic('medium');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+  const inp = document.getElementById('manualIPInput');
+  if (inp) {
+    const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
+    inp.value = cur;
+    inp.focus();
+  }
+}
+
+function closeManualIPModal() {
+  haptic('light');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+function applyManualIP() {
+  const inp = document.getElementById('manualIPInput');
+  if (!inp) return;
+  let val = inp.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!val) return;
+  if (!val.includes(':')) val += ':8765';
+  safeStorageSet("windrop_custom_pc_ip", val);
+  applyDiscoveredPC(val, {});
+  closeManualIPModal();
+  showDesktopToast("⚡ PC IP Ayarlandı: " + val);
+  setTimeout(() => location.reload(), 400);
+}
+
+function toggleCameraTorch() {
+  if (!_qrMediaStream) {
+    showDesktopToast("Kamera açık değil");
+    return;
+  }
+  try {
+    const track = _qrMediaStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.torch) {
+      const cur = track.getSettings ? track.getSettings().torch : false;
+      track.applyConstraints({ advanced: [{ torch: !cur }] });
+      showDesktopToast(!cur ? "🔦 Flaş Açıldı" : "🔦 Flaş Kapatıldı");
+    } else {
+      showDesktopToast("Cihazınız web flaş kontrolünü desteklemiyor");
+    }
+  } catch(e) {
+    showDesktopToast("Flaş açılamadı");
+  }
+}
+
+function scanQRFromImageFile(input) {
+  if (!input || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (typeof jsQR === 'function') {
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          let clean = code.data.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+          applyDiscoveredPC(clean, {});
+          closeQRScannerModal();
+          showDesktopToast("✅ QR Fotoğraftan Okundu: " + clean);
+          return;
+        }
+      }
+      showDesktopToast("Fotoğrafta geçerli QR bulunamadı");
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+
+
+// ==========================================
+// UNIFIED MASTER AUDIO & HAPTIC ENGINE (iOS SAFARI COMPLIANT)
+// ==========================================
+const MasterAudioManager = (function() {
+  let masterCtx = null;
+  let clickBufferLight = null, clickBufferMedium = null, clickBufferHeavy = null;
+
+  function getContext() {
+    if (!masterCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        masterCtx = new AudioCtx({ latencyHint: 'interactive' });
+        initBuffers(masterCtx);
+      }
+    }
+    if (masterCtx && masterCtx.state === 'suspended') {
+      masterCtx.resume().catch(() => {});
+    }
+    return masterCtx;
+  }
+
+  function initBuffers(ctx) {
+    try {
+      const sr = ctx.sampleRate;
+      const makeBuf = (dur, freq, gain) => {
+        const count = Math.floor(sr * dur);
+        const buf = ctx.createBuffer(1, count, sr);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < count; i++) {
+          const t = i / sr;
+          d[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / (dur * 0.35)) * gain;
+        }
+        return buf;
+      };
+      clickBufferLight = makeBuf(0.010, 110, 0.45);
+      clickBufferMedium = makeBuf(0.016, 85, 0.75);
+      clickBufferHeavy = makeBuf(0.024, 65, 0.95);
+    } catch(e) {}
+  }
+
+  function playBuf(buf) {
+    const ctx = getContext();
+    if (!ctx || !buf) return;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch(e) {}
+  }
+
+  const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown'];
+  function unlock() {
+    getContext();
+    unlockEvents.forEach(evt => window.removeEventListener(evt, unlock, true));
+  }
+  unlockEvents.forEach(evt => window.addEventListener(evt, unlock, { capture: true, passive: true }));
+
+  return {
+    getContext,
+    hapticLight: () => playBuf(clickBufferLight),
+    hapticMedium: () => playBuf(clickBufferMedium),
+    hapticHeavy: () => playBuf(clickBufferHeavy)
+  };
+})();
+
+function playPingSound() {
+  const ctx = MasterAudioManager.getContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(640, now);
+    osc.frequency.exponentialRampToValueAtTime(420, now + 0.18);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+  } catch(e) {}
+}
+
+function playSuccessChime() {
+  const ctx = MasterAudioManager.getContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + (i * 0.07);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch(e) {}
+}
+
+// ==========================================
+// THROTTLED & BATTERY-SAFE QR SCANNER ENGINE
+// ==========================================
+let _qrMediaStream = null;
+let _qrScannerRunning = false;
+let _lastQrScanTick = 0;
+
+function openQRScannerModal() {
+  haptic('medium');
+  const modal = document.getElementById('qrScannerModal');
+  if (modal) modal.style.display = 'flex';
+  startLiveCameraScan();
+}
+
+function closeQRScannerModal() {
+  haptic('light');
+  _qrScannerRunning = false;
+  const video = document.getElementById('qrVideoFeed');
+  if (video) {
+    try { video.pause(); } catch(e) {}
+    video.srcObject = null;
+  }
+  if (_qrMediaStream) {
+    try {
+      _qrMediaStream.getTracks().forEach(t => {
+        try { t.stop(); } catch(e) {}
+      });
+    } catch(e) {}
+    _qrMediaStream = null;
+  }
+  const modal = document.getElementById('qrScannerModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function startLiveCameraScan() {
+  const st = document.getElementById('qrScannerStatus');
+  const video = document.getElementById('qrVideoFeed');
+  if (st) st.textContent = "Kamera başlatılıyor...";
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (st) st.textContent = "Kamera güvenli (HTTPS/localhost) olmayan ortamda doğrudan açılamıyor. Lütfen 'Fotoğraf Seç' veya 'IP Gir' butonunu kullanın.";
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } },
+    audio: false
+  }).then(stream => {
+    _qrMediaStream = stream;
+    if (video) {
+      video.srcObject = stream;
+      video.setAttribute("playsinline", "true");
+      video.play().catch(() => {});
+    }
+    if (st) st.textContent = "QR Kodu çerçeveye tutun...";
+    _qrScannerRunning = true;
+    _lastQrScanTick = 0;
+    requestAnimationFrame(_scanVideoFrameTick);
+  }).catch(err => {
+    if (st) st.textContent = "Kamera açılamadı: " + (err.message || err);
+  });
+}
+
+function _scanVideoFrameTick(timestamp) {
+  if (!_qrScannerRunning) return;
+
+  // Throttle scanning to 5 FPS (every 200ms) to conserve battery and eliminate 120Hz CPU spikes
+  if (timestamp - _lastQrScanTick > 200) {
+    _lastQrScanTick = timestamp;
+    const video = document.getElementById('qrVideoFeed');
+    const canvas = document.getElementById('qrScanCanvas');
+    const st = document.getElementById('qrScannerStatus');
+
+    if (video && video.readyState === video.HAVE_ENOUGH_DATA && canvas) {
+      // Downscale to 480x360 max for instant, lightweight QR detection
+      const targetW = 480;
+      const targetH = Math.round((video.videoHeight / video.videoWidth) * targetW) || 360;
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, targetW, targetH);
+      const imageData = ctx.getImageData(0, 0, targetW, targetH);
+
+      if (typeof jsQR === 'function') {
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+        if (code && code.data) {
+          let clean = code.data.trim();
+          clean = clean.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+          if (clean) {
+            if (st) st.textContent = "✅ QR Okundu: " + clean;
+            haptic('heavy');
+            playSuccessChime();
+            applyDiscoveredPC(clean, {});
+            setTimeout(closeQRScannerModal, 600);
+            return;
+          }
+        }
+      }
+    }
+  }
+  requestAnimationFrame(_scanVideoFrameTick);
+}
+
+function openManualIPModal() {
+  haptic('medium');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) modal.style.display = 'flex';
+  const inp = document.getElementById('manualIPInput');
+  if (inp) {
+    const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
+    inp.value = cur;
+    inp.focus();
+  }
+}
+
+function closeManualIPModal() {
+  haptic('light');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function applyManualIP() {
+  const inp = document.getElementById('manualIPInput');
+  if (!inp) return;
+  let val = inp.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!val) return;
+  if (!val.includes(':')) val += ':8765';
+  safeStorageSet("windrop_custom_pc_ip", val);
+  applyDiscoveredPC(val, {});
+  closeManualIPModal();
+  showDesktopToast("⚡ PC IP Ayarlandı: " + val);
+  setTimeout(() => location.reload(), 400);
+}
+
+function toggleCameraTorch() {
+  if (!_qrMediaStream) {
+    showDesktopToast("Kamera açık değil");
+    return;
+  }
+  try {
+    const track = _qrMediaStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.torch) {
+      const cur = track.getSettings ? track.getSettings().torch : false;
+      track.applyConstraints({ advanced: [{ torch: !cur }] });
+      showDesktopToast(!cur ? "🔦 Flaş Açıldı" : "🔦 Flaş Kapatıldı");
+    } else {
+      showDesktopToast("Cihazınız web flaş kontrolünü desteklemiyor");
+    }
+  } catch(e) {
+    showDesktopToast("Flaş açılamadı");
+  }
+}
+
+function scanQRFromImageFile(input) {
+  if (!input || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Safe downscale to max 800px to prevent WebKit OOM crash on 48MP photos
+      let maxDim = 800;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+        else { w = Math.round((w * maxDim) / h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      if (typeof jsQR === 'function') {
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          let clean = code.data.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+          applyDiscoveredPC(clean, {});
+          closeQRScannerModal();
+          showDesktopToast("✅ QR Fotoğraftan Okundu: " + clean);
+          return;
+        }
+      }
+      showDesktopToast("Fotoğrafta geçerli QR bulunamadı");
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 </script>
+</body>
+</html>
