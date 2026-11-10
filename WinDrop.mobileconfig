@@ -66,45 +66,45 @@
 			IKEFFe0a/IV4hoQWVEhoQYWEFlRIaEGFhBZUSGhBhYQWVEhoQYWE
 			FlRIaEGFhBZUSGjxxsS/MvNHRUNY0AgAAAAASUVORK5CYII=
 			</data>
+			<key>IgnoreManifestScope</key>
+			<true/>
 			<key>IsRemovable</key>
 			<true/>
 			<key>Label</key>
 			<string>WinDrop</string>
 			<key>PayloadDescription</key>
-			<string>WinDrop Lossless AirDrop &amp; Remote Desktop</string>
+			<string>WinDrop — Windows &lt;-&gt; iPhone Kayıpsız AirDrop Uygulaması</string>
 			<key>PayloadDisplayName</key>
-			<string>WinDrop</string>
+			<string>WinDrop iOS App</string>
 			<key>PayloadIdentifier</key>
-			<string>com.tris.windrop.webclip.main</string>
-			<key>PayloadOrganization</key>
-			<string>WinDrop</string>
+			<string>com.tris.windrop.webclip</string>
 			<key>PayloadType</key>
 			<string>com.apple.webClip.managed</string>
 			<key>PayloadUUID</key>
-			<string>77C836F5-8474-4B86-A167-9CDBA846BCF4</string>
+			<string>7744ED95-71DE-5C15-BF8A-B8BDFCA9D40F</string>
 			<key>PayloadVersion</key>
-			<integer>3</integer>
+			<integer>1</integer>
 			<key>Precomposed</key>
 			<true/>
 			<key>URL</key>
-			<string>https://foot-hotel-modified-shoe.trycloudflare.com/?v=20261105_v3</string>
+			<string>http://192.168.1.158:8765</string>
 		</dict>
 	</array>
 	<key>PayloadDescription</key>
-	<string>WinDrop Kayıpsız Windows &lt;-&gt; iPhone AirDrop &amp; Uzaktan Masaüstü</string>
+	<string>WinDrop Kayıpsız Windows &lt;-&gt; iPhone Dosya Aktarım Uygulaması (Tam Ekran Yerel İkon)</string>
 	<key>PayloadDisplayName</key>
-	<string>WinDrop</string>
+	<string>WinDrop AirDrop</string>
 	<key>PayloadIdentifier</key>
 	<string>com.tris.windrop.profile</string>
 	<key>PayloadOrganization</key>
-	<string>WinDrop</string>
+	<string>WinDrop P2P</string>
 	<key>PayloadRemovalDisallowed</key>
 	<false/>
 	<key>PayloadType</key>
 	<string>Configuration</string>
 	<key>PayloadUUID</key>
-	<string>4109B144-2B4C-4547-945E-1A6A6647F037</string>
+	<string>D4921E4F-8303-51D1-AED9-62292E84FC7A</string>
 	<key>PayloadVersion</key>
-	<integer>3</integer>
+	<integer>1</integer>
 </dict>
 </plist>
