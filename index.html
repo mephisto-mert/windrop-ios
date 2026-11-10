@@ -1792,21 +1792,47 @@ body.remote-fullscreen #remoteModeToast {
         </div>
       </label>
       <div id="pcName" class="radar-info-title">WinDrop Canlı Radar</div>
-      <div id="activeHostText" class="radar-info-sub" style="color: #FF453A;">🔴 PC Bağlantısı Bekleniyor — QR Kod Okutun</div>
+      <div id="activeHostText" class="radar-info-sub" style="color: #64D2FF; font-weight: 600;">⚡ WO Mic Modu — Doğrudan IP:Port Bağlantısı</div>
 
-      <!-- Quick PC Pairing Bar & P2P Auto-Discovery -->
-      <div class="qr-action-banner">
-        <button type="button" class="qr-btn-primary touch-target-44" onclick="triggerManualP2PDiscovery()" style="background: linear-gradient(135deg, #30D158, #248A3D); color: #fff;">
-          <span style="font-size: 18px;">⚡</span>
-          <span>P2P Otomatik Bağlan</span>
-        </button>
-        <button type="button" class="qr-btn-manual touch-target-44" onclick="openQRScannerModal()">
-          <span style="font-size: 16px;">📷</span>
-          <span>Kamera</span>
-        </button>
-        <button type="button" class="qr-btn-manual touch-target-44" onclick="openManualIPModal()">
-          <span>⌨️ IP</span>
-        </button>
+      <!-- WO Mic Style Direct IP:Port & USB Connection Hub -->
+      <div class="womic-connect-card" style="margin: 12px 10px 16px 10px; padding: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; text-align: left; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <div style="display:flex; gap: 8px;">
+            <button type="button" id="tabWifiBtn" onclick="switchWomicMode('wifi')" style="background: rgba(10,132,255,0.3); color: #64D2FF; border: 1px solid rgba(10,132,255,0.5); border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;">📡 Wi-Fi (IP/Port)</button>
+            <button type="button" id="tabUsbBtn" onclick="switchWomicMode('usb')" style="background: rgba(255,255,255,0.08); color: #8E8E93; border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;">🔌 USB Kablo</button>
+          </div>
+          <div id="womicStatusBadge" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255,69,58,0.2); color: #FF453A; font-weight: 700;">
+            🔴 Bağlantı Yok
+          </div>
+        </div>
+
+        <div id="womicWifiPanel">
+          <div style="display:flex; gap: 8px; margin-bottom: 10px;">
+            <input type="text" id="womicIpInput" placeholder="PC IP (192.168.1.158)" style="flex: 2; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 12px; font-size: 14px; font-family: monospace;">
+            <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 76px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 6px; font-size: 14px; text-align: center; font-family: monospace;">
+            <button type="button" onclick="connectWomicDirect()" style="flex: 1.2; background: linear-gradient(135deg, #0A84FF, #0066CC); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">
+              BAĞLAN
+            </button>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size: 11px; color: #8E8E93;">
+            <span>💡 Aynı Wi-Fi veya Kişisel Erişim Noktası</span>
+            <div style="display:flex; gap: 10px;">
+              <button type="button" onclick="openQRScannerModal()" style="background: none; border: none; color: #64D2FF; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline;">
+                📷 QR Tara
+              </button>
+              <a href="/windrop.shortcut" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: underline;">
+                📲 Kestirme İndir
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div id="womicUsbPanel" style="display: none; font-size: 12px; color: #E5E5EA; line-height: 1.6; padding: 6px 2px;">
+          <div style="color: #30D158; font-weight: 700; margin-bottom: 6px;">⚡ WO Mic USB Kablo Modu:</div>
+          <div>1. iPhone'u kabloyla bilgisayara takın.</div>
+          <div>2. Çıkarsa "Bu Bilgisayara Güven" seçeneğine basın.</div>
+          <div style="color: #8E8E93; font-size: 11px; margin-top: 6px;">Bilgisayardaki WinDrop kabloyu otomatik algılar ve 480 Mbps hızla sıfır modemle çalışır!</div>
+        </div>
       </div>
 
       <div class="action-grid">
@@ -4998,94 +5024,81 @@ function _scanVideoFrameTick(timestamp) {
   requestAnimationFrame(_scanVideoFrameTick);
 }
 
-function openManualIPModal() {
-  haptic('medium');
-  const modal = document.getElementById('manualIPModal');
-  if (modal) modal.style.display = 'flex';
-  const inp = document.getElementById('manualIPInput');
-  if (inp) {
-    const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
-    inp.value = cur;
-    inp.focus();
-  }
-}
-
-function closeManualIPModal() {
+function switchWomicMode(mode) {
   haptic('light');
-  const modal = document.getElementById('manualIPModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function applyManualIP() {
-  const inp = document.getElementById('manualIPInput');
-  if (!inp) return;
-  let val = inp.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-  if (!val) return;
-  if (!val.includes(':')) val += ':8765';
-  safeStorageSet("windrop_custom_pc_ip", val);
-  applyDiscoveredPC(val, {});
-  closeManualIPModal();
-  showDesktopToast("⚡ PC IP Ayarlandı: " + val);
-  setTimeout(() => location.reload(), 400);
-}
-
-function toggleCameraTorch() {
-  if (!_qrMediaStream) {
-    showDesktopToast("Kamera açık değil");
-    return;
+  const wifiPanel = document.getElementById('womicWifiPanel');
+  const usbPanel = document.getElementById('womicUsbPanel');
+  const wifiBtn = document.getElementById('tabWifiBtn');
+  const usbBtn = document.getElementById('tabUsbBtn');
+  if (mode === 'wifi') {
+    if (wifiPanel) wifiPanel.style.display = 'block';
+    if (usbPanel) usbPanel.style.display = 'none';
+    if (wifiBtn) { wifiBtn.style.background = 'rgba(10,132,255,0.25)'; wifiBtn.style.color = '#64D2FF'; }
+    if (usbBtn) { usbBtn.style.background = 'rgba(255,255,255,0.08)'; usbBtn.style.color = '#8E8E93'; }
+  } else {
+    if (wifiPanel) wifiPanel.style.display = 'none';
+    if (usbPanel) usbPanel.style.display = 'block';
+    if (usbBtn) { usbBtn.style.background = 'rgba(48,209,88,0.25)'; usbBtn.style.color = '#30D158'; }
+    if (wifiBtn) { wifiBtn.style.background = 'rgba(255,255,255,0.08)'; wifiBtn.style.color = '#8E8E93'; }
   }
+}
+
+async function connectWomicDirect() {
+  haptic('medium');
+  const ipInp = document.getElementById('womicIpInput');
+  const portInp = document.getElementById('womicPortInput');
+  const badge = document.getElementById('womicStatusBadge');
+  
+  let ip = (ipInp ? ipInp.value.trim() : "").replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  let port = (portInp ? portInp.value.trim() : "") || "8765";
+  if (!ip) ip = "192.168.1.158";
+
+  const host = ip.includes(':') ? ip : `${ip}:${port}`;
+  if (badge) {
+    badge.textContent = "⏳ Bağlanıyor...";
+    badge.style.background = "rgba(255, 159, 10, 0.2)";
+    badge.style.color = "#FF9F0A";
+  }
+
   try {
-    const track = _qrMediaStream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.torch) {
-      const cur = track.getSettings ? track.getSettings().torch : false;
-      track.applyConstraints({ advanced: [{ torch: !cur }] });
-      showDesktopToast(!cur ? "🔦 Flaş Açıldı" : "🔦 Flaş Kapatıldı");
-    } else {
-      showDesktopToast("Cihazınız web flaş kontrolünü desteklemiyor");
+    const res = await fetch(`http://${host}/api/ping?t=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      API_BASE = `http://${host}`;
+      safeStorageSet("windrop_custom_pc_ip", host);
+      applyDiscoveredPC(host, data);
+      if (badge) {
+        badge.textContent = "🟢 Bağlandı: " + (data.pc_name || host);
+        badge.style.background = "rgba(48, 209, 88, 0.2)";
+        badge.style.color = "#30D158";
+      }
+      playSuccessChime();
+      showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı!");
+      return;
     }
-  } catch(e) {
-    showDesktopToast("Flaş açılamadı");
+  } catch (err) {}
+
+  if (badge) {
+    badge.textContent = "🔴 Bağlanılamadı";
+    badge.style.background = "rgba(255, 69, 58, 0.2)";
+    badge.style.color = "#FF453A";
   }
+  showDesktopToast("⚠️ " + host + " yanıt vermedi! Aynı Wi-Fi'da mısınız?");
 }
 
-function scanQRFromImageFile(input) {
-  if (!input || !input.files || !input.files[0]) return;
-  const file = input.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      // Safe downscale to max 800px to prevent WebKit OOM crash on 48MP photos
-      let maxDim = 800;
-      let w = img.width;
-      let h = img.height;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
-        else { w = Math.round((w * maxDim) / h); h = maxDim; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      const imgData = ctx.getImageData(0, 0, w, h);
-      if (typeof jsQR === 'function') {
-        const code = jsQR(imgData.data, imgData.width, imgData.height);
-        if (code && code.data) {
-          let clean = code.data.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-          applyDiscoveredPC(clean, {});
-          closeQRScannerModal();
-          showDesktopToast("✅ QR Fotoğraftan Okundu: " + clean);
-          return;
-        }
-      }
-      showDesktopToast("Fotoğrafta geçerli QR bulunamadı");
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
+document.addEventListener("DOMContentLoaded", () => {
+  const ipInp = document.getElementById('womicIpInput');
+  const portInp = document.getElementById('womicPortInput');
+  const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
+  if (cur && cur.includes(':')) {
+    const parts = cur.split(':');
+    if (ipInp) ipInp.value = parts[0];
+    if (portInp) portInp.value = parts[1];
+  } else if (ipInp) {
+    ipInp.value = cur;
+  }
+  setTimeout(connectWomicDirect, 300);
+});
 
 </script>
 </body>
