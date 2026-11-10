@@ -107,13 +107,20 @@ window.addEventListener('error', function(e) {
 // ==========================================
 
 function openRemoteKeyboard() {
+  const now = performance.now();
+  if (now - (window._lastKbToggleTs || 0) < 500) return;
+  window._lastKbToggleTs = now;
   haptic('medium');
+  if (typeof toggleAnydeskDrawer === 'function') {
+    const sb = document.getElementById('anydeskDrawer');
+    if (sb && sb.classList.contains('is-open')) toggleAnydeskDrawer(false);
+  }
   const drawer = document.getElementById('remoteKeyboardDrawer');
   const input = document.getElementById('remoteTextInput');
   if (drawer) {
     drawer.style.display = 'block';
+    drawer.style.transform = '';
     drawer.classList.add('is-open');
-    drawer.style.transform = 'translateY(0)';
     drawer.style.pointerEvents = 'auto';
     drawer.style.zIndex = '2147483647';
   }
@@ -132,7 +139,7 @@ function closeRemoteKeyboard() {
   if (drawer) {
     drawer.classList.remove('is-open');
     drawer.style.bottom = '0px';
-    drawer.style.transform = 'translateY(115%)';
+    drawer.style.transform = '';
     drawer.style.pointerEvents = 'none';
     setTimeout(() => {
       if (!drawer.classList.contains('is-open')) drawer.style.display = 'none';
@@ -242,7 +249,7 @@ window.setRemoteStreamQuality = setRemoteStreamQuality;
 
 function toggleRemoteLandscape(forceState) {
   const now = performance.now();
-  if (now - (window._lastRotToggleTs || 0) < 300 && typeof forceState !== 'boolean') return;
+  if (now - (window._lastRotToggleTs || 0) < 500 && typeof forceState !== 'boolean') return;
   window._lastRotToggleTs = now;
   haptic('medium');
   const vp = document.getElementById('remoteViewport');
@@ -391,7 +398,7 @@ function setRemoteAspectFitMode(mode) {
 
 function toggleAnydeskDrawer(forceOpen) {
   const now = performance.now();
-  if (now - (window._lastDrawerToggleTs || 0) < 280 && typeof forceOpen !== 'boolean') {
+  if (now - (window._lastDrawerToggleTs || 0) < 500 && typeof forceOpen !== 'boolean') {
     return;
   }
   window._lastDrawerToggleTs = now;
@@ -405,6 +412,10 @@ function toggleAnydeskDrawer(forceOpen) {
   const shouldOpen = (typeof forceOpen === 'boolean') ? forceOpen : !isOpen;
 
   if (shouldOpen) {
+    const kbDrawer = document.getElementById('remoteKeyboardDrawer');
+    if (kbDrawer && kbDrawer.classList.contains('is-open') && typeof closeRemoteKeyboard === 'function') {
+      closeRemoteKeyboard();
+    }
     sb.style.right = '0px';
     sb.classList.add('is-open');
     if (bd) bd.style.display = 'block';
@@ -453,7 +464,7 @@ window.toggleAnydeskSidebar = toggleAnydeskDrawer;
 
 function toggleRemoteFullscreen() {
   const now = performance.now();
-  if (now - (window._lastFsToggleTs || 0) < 300) return;
+  if (now - (window._lastFsToggleTs || 0) < 500) return;
   window._lastFsToggleTs = now;
   haptic('medium');
   const vp = document.getElementById('remoteViewport');
@@ -1581,7 +1592,6 @@ window.addEventListener('orientationchange', () => {
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   transition: border-radius 0.25s ease;
@@ -1591,6 +1601,7 @@ window.addEventListener('orientationchange', () => {
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none !important;
   transform-origin: 0 0;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
@@ -1848,7 +1859,7 @@ body.remote-fullscreen #remoteModeToast {
   right: 0;
   transform: translateY(115%);
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 2147483646 !important;
+  z-index: 2147483647 !important;
   background: rgba(22, 22, 28, 0.97);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
@@ -1859,10 +1870,30 @@ body.remote-fullscreen #remoteModeToast {
   padding-right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px)) !important;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.9);
   pointer-events: none;
+  touch-action: manipulation !important;
 }
 #remoteKeyboardDrawer.is-open {
-  transform: translateY(0);
-  pointer-events: auto;
+  transform: translateY(0) translateZ(30px);
+  -webkit-transform: translateY(0) translateZ(30px);
+  pointer-events: auto !important;
+}
+#remoteKeyboardDrawer button,
+#remoteKeyboardDrawer input {
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
+}
+body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(420px, 86dvh) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  transform: translate(-50%, -50%) rotate(90deg) translateZ(35px) !important;
+  -webkit-transform: translate(-50%, -50%) rotate(90deg) translateZ(35px) !important;
+  transform-origin: center center !important;
 }
 
 
@@ -2129,8 +2160,8 @@ body.remote-fullscreen #remoteModeToast {
       </div>
 
       <!-- Live Screen Viewport (Canvas) -->
-      <div id="remoteViewport" data-aspect="fit" class="is-contain" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); touch-action:none; -webkit-user-select:none; user-select:none;">
-        <canvas id="remoteScreenCanvas" width="1920" height="1080" style="width:100%; height:100%; display:block; transform-origin:0 0;"></canvas>
+      <div id="remoteViewport" data-aspect="fit" class="is-contain" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); -webkit-user-select:none; user-select:none;">
+        <canvas id="remoteScreenCanvas" width="1920" height="1080" style="width:100%; height:100%; display:block; touch-action:none; transform-origin:0 0;"></canvas>
         
         <!-- Mode Toast Notification (Fades away in 0.75s, ultra-compact) -->
         <div id="remoteModeToast" style="position:absolute; top:34px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.2); border-radius:14px; padding:3px 10px; font-size:10.5px; color:#fff; font-weight:600; pointer-events:none; z-index:30; opacity:0; transition:opacity 0.2s ease; white-space:nowrap; max-width:calc(100% - 20px); overflow:hidden; text-overflow:ellipsis;">
@@ -4833,23 +4864,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Zero-Delay iOS Safari Fullscreen Touch Tap Dispatcher for AnyDesk Drawer & Backdrop
+  // Zero-Delay iOS Safari Fullscreen Touch Tap Dispatcher for AnyDesk Drawer, Keyboard Drawer & Backdrop
   const drawerEl = document.getElementById('anydeskDrawer');
+  const kbDrawerEl = document.getElementById('remoteKeyboardDrawer');
   const backdropEl = document.getElementById('anydeskSidebarBackdrop');
-  if (drawerEl) {
+  const attachFastTapDispatcher = (containerEl) => {
+    if (!containerEl) return;
     let dTouchStart = null;
-    drawerEl.addEventListener('touchstart', (e) => {
+    containerEl.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         dTouchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() };
       }
     }, { passive: true });
-    drawerEl.addEventListener('touchend', (e) => {
+    containerEl.addEventListener('touchend', (e) => {
       if (!dTouchStart || e.changedTouches.length !== 1) return;
       const dx = Math.abs(e.changedTouches[0].clientX - dTouchStart.x);
       const dy = Math.abs(e.changedTouches[0].clientY - dTouchStart.y);
       const dt = performance.now() - dTouchStart.t;
       dTouchStart = null;
       if (dx < 12 && dy < 12 && dt < 450) {
+        const inp = e.target && e.target.closest ? e.target.closest('input, textarea') : null;
+        if (inp) {
+          inp.focus();
+          return;
+        }
         const btn = e.target && e.target.closest ? e.target.closest('button, a') : null;
         if (btn) {
           e.preventDefault();
@@ -4858,7 +4896,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }, { passive: false });
-  }
+  };
+  attachFastTapDispatcher(drawerEl);
+  attachFastTapDispatcher(kbDrawerEl);
   if (backdropEl) {
     backdropEl.addEventListener('touchend', (e) => {
       e.preventDefault();
