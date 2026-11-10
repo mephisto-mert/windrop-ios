@@ -1794,44 +1794,47 @@ body.remote-fullscreen #remoteModeToast {
       <div id="pcName" class="radar-info-title">WinDrop Canlı Radar</div>
       <div id="activeHostText" class="radar-info-sub" style="color: #64D2FF; font-weight: 600;">⚡ WO Mic Modu — Doğrudan IP:Port Bağlantısı</div>
 
-      <!-- WO Mic Style Direct IP:Port & USB Connection Hub -->
-      <div class="womic-connect-card" style="margin: 12px 10px 16px 10px; padding: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; text-align: left; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-          <div style="display:flex; gap: 8px;">
-            <button type="button" id="tabWifiBtn" onclick="switchWomicMode('wifi')" style="background: rgba(10,132,255,0.3); color: #64D2FF; border: 1px solid rgba(10,132,255,0.5); border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;">📡 Wi-Fi (IP/Port)</button>
-            <button type="button" id="tabUsbBtn" onclick="switchWomicMode('usb')" style="background: rgba(255,255,255,0.08); color: #8E8E93; border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;">🔌 USB Kablo</button>
-          </div>
-          <div id="womicStatusBadge" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255,69,58,0.2); color: #FF453A; font-weight: 700;">
+      <!-- Cupertino / 21st.dev Collapsible Direct IP:Port & USB Connection Pill -->
+      <div class="womic-connect-card" style="margin: 10px 8px 14px 8px; padding: 10px 12px; background: rgba(43, 42, 47, 0.78); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.13); border-radius: 14px; text-align: left; box-shadow: 0 4px 16px rgba(0,0,0,0.28);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+          <div id="womicStatusBadge" onclick="toggleWomicDrawer()" style="font-size: 11.5px; padding: 5px 10px; border-radius: 9px; background: rgba(255,69,58,0.18); color: #FF453A; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
             🔴 Bağlantı Yok
           </div>
-        </div>
-
-        <div id="womicWifiPanel">
-          <div style="display:flex; gap: 8px; margin-bottom: 10px;">
-            <input type="text" id="womicIpInput" placeholder="PC IP (192.168.1.158)" style="flex: 2; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 12px; font-size: 14px; font-family: monospace;">
-            <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 76px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 6px; font-size: 14px; text-align: center; font-family: monospace;">
-            <button type="button" onclick="connectWomicDirect(true)" style="flex: 1.2; background: linear-gradient(135deg, #0A84FF, #0066CC); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">
-              BAĞLAN
+          <div style="display:flex; gap: 6px; align-items:center; flex-shrink: 0;">
+            <button type="button" onclick="openQRScannerModal()" style="background: rgba(10,132,255,0.16); border: 1px solid rgba(10,132,255,0.35); color: #64D2FF; border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              📷 QR
+            </button>
+            <button type="button" id="womicDrawerToggleBtn" onclick="toggleWomicDrawer()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #EBEBF5; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              ⚙️ IP / USB ▾
             </button>
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size: 11px; color: #8E8E93;">
-            <span>💡 Aynı Wi-Fi veya Kişisel Erişim Noktası</span>
-            <div style="display:flex; gap: 10px;">
-              <button type="button" onclick="openQRScannerModal()" style="background: none; border: none; color: #64D2FF; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline;">
-                📷 QR Tara
-              </button>
-              <a id="shortcutDownloadLink" href="http://192.168.1.158:8765/windrop.shortcut" onclick="return downloadWinDropShortcut(event)" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: underline; cursor: pointer;">
-                📲 Kestirme İndir
-              </a>
-            </div>
-          </div>
         </div>
 
-        <div id="womicUsbPanel" style="display: none; font-size: 12px; color: #E5E5EA; line-height: 1.6; padding: 6px 2px;">
-          <div style="color: #30D158; font-weight: 700; margin-bottom: 6px;">⚡ WO Mic USB Kablo Modu:</div>
-          <div>1. iPhone'u kabloyla bilgisayara takın.</div>
-          <div>2. Çıkarsa "Bu Bilgisayara Güven" seçeneğine basın.</div>
-          <div style="color: #8E8E93; font-size: 11px; margin-top: 6px;">Bilgisayardaki WinDrop kabloyu otomatik algılar ve 480 Mbps hızla sıfır modemle çalışır!</div>
+        <div id="womicDrawerBody" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div style="display:flex; gap: 6px;">
+              <button type="button" id="tabWifiBtn" onclick="switchWomicMode('wifi')" style="background: rgba(10,132,255,0.28); color: #64D2FF; border: 1px solid rgba(10,132,255,0.45); border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">📡 Wi-Fi (IP:Port)</button>
+              <button type="button" id="tabUsbBtn" onclick="switchWomicMode('usb')" style="background: rgba(255,255,255,0.07); color: #8E8E93; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">🔌 USB Kablo</button>
+            </div>
+            <a id="shortcutDownloadLink" href="http://192.168.1.158:8765/windrop.shortcut" onclick="return downloadWinDropShortcut(event)" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: none; background: rgba(48,209,88,0.14); border: 1px solid rgba(48,209,88,0.3); padding: 4px 8px; border-radius: 7px; cursor: pointer;">
+              📲 Kestirme
+            </a>
+          </div>
+
+          <div id="womicWifiPanel">
+            <div style="display:flex; gap: 6px;">
+              <input type="text" id="womicIpInput" placeholder="PC IP (192.168.1.158)" style="flex: 2; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 8px 10px; font-size: 13px; font-family: 'SF Mono', monospace;">
+              <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 68px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 8px 4px; font-size: 13px; text-align: center; font-family: 'SF Mono', monospace;">
+              <button type="button" onclick="connectWomicDirect(true)" style="flex: 1; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer;">
+                Bağlan
+              </button>
+            </div>
+          </div>
+
+          <div id="womicUsbPanel" style="display: none; font-size: 11.5px; color: #E5E5EA; line-height: 1.5; padding: 4px 2px;">
+            <div style="color: #30D158; font-weight: 600; margin-bottom: 4px;">⚡ Doğrudan USB Kablo Modu:</div>
+            <div>iPhone'u kabloyla PC'ye takıp "Bu Bilgisayara Güven" deyin. WinDrop kabloyu otomatik algılar.</div>
+          </div>
         </div>
       </div>
 
@@ -4856,6 +4859,19 @@ function downloadWinDropShortcut(ev) {
   return false;
 }
 
+function toggleWomicDrawer(forceState) {
+  haptic('light');
+  const drawer = document.getElementById('womicDrawerBody');
+  const btn = document.getElementById('womicDrawerToggleBtn');
+  if (!drawer) return;
+  const isOpen = drawer.style.display !== 'none';
+  const nextState = typeof forceState === 'boolean' ? forceState : !isOpen;
+  drawer.style.display = nextState ? 'block' : 'none';
+  if (btn) {
+    btn.textContent = nextState ? '⚙️ Gizle ▴' : '⚙️ IP / USB ▾';
+  }
+}
+
 function switchWomicMode(mode) {
   haptic('light');
   const wifiPanel = document.getElementById('womicWifiPanel');
@@ -4915,10 +4931,11 @@ async function connectWomicDirect(isManual = false) {
       API_BASE = `http://${host}`;
       applyDiscoveredPC(host, data);
       if (badge) {
-        badge.textContent = "🟢 Bağlandı: " + (data.pc_name || host);
-        badge.style.background = "rgba(48, 209, 88, 0.2)";
+        badge.textContent = "🟢 Bağlı: " + (data.pc_name || host) + " (" + host + ")";
+        badge.style.background = "rgba(48, 209, 88, 0.18)";
         badge.style.color = "#30D158";
       }
+      toggleWomicDrawer(false);
       if (isManual) {
         playSuccessChime();
         showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı (" + host + ")!");
@@ -4935,10 +4952,11 @@ async function connectWomicDirect(isManual = false) {
   }
 
   if (badge) {
-    badge.textContent = "🔴 Bağlanılamadı";
-    badge.style.background = "rgba(255, 69, 58, 0.2)";
+    badge.textContent = "🔴 Bağlanılamadı (" + host + ")";
+    badge.style.background = "rgba(255, 69, 58, 0.18)";
     badge.style.color = "#FF453A";
   }
+  toggleWomicDrawer(true);
   if (isManual) {
     showDesktopToast("⚠️ " + host + " yanıt vermedi! Aynı Wi-Fi'da mısınız?");
   }
