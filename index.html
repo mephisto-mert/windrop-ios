@@ -2138,7 +2138,7 @@ body.remote-fullscreen #remoteModeToast {
       </div>
 
       <!-- 1-Tap Chrome-less Fullscreen App Launcher (Removes Safari Top URL/Tab Bar Completely) -->
-      <button onclick="window.location.href=(window.API_BASE||'')+'/profil'" class="action-btn" style="padding:10px 10px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:7px; background:linear-gradient(135deg, rgba(48,209,88,0.28), rgba(10,132,255,0.28)); color:#30D158; border:1px solid rgba(48,209,88,0.5);">
+      <button onclick="window.location.href=(window.API_BASE && !window.API_BASE.includes('github.io')) ? (window.API_BASE + '/profil') : 'WinDrop.mobileconfig'" class="action-btn" style="padding:10px 10px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:7px; background:linear-gradient(135deg, rgba(48,209,88,0.28), rgba(10,132,255,0.28)); color:#30D158; border:1px solid rgba(48,209,88,0.5);">
         <span>📱</span>
         <span>Safari Barını Kaldır (Tam Ekran Uygulama)</span>
       </button>
@@ -3016,7 +3016,13 @@ function initAirDropWebSocket() {
 
     ws.onclose = () => {
       if (window._radarWsRetryTimer) clearTimeout(window._radarWsRetryTimer);
-      window._radarWsRetryTimer = setTimeout(initAirDropWebSocket, 3000);
+      window._radarWsRetryTimer = setTimeout(async () => {
+        const curBase = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : window.location.origin;
+        if (/trycloudflare\.com|lhr\.life|ngrok|loca\.lt|github\.io/i.test(curBase) && typeof connectCloudTunnelAuto === 'function') {
+          try { await connectCloudTunnelAuto(false); } catch (e) {}
+        }
+        initAirDropWebSocket();
+      }, 3000);
     };
 
     ws.onerror = () => {
@@ -4708,12 +4714,16 @@ function connectRemoteWebSocket() {
       console.log("[RemoteWS] Closed, auto-reconnecting...");
       const dot = document.getElementById('remoteLiveDot');
       if (dot) dot.style.background = '#FF9F0A';
-      setTimeout(() => {
+      setTimeout(async () => {
         const activeTab = safeStorageGet('windrop_active_tab');
         if (activeTab === 'remote') {
+          const curBase = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+          if (/trycloudflare\.com|lhr\.life|ngrok|loca\.lt|github\.io/i.test(curBase) && typeof connectCloudTunnelAuto === 'function') {
+            try { await connectCloudTunnelAuto(false); } catch (e) {}
+          }
           connectRemoteWebSocket();
         }
-      }, 2500);
+      }, 2000);
     };
 
     remoteWS.onerror = () => {

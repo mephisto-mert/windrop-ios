@@ -66,44 +66,129 @@
 			IKEFFe0a/IV4hoQWVEhoQYWEFlRIaEGFhBZUSGhBhYQWVEhoQYWE
 			FlRIaEGFhBZUSGjxxsS/MvNHRUNY0AgAAAAASUVORK5CYII=
 			</data>
-			<key>IgnoreManifestScope</key>
-			<true/>
 			<key>IsRemovable</key>
 			<true/>
 			<key>Label</key>
 			<string>WinDrop</string>
 			<key>PayloadDescription</key>
-			<string>WinDrop — Windows &lt;-&gt; iPhone Kayıpsız AirDrop Uygulaması</string>
+			<string>WinDrop AirDrop WebClip (Yerel Wi-Fi / USB)</string>
 			<key>PayloadDisplayName</key>
-			<string>WinDrop iOS App</string>
+			<string>WinDrop</string>
 			<key>PayloadIdentifier</key>
-			<string>com.tris.windrop.webclip</string>
+			<string>com.tris.windrop.webclip.main</string>
+			<key>PayloadOrganization</key>
+			<string>WinDrop</string>
 			<key>PayloadType</key>
 			<string>com.apple.webClip.managed</string>
 			<key>PayloadUUID</key>
-			<string>7744ED95-71DE-5C15-BF8A-B8BDFCA9D40F</string>
+			<string>A1B2C3D4E5F6478990123456789ABCDE</string>
 			<key>PayloadVersion</key>
 			<integer>1</integer>
 			<key>Precomposed</key>
 			<true/>
 			<key>URL</key>
-			<string>http://192.168.1.158:8765</string>
+			<string>https://mephisto-mert.github.io/windrop-ios/</string>
+		</dict>
+		<dict>
+			<key>FullScreen</key>
+			<true/>
+			<key>Icon</key>
+			<data>
+			iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAIS0lE
+			QVR4nO2dMY7kRgxFh4PNNthwnRu+hgEfyqfwoQz4GgvnvgWNNjBw
+			Bz0ttapIfn7+l66tYrGeqJLEadnXb9/9TQgS3qsDEGInElpQIaEF
+			FRJaUCGhBRUSWlAhoQUVElpQIaEFFRJaUCGhBRUSWlAhoQUVElpQ
+			8aU6ABb893/+Xj2G/fHTz3uimYupHzpf3FeR6OeR0GDynkWSP0ZC
+			N5L4MyT3/0jophJ/hg3fh48VerfEO0RCjKkb44RelaZCko4xVzFG
+			6KtSIMrANJfd0Av96uJ3XPQJc3ybLvTERfaBc6YX+pVFZVzQ6Xmg
+			EvrsIjIt4BE+LCcUQk9btCv4kBy1F/rMQnVfpJ04eb7aCs2+MNE4
+			af5aCn20GB0Xogony2W7Bn+2BajGDvLVrc+lTYWWyMoxTYWWzDkY
+			QbWGr9CdZF5Z8E7zMKBYWwn9LLHVSc2oVshzNFCpYYVGSybC5RZt
+			3gYoNaTQKElEkBg9DwYmNZzQCMlDFhkxJwYkNZTQlUmr/l2N6vFZ
+			pIYRuipZyH/9gRibg0sNIXQXmSsXDClWB5a6XOiK5HRvfkeI30Gl
+			hhU6IimMPcGVc/LEtWshNJrMnURGmZ+DSV0mNJLMnUVGmKsDSV0i
+			dFYC2Ksy0rwdROoW3XZRlYpR5rNz6/TyCFrojDN50hbjGZYo9Wdj
+			ZZ84qVuOapmniFyZl+qtR/mWQzLX59kTKnUWaUJHX3pUmY/Jkrri
+			+KlCR1+GJDOW1Fa4n07ZQz+aSLTMVZe+K4uGFqsFrk30XMOFjkwa
+			gswRVQchfmu6PiXfKUT8fAPS2PfHr6zetjj27f/PXqfQPTTbN/1u
+			88meU/SYBvZ3iu0e23W8lFWInBmDBd7EZZ8wYXvoKOmQmpo+45VY
+			kP4qxQnWLFXoTompaqKvbt73RKkj4g+5Kay+PHf+I4D74x7F8vHv
+			1W/nKm88y/bQHarz2bbLLIHOjtWhyci69nJkVufsDr2yv8JIbgc1
+			gOfg0BU6qjrv4ujVOcol/SgWB+/HyMhjebfdEeoDmdePAXNTmDXZ
+			Dk1Nv/z12+F/8+PXP0Pewvmmm62sN307bw63Prbb/WimU5/BGYGj
+			BO+Up+hHePBbDvRFuom8Q+aVYzG96YMRuqJVsFLmnSLvOHanPa89
+			iHVXnLAVGvUEiRS5cqwqAXcDKzRida6S6+y41qhKQwu9O2ERC9BV
+			ZmSpHXDdwyr07u1BSGdWE5l3Sc2+nmO2HCtnPorMO+LxAVsPOKGR
+			Xs6gyfxKXJZ0A412ksAJ/YiIlzNdZV6NzxcERHjKFC406uO1ZxzF
+			hy7z2Tit4TqsVvwWFZrlcoiCE+cFSuiMas9SnauqtIG/ZIESWohV
+			aIW+UjW6VeeVuB2oqu6EVuiON0lR2KB5v097wsFWnbvHb5v35DAV
+			munkYMeAbwxhhN4JSnLRccI8UQr9iOnV3obMf4zQjPtP1nmsIKEF
+			FRJaUCGhBRUSWlAhoQUVElpQIaEFFRJaUCGhF38FFIkfJPNYYYzQ
+			jH0Lr+BD5k8p9JS+hVWMME8wQiO3JIo+rb5LQjNJ2H3/2TV+33xy
+			wFToDLqebKv4oHnTCn3lLO9a5a7EbSBbhN3QCi1mAiV0xp786Hjd
+			qvRRvJ6QP6RqDyX0bpASjYQR52VZ6I5POliqdHZ13k1EtW9RoSt+
+			AhZd6qvxWcFPE2cCJzTSD3WjSn0mLgf64fjRQqMlHU3q1c8pv5ET
+			JjTiF5KuHhNF6rNx+JAvXoUJ3eELSaufO6uWelVmG/JlrBFbju5S
+			I8qMCqzQqI8Db3JliZ05VueXKSFCowoY9aXVSNmuHLtTdfbAEwS2
+			Qn/GjpNk5+eDd4p99ViRMjtgUXqGff323XcdLCKxkWfzs8VaHePM
+			DyeungiR8UflP/pKslXojgnIkCKCKpmRC1SLLcfO7cErx985xm66
+			ypxBitCrYkQn8UhqFLGPYrHCPJ0hI4/bhc48g3cm6CjuSrHPjL0z
+			7544z92+pG05oqp0ptQf42Ut+NmxMmS2BtX5xpeIg94mj3KZfpWP
+			hTuK//7fq6oj+n72iJDX8bufclSd6RHJuXpSvhJLxhiT1ixM6MhH
+			NNl34EhXm+w5WtB6Rc3jffqbvrPjVV/eI2NwojeNoUJXSBCZwAqx
+			o8f0gqtP5HxCbgrPJHF1UpU3nvexR8RQfTXoWp3D99CV/RhVUlxZ
+			RLRYDbQPBFro/wYf3o9RhRO/Ok+5KVQ/Bg5OLHPqU47qfozIsbvg
+			jftA2nTbZb26ni61J8lcneeUPXT25SizkQcdB2hqysx3eoVGaDKq
+			riJZ+DCZIbYcUSC3g7K1myKRvuVAbDJiWlwvmCtKdS4VGk3qqHGz
+			qJqfA8lcLjSi1FFjR1E5JweTGVpolHZQRLkR4nfQt7PlQlcm59Wb
+			wsqFQorVQWWGEbqT1JkLhxibA8sMJXR1siL/8KDD+AwywwmNkrRO
+			z6cRcmIgMkMKjZQ8ZLFR8mBAMsMKjZhEBLnR5m1gMkMLjZ7MDMGR
+			52iAMsML3e219YrkneZhQLG2E7p7grvhzXPdottO7aA5eHOZ21Ro
+			tqSj4UQ5bVGh71G13osTydyyQk9pB43GSfPXVmj2hYnCyfPVXmjW
+			Pufd+JAcUQg9bdFewYflhEpolOZ3BHxoHuiERmyIz8IHznmM0JMW
+			ecIcz0IvNPJff1yFaS67GSN09OflIukYcxXjhI5q/0T8xXsbJPLb
+			dKHRmvd3YQMlvkdCE8g9XeJ7JHRTuSXxYyT08M+gsSGhN9HhdzUm
+			IKEFFe0a/IV4hoQWVEhoQYWEFlRIaEGFhBZUSGhBhYQWVEhoQYWE
+			FlRIaEGFhBZUSGjxxsS/MvNHRUNY0AgAAAAASUVORK5CYII=
+			</data>
+			<key>IsRemovable</key>
+			<true/>
+			<key>Label</key>
+			<string>WinDrop 4.5G</string>
+			<key>PayloadDescription</key>
+			<string>WinDrop Uzaktan Bulut Tünel (İş Yeri / 4.5G / Farklı Ağ)</string>
+			<key>PayloadDisplayName</key>
+			<string>WinDrop 4.5G</string>
+			<key>PayloadIdentifier</key>
+			<string>com.tris.windrop.webclip.wan</string>
+			<key>PayloadOrganization</key>
+			<string>WinDrop</string>
+			<key>PayloadType</key>
+			<string>com.apple.webClip.managed</string>
+			<key>PayloadUUID</key>
+			<string>B2C3D4E5F6A748909123456789ABCDEF</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Precomposed</key>
+			<true/>
+			<key>URL</key>
+			<string>https://mephisto-mert.github.io/windrop-ios/</string>
 		</dict>
 	</array>
 	<key>PayloadDescription</key>
-	<string>WinDrop Kayıpsız Windows &lt;-&gt; iPhone Dosya Aktarım Uygulaması (Tam Ekran Yerel İkon)</string>
+	<string>WinDrop Kayıpsız Windows &lt;-&gt; iPhone AirDrop &amp; Uzaktan Bulut Erişim Uygulaması</string>
 	<key>PayloadDisplayName</key>
-	<string>WinDrop AirDrop</string>
+	<string>WinDrop (Ev Wi-Fi + Uzaktan 4.5G)</string>
 	<key>PayloadIdentifier</key>
 	<string>com.tris.windrop.profile</string>
 	<key>PayloadOrganization</key>
-	<string>WinDrop P2P</string>
+	<string>WinDrop</string>
 	<key>PayloadRemovalDisallowed</key>
 	<false/>
 	<key>PayloadType</key>
 	<string>Configuration</string>
 	<key>PayloadUUID</key>
-	<string>D4921E4F-8303-51D1-AED9-62292E84FC7A</string>
+	<string>F1E2D3C4-B5A6-4789-9012-3456789ABCDE</string>
 	<key>PayloadVersion</key>
 	<integer>1</integer>
 </dict>
