@@ -2293,7 +2293,17 @@ body.remote-fullscreen #anydeskBubble {
 
 <script>
 const deviceModel = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "iPhone (iOS)" : "Mobil Cihaz";
-// Persistent LAN + Cloud Auto-Binding (Always Connected Engine)
+// Persistent LAN + Cloud Auto-Binding (Supports any friend's PC via URL param, origin, or auto-discovery)
+try {
+  const _qp = new URLSearchParams(location.search);
+  const _qHost = _qp.get("host") || _qp.get("ip");
+  if (_qHost) {
+    const _clean = _qHost.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
+    if (_clean) {
+      safeStorageSet("windrop_custom_pc_ip", _clean.includes(":") ? _clean : (_clean + ":8765"));
+    }
+  }
+} catch (e) {}
 const DEFAULT_LAN_HOST = "192.168.1.158:8765";
 const SAVED_HOST = safeStorageGet("windrop_custom_pc_ip") || DEFAULT_LAN_HOST;
 let API_BASE = (location.origin.startsWith("http") && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app"))
@@ -3271,14 +3281,23 @@ async function fetchRadarState() {
     const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2200);
     if (!res.ok) throw new Error("Bad status");
     const data = await res.json();
-    document.getElementById("pcName").textContent = data.pc_name || "DESKTOP-EIJNT5O";
+    const pcName = data.pc_name || "DESKTOP-EIJNT5O";
+    document.getElementById("pcName").textContent = pcName;
+    const rTitle = document.getElementById("remoteHostTitle");
+    if (rTitle) rTitle.textContent = pcName;
     document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
     document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
     document.getElementById("connBadge").style.color = "#30D158";
     const sub = document.getElementById("activeHostText");
     if (sub) {
-      sub.textContent = "🟢 " + (data.pc_name || "PC") + " (" + (data.lan_ip || "Yerel Ağ") + ") ile Canlı Eşleşildi";
+      sub.textContent = "🟢 " + pcName + " (" + (data.lan_ip || "Yerel Ağ") + ") ile Canlı Eşleşildi";
       sub.style.color = "#30D158";
+    }
+    const womicBadge = document.getElementById("womicStatusBadge");
+    if (womicBadge) {
+      womicBadge.textContent = "🟢 Bağlı: " + (data.lan_ip || "PC") + ":" + (data.port || 8765);
+      womicBadge.style.background = "rgba(48,209,88,0.18)";
+      womicBadge.style.color = "#30D158";
     }
     renderIncoming(data.outgoing_files || []);
     checkNewOutgoingFiles(data.outgoing_files || []);
