@@ -10,6 +10,19 @@
 <meta name="apple-mobile-web-app-title" content="WinDrop">
 <link rel="icon" href="data:,">
 <script>
+// Purge any legacy ServiceWorker or CacheStorage so iOS never serves stale cached UI
+try {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      for (const r of regs) r.unregister();
+    }).catch(() => {});
+  }
+  if ('caches' in window) {
+    caches.keys().then(keys => {
+      for (const k of keys) caches.delete(k);
+    }).catch(() => {});
+  }
+} catch (e) {}
 
 // Safe LocalStorage Wrapper for iOS WKWebView sandboxed / file:// contexts
 function safeStorageGet(key, fallback = null) {
@@ -4906,12 +4919,19 @@ async function connectWomicDirect(isManual = false) {
   
   let ip = (ipInp ? ipInp.value.trim() : "").replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
   let port = (portInp ? portInp.value.trim() : "") || "8765";
+  if (ip.includes(':')) {
+    const sp = ip.split(':');
+    ip = sp[0];
+    if (sp[1]) port = sp[1];
+    if (ipInp) ipInp.value = ip;
+    if (portInp) portInp.value = port;
+  }
   if (!ip || ip.includes("github.io") || ip.includes("vercel.app")) {
     ip = "192.168.1.158";
     if (ipInp) ipInp.value = ip;
   }
 
-  const host = ip.includes(':') ? ip : `${ip}:${port}`;
+  const host = `${ip}:${port}`;
   safeStorageSet("windrop_custom_pc_ip", host);
 
   if (badge) {
@@ -4920,26 +4940,52 @@ async function connectWomicDirect(isManual = false) {
     badge.style.color = "#FF9F0A";
   }
 
-  try {
-    const res = await fetchWithTimeout(`http://${host}/api/ping?t=${Date.now()}`, 2500);
-    if (res.ok) {
-      const data = await res.json();
-      API_BASE = `http://${host}`;
-      applyDiscoveredPC(host, data);
-      if (badge) {
-        badge.textContent = "🟢 " + (data.pc_name || host);
-        badge.style.background = "rgba(48, 209, 88, 0.18)";
-        badge.style.color = "#30D158";
-      }
-      toggleWomicDrawer(false);
-      if (isManual) {
-        playSuccessChime();
-        showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı (" + host + ")!");
-      }
-      fetchRadarState();
-      return;
+  const isHttpsDomain = host.includes("trycloudflare.com") || host.includes("ngrok") || host.includes("loca.lt");
+  const targetProto = isHttpsDomain ? "https" : "http";
+  const targetBase = isHttpsDomain ? `https://${host.split(':')[0]}` : `http://${host}`;
+
+  // If opened from an https:// host (e.g. GitHub Pages WebClip) and targeting a local HTTP PC IP,
+  // iOS WebKit blocks mixed-content fetch() calls. Redirect directly to the PC's HTTP server!
+  if (window.location.protocol === "https:" && targetProto === "http") {
+    if (isManual) {
+      showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
     }
-  } catch (err) {}
+    window.location.href = `${targetBase}/`;
+    return;
+  }
+
+  // Try the requested port first, then fallback ports (8765, 53843, 9000) automatically
+  const candidatePorts = [port];
+  for (const fp of ["8765", "53843", "9000"]) {
+    if (!candidatePorts.includes(fp)) candidatePorts.push(fp);
+  }
+
+  for (const tryPort of candidatePorts) {
+    const tryHost = `${ip}:${tryPort}`;
+    const tryBase = isHttpsDomain ? `https://${ip}` : `http://${tryHost}`;
+    try {
+      const res = await fetchWithTimeout(`${tryBase}/api/ping?t=${Date.now()}`, 3000);
+      if (res.ok) {
+        const data = await res.json();
+        if (portInp && tryPort !== port) portInp.value = tryPort;
+        API_BASE = tryBase;
+        safeStorageSet("windrop_custom_pc_ip", tryHost);
+        applyDiscoveredPC(tryHost, data);
+        if (badge) {
+          badge.textContent = "🟢 " + (data.pc_name || tryHost);
+          badge.style.background = "rgba(48, 209, 88, 0.18)";
+          badge.style.color = "#30D158";
+        }
+        toggleWomicDrawer(false);
+        if (isManual) {
+          playSuccessChime();
+          showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı (" + tryHost + ")!");
+        }
+        fetchRadarState();
+        return;
+      }
+    } catch (err) {}
+  }
 
   if (badge) {
     badge.textContent = "🔴 Bağlantı Yok";
@@ -4948,7 +4994,7 @@ async function connectWomicDirect(isManual = false) {
   }
   toggleWomicDrawer(true);
   if (isManual) {
-    showDesktopToast("⚠️ " + host + " yanıt vermedi! Aynı Wi-Fi'da mısınız?");
+    showDesktopToast("⚠️ " + host + " yanıt vermedi! PC'de WinDrop açık mı?");
   }
 }
 
