@@ -57,7 +57,7 @@ window.addEventListener('error', function(e) {
   console.warn('[WinDrop SafeGuard]', e.message);
 });
 
-  // Production-Ready AirDrop Batch & Single Download Engine for iOS Safari
+  // Production-Ready AirDrop Batch & Single Download Engine for iOS Native App
   async function downloadAllBundle() {
     haptic('medium');
     const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
@@ -356,31 +356,13 @@ function toggleRemoteFullscreen() {
       remoteRenderer.canvas.height = sh;
     }
 
-    // Scroll to hide mobile address bar
-    window.scrollTo(0, 1);
-    setTimeout(() => { window.scrollTo(0, 1); }, 150);
-
-    const docEl = document.documentElement;
-    try {
-      const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-      if (req) {
-        req.call(docEl, { navigationUI: 'hide' }).catch(() => {});
-      }
-    } catch(e) {}
-
     try {
       if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock('landscape').catch(() => {});
       }
     } catch(e) {}
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches;
-    if (isIOS && !isStandalone) {
-      showRemoteToast('⛶ AnyDesk Tam Ekran (Safari linkini gizlemek için: Paylaş ⬆️ -> Ana Ekrana Ekle)');
-    } else {
-      showRemoteToast('⛶ AnyDesk 1080p 60 FPS Tam Ekran');
-    }
+    showRemoteToast('⛶ AnyDesk 1080p 60 FPS Tam Ekran');
   } else {
     vp.classList.remove('is-fullscreen');
     document.body.classList.remove('remote-fullscreen');
@@ -441,9 +423,8 @@ window.addEventListener('orientationchange', () => {
 // DOMContentLoaded enter submit handled in body block
 
 </script>
-<link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-180.png">
-<title>WinDrop — Lossless AirDrop</title>
+<title>WinDrop</title>
 <style>
   :root {
     --bg: #000000;
@@ -513,75 +494,68 @@ window.addEventListener('orientationchange', () => {
     --aurora-3: rgba(48, 209, 88, 0.12);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
     background: var(--bg);
     color: var(--text);
-    min-height: 100vh;
-    padding-top: max(env(safe-area-inset-top, 0px), 16px);
-    padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 16px) + 84px);
-    padding-left: max(env(safe-area-inset-left, 0px), 16px);
-    padding-right: max(env(safe-area-inset-right, 0px), 16px);
+    min-height: 100dvh;
+    max-width: 100%;
+    padding-top: max(env(safe-area-inset-top, 0px), 10px);
+    padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 16px) + 96px);
+    padding-left: max(env(safe-area-inset-left, 0px), 14px);
+    padding-right: max(env(safe-area-inset-right, 0px), 14px);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     position: relative;
     transition: background 0.5s ease, color 0.3s ease;
   }
 
-  /* 21st.dev Ambient Aurora Mesh Glow */
+  /* 21st.dev Ambient Aurora Mesh Glow (Strictly Contained in Viewport) */
   .aurora-bg {
     position: fixed;
     inset: 0;
+    max-width: 100vw;
+    max-height: 100dvh;
     pointer-events: none;
     z-index: 0;
     overflow: hidden;
+    clip-path: inset(0);
   }
   .aurora-blob {
     position: absolute;
     border-radius: 50%;
-    filter: blur(85px);
-    opacity: 0.55;
+    filter: blur(70px);
+    opacity: 0.50;
     transition: background 0.8s ease;
     pointer-events: none;
   }
   .aurora-blob-1 {
-    top: -12%;
-    left: -10%;
-    width: 380px;
-    height: 380px;
+    top: 4%;
+    left: 4%;
+    width: 200px;
+    height: 200px;
     background: var(--aurora-1);
-    animation: auroraFloat1 18s ease-in-out infinite alternate;
   }
   .aurora-blob-2 {
     top: 35%;
-    right: -15%;
-    width: 420px;
-    height: 420px;
+    right: 4%;
+    width: 200px;
+    height: 200px;
     background: var(--aurora-2);
-    animation: auroraFloat2 22s ease-in-out infinite alternate;
   }
   .aurora-blob-3 {
-    bottom: -10%;
-    left: 20%;
-    width: 360px;
-    height: 360px;
+    bottom: 8%;
+    left: 15%;
+    width: 200px;
+    height: 200px;
     background: var(--aurora-3);
-    animation: auroraFloat3 19s ease-in-out infinite alternate;
-  }
-  @keyframes auroraFloat1 {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(50px, 70px) scale(1.15); }
-  }
-  @keyframes auroraFloat2 {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(-70px, -50px) scale(1.1); }
-  }
-  @keyframes auroraFloat3 {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(40px, -40px) scale(0.95); }
   }
 
   /* 21st.dev Spring Micro-Interactions */
@@ -627,67 +601,70 @@ window.addEventListener('orientationchange', () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    background: rgba(28, 28, 30, 0.65);
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(28, 28, 30, 0.75);
     border: 0.5px solid var(--border);
     border-radius: 999px;
     backdrop-filter: blur(30px);
     -webkit-backdrop-filter: blur(30px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     position: sticky;
-    top: max(env(safe-area-inset-top), 12px);
+    top: max(env(safe-area-inset-top), 8px);
     z-index: 100;
+    width: 100%;
+    box-sizing: border-box;
   }
   .ios-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
   }
   .island-dot {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--blue), var(--purple));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 15px;
     box-shadow: 0 0 12px var(--blue-glow);
   }
   .brand-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.3px;
+    white-space: nowrap;
   }
   .brand-sub {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--sub);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .status-badge {
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 5px 12px;
+    padding: 4px 9px;
     border-radius: 999px;
     background: rgba(48, 209, 88, 0.15);
     color: var(--green);
     border: 0.5px solid rgba(48, 209, 88, 0.35);
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     letter-spacing: -0.1px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .status-indicator {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 8px var(--green-glow);
-    animation: beacon 2s infinite ease-in-out;
-  }
-  @keyframes beacon {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.85); }
+    display: none;
   }
 
   /* AirDrop Radar Card */
@@ -695,7 +672,7 @@ window.addEventListener('orientationchange', () => {
     background: var(--card);
     border: 0.5px solid var(--border);
     border-radius: var(--radius-l);
-    padding: 24px 20px 20px;
+    padding: 12px 12px;
     backdrop-filter: blur(35px);
     -webkit-backdrop-filter: blur(35px);
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -704,15 +681,17 @@ window.addEventListener('orientationchange', () => {
     align-items: center;
     position: relative;
     overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
   }
   .radar-container {
-    width: 170px;
-    height: 170px;
+    width: 116px;
+    height: 116px;
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 10px 0 18px;
+    margin: 2px 0 6px;
     cursor: pointer;
   }
   .radar-ring {
@@ -721,20 +700,20 @@ window.addEventListener('orientationchange', () => {
     border: 1px solid rgba(10, 132, 255, 0.25);
     animation: radarRipple 3s infinite cubic-bezier(0.1, 0.8, 0.3, 1);
   }
-  .radar-ring:nth-child(1) { width: 90px; height: 90px; animation-delay: 0s; }
-  .radar-ring:nth-child(2) { width: 130px; height: 130px; animation-delay: 1s; }
-  .radar-ring:nth-child(3) { width: 170px; height: 170px; animation-delay: 2s; }
+  .radar-ring:nth-child(1) { width: 64px; height: 64px; animation-delay: 0s; }
+  .radar-ring:nth-child(2) { width: 90px; height: 90px; animation-delay: 1s; }
+  .radar-ring:nth-child(3) { width: 116px; height: 116px; animation-delay: 2s; }
   @keyframes radarRipple {
     0% { transform: scale(0.65); opacity: 0.8; }
     100% { transform: scale(1.15); opacity: 0; }
   }
   .radar-target {
-    width: 72px;
-    height: 72px;
+    width: 54px;
+    height: 54px;
     border-radius: 50%;
     background: linear-gradient(145deg, #1f2b44, #0b1526);
     border: 1.5px solid rgba(100, 210, 255, 0.4);
-    box-shadow: 0 0 25px rgba(10, 132, 255, 0.45);
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.45);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -743,60 +722,34 @@ window.addEventListener('orientationchange', () => {
     transition: transform 0.15s ease;
   }
   .radar-target:active { transform: scale(0.92); }
-  .radar-device-icon { font-size: 28px; }
+  .radar-device-icon { font-size: 22px; }
 
   .radar-info-title {
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 700;
-    letter-spacing: -0.4px;
+    letter-spacing: -0.3px;
     text-align: center;
   }
   .radar-info-sub {
-    font-size: 13px;
+    font-size: 11.5px;
     color: var(--sub-light);
-    margin-top: 4px;
+    margin-top: 2px;
     text-align: center;
     font-weight: 500;
   }
 
-  /* Segmented iOS Tab Control */
+  /* Segmented iOS Tab Control (Hidden to avoid duplicate navigation with bottom iOS TabBar) */
   .ios-segmented {
-    display: flex;
-    background: rgba(118, 118, 128, 0.24);
-    padding: 3px;
-    border-radius: 12px;
-    width: 100%;
-    margin: 8px 0;
-  }
-  .ios-segment-btn {
-    flex: 1;
-    border: none;
-    background: transparent;
-    color: #aeaec2;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 8px 0;
-    border-radius: 9px;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-  }
-  .ios-segment-btn.active {
-    background: rgba(255, 255, 255, 0.18);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: none !important;
   }
 
   /* Native iOS Action Grid */
   .action-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     width: 100%;
-    margin-top: 14px;
+    margin-top: 6px;
   }
   .action-btn {
     appearance: none;
@@ -806,14 +759,15 @@ window.addEventListener('orientationchange', () => {
     background: var(--card-elevated);
     border: 0.5px solid var(--border);
     border-radius: var(--radius-m);
-    padding: 16px 14px;
+    padding: 10px 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 3px;
     color: #fff;
     text-align: center;
+    min-width: 0;
     transition: transform 0.1s ease, background 0.15s ease;
     box-shadow: 0 4px 14px rgba(0,0,0,0.25);
   }
@@ -822,18 +776,26 @@ window.addEventListener('orientationchange', () => {
     background: rgba(255,255,255,0.15);
   }
   .action-icon {
-    font-size: 26px;
-    margin-bottom: 2px;
+    font-size: 20px;
+    margin-bottom: 1px;
   }
   .action-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .action-sub {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--sub);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .action-btn-primary {
     background: linear-gradient(145deg, #0A84FF, #0055B3);
@@ -931,19 +893,20 @@ window.addEventListener('orientationchange', () => {
   /* Native Form Controls */
   .ios-textarea {
     width: 100%;
-    min-height: 120px;
+    min-height: 54px;
     border-radius: var(--radius-m);
     background: rgba(0, 0, 0, 0.55);
     border: 0.5px solid var(--border);
     color: #fff;
-    padding: 14px;
-    font-size: 16px !important; /* Strict 16px prevents iOS Safari viewport auto-zoom */
+    padding: 10px 12px;
+    font-size: 16px !important; /* Strict 16px prevents iOS viewport auto-zoom */
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     outline: none;
     resize: vertical;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
-    line-height: 1.45;
+    line-height: 1.4;
+    box-sizing: border-box;
   }
   .ios-textarea:focus {
     border-color: var(--blue);
@@ -1603,7 +1566,7 @@ body.remote-fullscreen #remoteModeToast {
 }
 
 #anydeskBubble {
-  right: max(0px, calc(env(safe-area-inset-right, 0px) - 6px)) !important;
+  right: max(50px, calc(env(safe-area-inset-right, 0px) + 50px)) !important;
   z-index: 2147483642 !important;
 }
 
@@ -1750,12 +1713,12 @@ body.remote-fullscreen #remoteModeToast {
     <div class="ios-navbar">
       <div class="ios-brand">
         <div class="island-dot">⚡</div>
-        <div>
+        <div style="min-width:0;">
           <div class="brand-title">WinDrop</div>
-          <div class="brand-sub">Kayıpsız AirDrop Hub</div>
+          <div class="brand-sub">P2P AirDrop</div>
         </div>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
         <!-- 21st.dev Theme Switcher Pills -->
         <div class="theme-switch-dock">
           <button class="theme-pill-dot dot-cyber active" onclick="setAppTheme('cyber')" title="Midnight Cyber"></button>
@@ -1765,7 +1728,7 @@ body.remote-fullscreen #remoteModeToast {
 
         <div id="connBadge" class="status-badge" style="border-color: rgba(255, 69, 58, 0.4); color: #FF453A;">
           <span class="status-indicator" style="background: #FF453A;"></span>
-          <span id="connBadgeText">🔴 PC Bekleniyor</span>
+          <span id="connBadgeText">🔴 Bekleniyor</span>
         </div>
       </div>
     </div>
@@ -1795,44 +1758,39 @@ body.remote-fullscreen #remoteModeToast {
       <div id="activeHostText" class="radar-info-sub" style="color: #64D2FF; font-weight: 600;">⚡ WO Mic Modu — Doğrudan IP:Port Bağlantısı</div>
 
       <!-- Cupertino / 21st.dev Collapsible Direct IP:Port & USB Connection Pill -->
-      <div class="womic-connect-card" style="margin: 10px 8px 14px 8px; padding: 10px 12px; background: rgba(43, 42, 47, 0.78); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.13); border-radius: 14px; text-align: left; box-shadow: 0 4px 16px rgba(0,0,0,0.28);">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
-          <div id="womicStatusBadge" onclick="toggleWomicDrawer()" style="font-size: 11.5px; padding: 5px 10px; border-radius: 9px; background: rgba(255,69,58,0.18); color: #FF453A; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+      <div class="womic-connect-card" style="width: 100%; max-width: 100%; margin: 6px 0 6px 0; padding: 8px 10px; background: rgba(43, 42, 47, 0.78); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; text-align: left; box-shadow: 0 4px 14px rgba(0,0,0,0.28); box-sizing: border-box; overflow: hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap: 6px; width: 100%; min-width: 0;">
+          <div id="womicStatusBadge" onclick="toggleWomicDrawer()" style="font-size: 11px; padding: 4px 8px; border-radius: 8px; background: rgba(255,69,58,0.18); color: #FF453A; font-weight: 600; cursor: pointer; display: block; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
             🔴 Bağlantı Yok
           </div>
-          <div style="display:flex; gap: 6px; align-items:center; flex-shrink: 0;">
-            <button type="button" onclick="openQRScannerModal()" style="background: rgba(10,132,255,0.16); border: 1px solid rgba(10,132,255,0.35); color: #64D2FF; border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: 600; cursor: pointer;">
+          <div style="display:flex; gap: 5px; align-items:center; flex-shrink: 0;">
+            <button type="button" onclick="openQRScannerModal()" style="background: rgba(10,132,255,0.16); border: 1px solid rgba(10,132,255,0.35); color: #64D2FF; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
               📷 QR
             </button>
-            <button type="button" id="womicDrawerToggleBtn" onclick="toggleWomicDrawer()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #EBEBF5; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            <button type="button" id="womicDrawerToggleBtn" onclick="toggleWomicDrawer()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #EBEBF5; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
               ⚙️ IP / USB ▾
             </button>
           </div>
         </div>
 
-        <div id="womicDrawerBody" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-            <div style="display:flex; gap: 6px;">
-              <button type="button" id="tabWifiBtn" onclick="switchWomicMode('wifi')" style="background: rgba(10,132,255,0.28); color: #64D2FF; border: 1px solid rgba(10,132,255,0.45); border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">📡 Wi-Fi (IP:Port)</button>
-              <button type="button" id="tabUsbBtn" onclick="switchWomicMode('usb')" style="background: rgba(255,255,255,0.07); color: #8E8E93; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">🔌 USB Kablo</button>
-            </div>
-            <a id="shortcutDownloadLink" href="http://192.168.1.158:8765/windrop.shortcut" onclick="return downloadWinDropShortcut(event)" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: none; background: rgba(48,209,88,0.14); border: 1px solid rgba(48,209,88,0.3); padding: 4px 8px; border-radius: 7px; cursor: pointer;">
-              📲 Kestirme
-            </a>
+        <div id="womicDrawerBody" style="display: none; width: 100%; box-sizing: border-box; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; margin-bottom: 8px;">
+            <button type="button" id="tabWifiBtn" onclick="switchWomicMode('wifi')" style="background: rgba(10,132,255,0.28); color: #64D2FF; border: 1px solid rgba(10,132,255,0.45); border-radius: 8px; padding: 6px 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 0;">📡 Wi-Fi (IP:Port)</button>
+            <button type="button" id="tabUsbBtn" onclick="switchWomicMode('usb')" style="background: rgba(255,255,255,0.07); color: #8E8E93; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 0;">🔌 USB Kablo</button>
           </div>
 
-          <div id="womicWifiPanel">
-            <div style="display:flex; gap: 6px;">
-              <input type="text" id="womicIpInput" placeholder="PC IP (192.168.1.158)" style="flex: 2; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 8px 10px; font-size: 13px; font-family: 'SF Mono', monospace;">
-              <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 68px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 8px 4px; font-size: 13px; text-align: center; font-family: 'SF Mono', monospace;">
-              <button type="button" onclick="connectWomicDirect(true)" style="flex: 1; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer;">
+          <div id="womicWifiPanel" style="width: 100%; box-sizing: border-box;">
+            <div style="display:flex; gap: 6px; width: 100%; box-sizing: border-box;">
+              <input type="text" id="womicIpInput" placeholder="192.168.1.158" style="flex: 1; min-width: 0; width: 100%; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 8px; font-size: 15px; font-family: 'SF Mono', monospace; box-sizing: border-box;">
+              <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 58px; flex-shrink: 0; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 2px; font-size: 15px; text-align: center; font-family: 'SF Mono', monospace; box-sizing: border-box;">
+              <button type="button" onclick="connectWomicDirect(true)" style="flex-shrink: 0; padding: 7px 12px; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">
                 Bağlan
               </button>
             </div>
           </div>
 
-          <div id="womicUsbPanel" style="display: none; font-size: 11.5px; color: #E5E5EA; line-height: 1.5; padding: 4px 2px;">
-            <div style="color: #30D158; font-weight: 600; margin-bottom: 4px;">⚡ Doğrudan USB Kablo Modu:</div>
+          <div id="womicUsbPanel" style="display: none; width: 100%; box-sizing: border-box; font-size: 11px; color: #E5E5EA; line-height: 1.45; padding: 2px; word-break: break-word;">
+            <div style="color: #30D158; font-weight: 600; margin-bottom: 2px;">⚡ Doğrudan USB Kablo Modu:</div>
             <div>iPhone'u kabloyla PC'ye takıp "Bu Bilgisayara Güven" deyin. WinDrop kabloyu otomatik algılar.</div>
           </div>
         </div>
@@ -1885,24 +1843,24 @@ body.remote-fullscreen #remoteModeToast {
     <div class="ios-card" style="padding:14px; position:relative; overflow:hidden;">
       
       <!-- Top Remote Header: Status Badge & Mode Switcher -->
-      <div id="remoteTopHeader" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:18px;">🖥️</span>
-          <div>
-            <div style="font-size:13px; font-weight:700; color:#fff;" id="remoteHostTitle">DESKTOP-EIJNT5O</div>
-            <div style="font-size:11px; color:#30D158; display:flex; align-items:center; gap:4px;">
-              <span id="remoteLiveDot" style="width:7px; height:7px; border-radius:50%; background:#30D158; display:inline-block; box-shadow:0 0 8px #30D158;"></span>
-              <span id="remoteStatsDisplay">Bağlı • 0ms • 0 FPS</span>
+      <div id="remoteTopHeader" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:nowrap; gap:6px; width:100%; min-width:0;">
+        <div style="display:flex; align-items:center; gap:6px; min-width:0; flex:1;">
+          <span style="font-size:17px; flex-shrink:0;">🖥️</span>
+          <div style="min-width:0; flex:1;">
+            <div style="font-size:12.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="remoteHostTitle">DESKTOP-EIJNT5O</div>
+            <div style="font-size:10.5px; color:#30D158; display:flex; align-items:center; gap:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <span id="remoteLiveDot" style="width:6px; height:6px; flex-shrink:0; border-radius:50%; background:#30D158; display:inline-block; box-shadow:0 0 8px #30D158;"></span>
+              <span id="remoteStatsDisplay">0ms • 60 FPS</span>
             </div>
           </div>
         </div>
 
         <!-- Mode Toggle Pill -->
-        <div style="background:rgba(255,255,255,0.08); border-radius:12px; padding:3px; display:flex; gap:2px; border:1px solid rgba(255,255,255,0.12);">
-          <button id="btnModeDirect" class="action-btn active" style="padding:6px 12px; font-size:12px; border-radius:9px; background:#0A84FF; color:#fff;" onclick="setRemoteControlMode('direct')">
+        <div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:2px; display:flex; gap:2px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">
+          <button id="btnModeDirect" class="action-btn active" style="padding:5px 8px; font-size:11px; border-radius:8px; background:#0A84FF; color:#fff; flex-direction:row; white-space:nowrap;" onclick="setRemoteControlMode('direct')">
             📱 Dokunmatik
           </button>
-          <button id="btnModeTrackpad" class="action-btn" style="padding:6px 12px; font-size:12px; border-radius:9px; background:transparent; color:#8E8E93;" onclick="setRemoteControlMode('trackpad')">
+          <button id="btnModeTrackpad" class="action-btn" style="padding:5px 8px; font-size:11px; border-radius:8px; background:transparent; color:#8E8E93; flex-direction:row; white-space:nowrap;" onclick="setRemoteControlMode('trackpad')">
             🖱️ Trackpad
           </button>
         </div>
@@ -1921,9 +1879,14 @@ body.remote-fullscreen #remoteModeToast {
           120 FPS
         </div>
 
+        <!-- AnyDesk Settings Button inside Viewport Header -->
+        <button id="anydeskBubble" onclick="event.stopPropagation(); toggleAnydeskDrawer(true)" title="AnyDesk Ayarlar" style="position:absolute; top:8px; right:50px; width:36px; height:36px; border-radius:10px; background:rgba(0,0,0,0.68); border:1px solid rgba(255,255,255,0.28); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; z-index:25; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
+          ⚙️
+        </button>
+
         <!-- Fullscreen Expand Button (AnyDesk / Spacedesk 1080p 60FPS Fullscreen) -->
-        <button id="remoteFsBtn" onclick="toggleRemoteFullscreen()" title="AnyDesk Tam Ekran (1080p 60 FPS)" style="position:absolute; top:8px; right:8px; width:36px; height:36px; border-radius:10px; background:rgba(0,0,0,0.68); border:1px solid rgba(255,255,255,0.28); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; z-index:25; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
-          ⛶
+        <button id="remoteFsBtn" onclick="toggleRemoteFullscreen()" title="AnyDesk Tam Ekran (1080p 60 FPS)" style="position:absolute; top:8px; right:8px; width:36px; height:36px; border-radius:10px; background:rgba(0,0,0,0.68); border:1px solid rgba(255,255,255,0.28); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; font-weight:700; z-index:25; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
+          ⤢
         </button>
 
         <!-- Fullscreen Floating Quick Dock (Only visible in Fullscreen mode) -->
@@ -1978,21 +1941,21 @@ body.remote-fullscreen #remoteModeToast {
         </div>
 
         <!-- System & Window Row -->
-        <div style="display:flex; gap:6px; justify-content:space-between;">
-          <button class="action-btn touch-target-44" style="flex:1; padding:9px 2px; font-size:11px; border-radius:12px;" onclick="sendRemoteKeyCombo('alt_tab')">
-            🪟 Alt+Tab
+        <div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:5px;">
+          <button class="action-btn touch-target-44" style="padding:7px 2px; font-size:10px; border-radius:10px; gap:2px; white-space:nowrap; min-width:0;" onclick="sendRemoteKeyCombo('alt_tab')">
+            <span style="font-size:13px;">🪟</span><span>Alt+Tab</span>
           </button>
-          <button class="action-btn touch-target-44" style="flex:1; padding:9px 2px; font-size:11px; border-radius:12px;" onclick="sendRemoteKeyCombo('win_d')">
-            🖥️ Masaüstü
+          <button class="action-btn touch-target-44" style="padding:7px 2px; font-size:10px; border-radius:10px; gap:2px; white-space:nowrap; min-width:0;" onclick="sendRemoteKeyCombo('win_d')">
+            <span style="font-size:13px;">🖥️</span><span>Masaüstü</span>
           </button>
-          <button class="action-btn touch-target-44" style="flex:1; padding:9px 2px; font-size:11px; border-radius:12px;" onclick="sendRemoteKeyCombo('f11')">
-            ⛶ F11
+          <button class="action-btn touch-target-44" style="padding:7px 2px; font-size:10px; border-radius:10px; gap:2px; white-space:nowrap; min-width:0;" onclick="sendRemoteKeyCombo('f11')">
+            <span style="font-size:13px;">⛶</span><span>F11</span>
           </button>
-          <button class="action-btn touch-target-44" style="flex:1; padding:9px 2px; font-size:11px; border-radius:12px;" onclick="openRemoteKeyboard()">
-            ⌨️ Klavye
+          <button class="action-btn touch-target-44" style="padding:7px 2px; font-size:10px; border-radius:10px; gap:2px; white-space:nowrap; min-width:0;" onclick="openRemoteKeyboard()">
+            <span style="font-size:13px;">⌨️</span><span>Klavye</span>
           </button>
-          <button class="action-btn touch-target-44" style="flex:1; padding:9px 2px; font-size:11px; border-radius:12px; color:#FF453A;" onclick="sendRemoteKeyCombo('win_l')">
-            🔒 Kilitle
+          <button class="action-btn touch-target-44" style="padding:7px 2px; font-size:10px; border-radius:10px; gap:2px; white-space:nowrap; min-width:0; color:#FF453A;" onclick="sendRemoteKeyCombo('win_l')">
+            <span style="font-size:13px;">🔒</span><span>Kilitle</span>
           </button>
         </div>
       </div>
@@ -2000,12 +1963,6 @@ body.remote-fullscreen #remoteModeToast {
     </div>
 
     <!-- Remote Keyboard Drawer moved to body level -->
-
-  
-    <!-- AnyDesk-Style Floating Right-Side Pull Bubble (Küçük Ayar Baloncuğu) -->
-    <div id="anydeskBubble" onclick="event.stopPropagation(); toggleAnydeskDrawer(true)" onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" title="AnyDesk Ayarlar" style="position:fixed; right:0; top:48%; transform:translateY(-50%); width:30px; height:46px; background:rgba(20,20,28,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-radius:14px 0 0 14px; border:1px solid rgba(255,255,255,0.22); border-right:none; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2147483642; box-shadow:-4px 4px 16px rgba(0,0,0,0.6); opacity:0.75; transition:opacity 0.2s, transform 0.2s; user-select:none; -webkit-user-select:none;">
-      <span style="font-size:16px; color:#fff; pointer-events:none;">⚙️</span>
-    </div>
 
     <!-- AnyDesk Slide-Out Right Drawer Menu (Sağdan Çekilip Açılan Kompakt Menü) -->
     <div id="anydeskDrawer" data-alias="anydeskSidebar" style="position:fixed; top:0; bottom:0; right:-320px; width:min(270px, 85vw); height:100dvh; background:rgba(16,16,22,0.96); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-left:1px solid rgba(255,255,255,0.18); box-shadow:-12px 0 40px rgba(0,0,0,0.85); z-index:2147483645; padding:18px 14px; display:flex; flex-direction:column; gap:12px; transition:right 0.25s cubic-bezier(0.16, 1, 0.3, 1); user-select:none; -webkit-user-select:none; overflow-y:auto; -webkit-overflow-scrolling:touch;">
@@ -2105,99 +2062,86 @@ body.remote-fullscreen #remoteModeToast {
   <section id="tab-clipboard" class="tab-pane">
 
     <!-- CARD 1: CANLI PC PANOSU (LIVE PC CLIPBOARD) -->
-    <div class="ios-card" style="margin-bottom: 14px; position:relative; overflow:hidden;">
-      <div class="card-header">
+    <div class="ios-card" style="margin-bottom: 10px; padding: 12px 14px; position:relative; overflow:hidden;">
+      <div class="card-header" style="margin-bottom: 6px;">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:18px;">🖥️</span>
-          <span class="card-header-title">PC'deki Güncel Pano</span>
+          <span style="font-size:17px;">🖥️</span>
+          <span class="card-header-title" style="font-size:15px;">PC'deki Güncel Pano</span>
         </div>
-        <span id="pcClipLiveBadge" class="status-badge" style="font-size: 11px; padding: 3px 10px; background:rgba(48,209,88,0.15); color:#30D158; border:1px solid rgba(48,209,88,0.3);">🟢 Canlı</span>
-      </div>
-      <div class="card-header-desc">
-        Windows PC'de kopyaladığın metin otomatik olarak buraya yansır:
+        <span id="pcClipLiveBadge" class="status-badge" style="font-size: 11px; padding: 3px 9px; background:rgba(48,209,88,0.15); color:#30D158; border:1px solid rgba(48,209,88,0.3);">🟢 Canlı</span>
       </div>
 
       <!-- Live PC Clipboard Content Box -->
-      <div id="pcClipDisplayBox" style="background: rgba(18, 19, 24, 0.95); border: 1px solid rgba(255,255,255,0.16); border-radius: 12px; padding: 14px; min-height: 80px; max-height: 220px; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.55; color: #FFFFFF; word-break: break-word; white-space: pre-wrap; margin-bottom: 12px; user-select: text; -webkit-user-select: text; transition: border-color 0.4s ease, background 0.4s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+      <div id="pcClipDisplayBox" style="background: rgba(18, 19, 24, 0.95); border: 1px solid rgba(255,255,255,0.16); border-radius: 12px; padding: 10px 12px; min-height: 46px; max-height: 90px; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; font-size: 13.5px; line-height: 1.45; color: #FFFFFF; word-break: break-word; white-space: pre-wrap; margin-bottom: 8px; user-select: text; -webkit-user-select: text; transition: border-color 0.4s ease, background 0.4s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
         <span style="color: #8E8E93; font-style: italic;">PC panosu yükleniyor...</span>
       </div>
 
       <!-- Live Meta Info Strip -->
-      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 11px; color: var(--sub);">
+      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: var(--sub);">
         <span id="pcClipLength">0 Karakter</span>
         <span id="pcClipTime">Henüz güncellenmedi</span>
       </div>
 
       <!-- Action Buttons for PC Clipboard -->
-      <div style="display:flex; gap: 8px; flex-wrap: wrap;">
-        <button class="action-btn action-btn-primary" style="flex: 2; padding: 12px 14px; flex-direction: row; gap: 6px; font-size: 13px; font-weight: 600;" onclick="haptic('medium'); copyPcClipToPhone()">
+      <div style="display:flex; gap: 8px; flex-wrap: nowrap;">
+        <button class="action-btn action-btn-primary" style="flex: 2; padding: 9px 10px; flex-direction: row; gap: 6px; font-size: 12.5px; font-weight: 600; white-space: nowrap;" onclick="haptic('medium'); copyPcClipToPhone()">
           <span>📋</span><span>iPhone'a Kopyala</span>
         </button>
-        <button id="btnOpenPcUrlInSafari" class="action-btn" style="display: none; flex: 2; padding: 12px 14px; flex-direction: row; gap: 6px; font-size: 13px; background: rgba(52, 199, 89, 0.15); border: 1px solid rgba(52, 199, 89, 0.4); color: #34C759;" onclick="haptic('medium'); openPcUrlInSafari()">
-          <span>🌐</span><span>Safari'de Aç</span>
-        </button>
-        <button class="action-btn" style="flex: 1; padding: 12px 14px; flex-direction: row; gap: 6px; font-size: 13px;" onclick="haptic('light'); fetchPcClipboard(true)">
+        <button class="action-btn" style="flex: 1; padding: 9px 10px; flex-direction: row; gap: 6px; font-size: 12.5px; white-space: nowrap;" onclick="haptic('light'); fetchPcClipboard(true)">
           <span>🔄</span><span>Yenile</span>
         </button>
       </div>
     </div>
 
     <!-- CARD 2: IPHONE'DAN PC'YE GÖNDER (SEND TO PC) -->
-    <div class="ios-card" style="margin-bottom: 14px;">
-      <div class="card-header">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:18px;">📱</span>
-          <span class="card-header-title">iPhone'dan PC Panosuna Gönder</span>
+    <div class="ios-card" style="margin-bottom: 10px; padding: 12px 14px;">
+      <div class="card-header" style="gap: 8px; margin-bottom: 6px;">
+        <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+          <span style="font-size:17px; flex-shrink:0;">📱</span>
+          <span class="card-header-title" style="font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">iPhone'dan PC'ye Gönder</span>
         </div>
-        <span id="clipCharCount" class="status-badge" style="padding: 3px 10px; font-size: 11px;">0 Karakter</span>
-      </div>
-      <div class="card-header-desc">
-        Buraya yazdığın veya yapıştırdığın metin anında Windows panosuna geçer (PC'de Ctrl+V ile yapıştırabilirsin):
+        <span id="clipCharCount" class="status-badge" style="padding: 3px 9px; font-size: 11px; flex-shrink:0; white-space:nowrap;">0 Karakter</span>
       </div>
 
       <!-- Textarea Input Area -->
-      <textarea id="clipBox" class="ios-textarea" style="min-height: 85px; margin-bottom: 10px;" placeholder="PC'ye göndermek istediğin metin, link veya şifreyi buraya yaz veya yapıştır..." oninput="updateClipCharCount()"></textarea>
+      <textarea id="clipBox" class="ios-textarea" style="min-height: 52px; margin-bottom: 8px;" placeholder="PC'ye göndermek istediğin metin veya adresi yaz/yapıştır..." oninput="updateClipCharCount()"></textarea>
 
       <!-- Paste and Clear Pills -->
-      <div style="display:flex; gap:8px; margin-bottom: 12px;">
-        <button class="key-pill touch-target-44" onclick="haptic('medium'); pasteFromPhoneToClipBox()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; padding:9px 12px; border-radius:10px;">
+      <div style="display:flex; gap:8px; margin-bottom: 8px;">
+        <button class="key-pill touch-target-44" onclick="haptic('medium'); pasteFromPhoneToClipBox()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:12px; padding:7px 8px; border-radius:10px; white-space:nowrap;">
           <span>📥</span><span>Panodan Yapıştır</span>
         </button>
-        <button class="key-pill touch-target-44" onclick="haptic('heavy'); clearClipBox()" style="flex:1; color:#FF453A; border-color:rgba(255,69,58,0.3); display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; padding:9px 12px; border-radius:10px;">
+        <button class="key-pill touch-target-44" onclick="haptic('heavy'); clearClipBox()" style="flex:1; color:#FF453A; border-color:rgba(255,69,58,0.3); display:flex; align-items:center; justify-content:center; gap:5px; font-size:12px; padding:7px 8px; border-radius:10px; white-space:nowrap;">
           <span>🧹</span><span>Temizle</span>
         </button>
       </div>
 
-      <!-- Big Send Buttons -->
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <button class="action-btn action-btn-primary" style="width:100%; padding: 14px; font-size: 16px; font-weight: 700; flex-direction: row; gap: 8px; justify-content:center;" onclick="haptic('heavy'); sendClipboardToPC()">
-          <span style="font-size:18px;">📤</span>
-          <span>PC Panosuna Aktar (Ctrl+V)</span>
+      <!-- Big Send Buttons Side-by-Side -->
+      <div style="display:grid; grid-template-columns: 1.3fr 1fr; gap:8px;">
+        <button class="action-btn action-btn-primary" style="width:100%; padding: 10px 8px; font-size: 12.5px; font-weight: 700; flex-direction: row; gap: 5px; justify-content:center; white-space:nowrap; min-width:0;" onclick="haptic('heavy'); sendClipboardToPC()">
+          <span>📤</span><span>PC'ye Aktar</span>
         </button>
-        <button class="action-btn action-btn-green" style="width:100%; padding: 12px; font-size: 13px; font-weight: 600; flex-direction: row; gap: 6px; justify-content:center;" onclick="haptic('medium'); openUrlOnPC()">
-          <span>🌐</span><span>Linki PC Tarayıcısında Aç</span>
+        <button class="action-btn action-btn-green" style="width:100%; padding: 10px 8px; font-size: 12.5px; font-weight: 600; flex-direction: row; gap: 5px; justify-content:center; white-space:nowrap; min-width:0;" onclick="haptic('medium'); openUrlOnPC()">
+          <span>⚡</span><span>PC'de Aç</span>
         </button>
       </div>
     </div>
 
     <!-- CARD 3: PANO GEÇMİŞİ (CLIPBOARD HISTORY) -->
-    <div class="ios-card">
-      <div class="card-header">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:18px;">🕒</span>
-          <span class="card-header-title">Pano Geçmişi (Son Aktarılanlar)</span>
+    <div class="ios-card" style="padding: 12px 14px; margin-bottom: 90px;">
+      <div class="card-header" style="margin-bottom: 4px;">
+        <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+          <span style="font-size:16px;">🕒</span>
+          <span class="card-header-title" style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Pano Geçmişi</span>
         </div>
-        <button class="key-pill" style="font-size:11px; padding:4px 10px; border-radius:8px; color:var(--sub);" onclick="haptic('light'); clearClipboardHistory()">
-          <span>🧹 Temizle</span>
+        <button class="key-pill" style="font-size:11px; padding:4px 9px; border-radius:8px; color:var(--sub); flex-shrink:0;" onclick="haptic('light'); clearClipboardHistory()">
+          <span>🧹 Geçmişi Sil</span>
         </button>
-      </div>
-      <div class="card-header-desc">
-        Hem PC'den hem iPhone'dan senkronize edilen son metinler:
       </div>
 
       <!-- History Items Container -->
-      <div id="clipboardHistoryList" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-        <div style="text-align:center; padding:18px; color:var(--sub); font-size:13px;">
+      <div id="clipboardHistoryList" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+        <div style="text-align:center; padding:10px; color:var(--sub); font-size:12px;">
           Henüz senkronize edilmiş pano öğesi yok.
         </div>
       </div>
@@ -2208,9 +2152,9 @@ body.remote-fullscreen #remoteModeToast {
   <!-- TAB 4: PC'DEN GELENLER & GALERİ -->
   <section id="tab-files" class="tab-pane">
     <div class="ios-card">
-      <div class="card-header">
-        <span class="card-header-title">📥 PC'den Alınan Dosyalar</span>
-        <button class="action-btn" style="padding:8px 12px; flex-direction:row;" onclick="haptic(); downloadAllBundle()">
+      <div class="card-header" style="gap:8px; flex-wrap:nowrap;">
+        <span class="card-header-title" style="font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1;">📥 PC'den Gelen Dosyalar</span>
+        <button class="action-btn" style="padding:7px 11px; font-size:12px; flex-direction:row; gap:5px; white-space:nowrap; flex-shrink:0;" onclick="haptic(); downloadAllBundle()">
           <span>📦 Tümünü Al</span>
         </button>
       </div>
@@ -2469,7 +2413,6 @@ async function fetchPcClipboard(manual = false) {
     const box = document.getElementById("pcClipDisplayBox");
     const lenEl = document.getElementById("pcClipLength");
     const timeEl = document.getElementById("pcClipTime");
-    const safariBtn = document.getElementById("btnOpenPcUrlInSafari");
 
     if (box) {
       if (currText) {
@@ -2493,16 +2436,6 @@ async function fetchPcClipboard(manual = false) {
 
     if (lenEl) lenEl.textContent = `${currText.length} Karakter`;
     if (timeEl) timeEl.textContent = data.time ? `Güncellendi: ${data.time}` : new Date().toLocaleTimeString();
-
-    // Check if it's a URL
-    if (safariBtn) {
-      if (data.is_url || currText.startsWith("http://") || currText.startsWith("https://")) {
-        safariBtn.style.display = "inline-flex";
-        safariBtn.dataset.url = currText.trim();
-      } else {
-        safariBtn.style.display = "none";
-      }
-    }
 
     // Render history
     if (data.history && Array.isArray(data.history)) {
@@ -2532,16 +2465,6 @@ function copyPcClipToPhone() {
       badge.textContent = "✅ Kopyalandı!";
       setTimeout(() => { badge.textContent = "🟢 Canlı"; }, 2000);
     }
-  }
-}
-
-function openPcUrlInSafari() {
-  const url = (window._currentPcClipText || "").trim();
-  if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-    window.open(url, "_blank");
-    if (typeof showDesktopToast === "function") showDesktopToast("🌐 Safari'de Açıldı");
-  } else {
-    if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Geçerli bir web adresi değil");
   }
 }
 
@@ -2833,7 +2756,7 @@ function initAirDropWebSocket() {
     ws.onopen = () => {
       console.log("[WebSocket] Connected to /ws/radar");
       const badge = document.getElementById("connBadgeText");
-      if (badge) { badge.textContent = "🟢 PC Canlı Bağlı"; document.getElementById("connBadge").style.borderColor = "rgba(48,209,88,0.4)"; document.getElementById("connBadge").style.color = "#30D158"; }
+      if (badge) { badge.textContent = "🟢 Bağlı"; document.getElementById("connBadge").style.borderColor = "rgba(48,209,88,0.4)"; document.getElementById("connBadge").style.color = "#30D158"; }
     };
 
     ws.onmessage = (event) => {
@@ -2883,8 +2806,8 @@ function renderIncoming(files) {
             <div style="font-size:11px; color:var(--sub); margin-top:2px;">${sizeMb} MB • Dokunarak Önizle</div>
           </div>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <a href="${base}/api/download/${f.id}" download="${escapeHTML(fn)}" class="action-btn touch-target-44" style="padding:6px 12px; font-size:12px; background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); text-decoration:none; border-radius:8px;">
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <a href="${base}/api/download/${f.id}" download="${escapeHTML(fn)}" class="action-btn touch-target-44" style="padding:6px 12px; font-size:12px; flex-direction:row; white-space:nowrap; background:rgba(10,132,255,0.25); color:#64D2FF; border:1px solid rgba(10,132,255,0.45); text-decoration:none; border-radius:8px;">
             ⬇️ İndir
           </a>
         </div>
@@ -2958,11 +2881,13 @@ async function shareOrSaveLightboxMedia() {
       });
       showDesktopToast("✅ Fotoğraflara Kaydedildi");
     } else {
-      window.open(targetUrl, '_blank');
+      const dl = document.getElementById("lightboxDownloadBtn");
+      if (dl) dl.click();
     }
   } catch (e) {
     console.error("share error:", e);
-    window.open(targetUrl, '_blank');
+    const dl = document.getElementById("lightboxDownloadBtn");
+    if (dl) dl.click();
   }
 }
 
@@ -3026,7 +2951,7 @@ async function autoDiscoverPCPeer(force = false) {
     const sub = document.getElementById("activeHostText");
     const badge = document.getElementById("connBadgeText");
     if (badge && !badge.textContent.includes("🟢")) {
-      badge.textContent = "🔍 P2P PC Aranıyor...";
+      badge.textContent = "🔍 Aranıyor";
       const bEl = document.getElementById("connBadge");
       if (bEl) { bEl.style.borderColor = "rgba(255, 159, 10, 0.4)"; bEl.style.color = "#FF9F0A"; }
     }
@@ -3125,7 +3050,7 @@ async function autoDiscoverPCPeer(force = false) {
 
     const badgeText = document.getElementById("connBadgeText");
     if (badgeText && !badgeText.textContent.includes("🟢")) {
-      badgeText.textContent = "🔴 PC Bağlantısı Yok";
+      badgeText.textContent = "🔴 Bekleniyor";
       const bEl = document.getElementById("connBadge");
       if (bEl) { bEl.style.borderColor = "rgba(255, 69, 58, 0.4)"; bEl.style.color = "#FF453A"; }
       if (sub) {
@@ -3147,7 +3072,7 @@ async function _legacyAutoDiscover() {
   const sub = document.getElementById("activeHostText");
   const badge = document.getElementById("connBadgeText");
   if (badge && !badge.textContent.includes("🟢")) {
-    badge.textContent = "🔍 P2P PC Aranıyor...";
+    badge.textContent = "🔍 Aranıyor";
     document.getElementById("connBadge").style.borderColor = "rgba(255, 159, 10, 0.4)";
     document.getElementById("connBadge").style.color = "#FF9F0A";
   }
@@ -3236,7 +3161,7 @@ async function _legacyAutoDiscover() {
 
   isDiscovering = false;
   if (!document.getElementById("connBadgeText").textContent.includes("🟢")) {
-    document.getElementById("connBadgeText").textContent = "🔴 PC Bağlantısı Yok";
+    document.getElementById("connBadgeText").textContent = "🔴 Bekleniyor";
     document.getElementById("connBadge").style.borderColor = "rgba(255, 69, 58, 0.4)";
     document.getElementById("connBadge").style.color = "#FF453A";
     if (sub) {
@@ -3261,12 +3186,12 @@ function applyDiscoveredPC(host, data) {
   const pcName = data.pc_name || "DESKTOP-EIJNT5O";
   const lanIp = data.lan_ip || host.split(":")[0];
   document.getElementById("pcName").textContent = pcName;
-  document.getElementById("connBadgeText").textContent = "🟢 P2P Bağlandı (" + lanIp + ")";
+  document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
   document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
   document.getElementById("connBadge").style.color = "#30D158";
   const sub = document.getElementById("activeHostText");
   if (sub) {
-    sub.textContent = "🟢 " + pcName + " ile P2P Eşleşildi (Kayıpsız & Sunucusuz)";
+    sub.textContent = "🟢 " + pcName + " (" + lanIp + ") ile P2P Eşleşildi";
     sub.style.color = "#30D158";
   }
   if (typeof HapticEngine !== "undefined" && HapticEngine.trigger) {
@@ -3283,12 +3208,12 @@ async function fetchRadarState() {
     if (!res.ok) throw new Error("Bad status");
     const data = await res.json();
     document.getElementById("pcName").textContent = data.pc_name || "DESKTOP-EIJNT5O";
-    document.getElementById("connBadgeText").textContent = "🟢 P2P Bağlandı (" + (data.lan_ip || "Yerel Ağ") + ")";
+    document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
     document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
     document.getElementById("connBadge").style.color = "#30D158";
     const sub = document.getElementById("activeHostText");
     if (sub) {
-      sub.textContent = "🟢 " + (data.pc_name || "PC") + " ile Canlı Eşleşildi (Kayıpsız & Sunucusuz)";
+      sub.textContent = "🟢 " + (data.pc_name || "PC") + " (" + (data.lan_ip || "Yerel Ağ") + ") ile Canlı Eşleşildi";
       sub.style.color = "#30D158";
     }
     renderIncoming(data.outgoing_files || []);
@@ -3594,7 +3519,7 @@ async function openUrlOnPC() {
     try { txt = (await navigator.clipboard.readText() || "").trim(); } catch (e) {}
   }
   if (!txt) {
-    txt = prompt("PC tarayıcısında açılacak web linki:", "https://");
+    txt = prompt("PC'de açılacak adres:", "https://");
     if (!txt || txt.trim() === "https://" || !txt.trim()) return;
   }
   try {
@@ -3604,35 +3529,27 @@ async function openUrlOnPC() {
       body: JSON.stringify({ url: txt.trim() })
     });
     if (res.ok) {
-      showDesktopToast("🌐 Link PC Tarayıcısında Açıldı!");
+      showDesktopToast("⚡ Adres PC'de Açıldı!");
     } else {
-      showDesktopToast("⚠️ Geçersiz web bağlantısı");
+      showDesktopToast("⚠️ Geçersiz bağlantı");
     }
   } catch (e) {
-    showDesktopToast("❌ PC tarayıcısı açılamadı");
+    showDesktopToast("❌ PC'de açılamadı");
   }
 }
 
 fetchRadarState();
 setInterval(fetchRadarState, 5000);
+try {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+  }
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
+} catch(e) {}
 </script>
 
-<!-- Auto-updating PWA Service Worker Registration -->
-<script>
-(function() {
-  if (!('serviceWorker' in navigator)) return;
-  window.addEventListener('load', async () => {
-    try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=20', {
-        scope: './',
-        updateViaCache: 'none'
-      });
-      reg.update().catch(() => {});
-      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-    } catch (err) {}
-  });
-})();
-</script>
 <!-- Hidden native keyboard proxy input -->
     <!-- Remote Keyboard Floating Drawer (iOS Compatible Native Input) -->
     <div id="remoteKeyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; background:rgba(22,22,28,0.96); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border-top:1px solid rgba(255,255,255,0.2); padding:12px 16px 20px 16px; z-index:1000001; box-shadow:0 -10px 40px rgba(0,0,0,0.85);">
@@ -4359,7 +4276,7 @@ function startRemoteStream() {
         const stats = document.getElementById('remoteStatsDisplay');
         const txt = `${fps} FPS • ${remoteRttMs}ms`;
         if (hud) hud.textContent = txt;
-        if (stats) stats.textContent = `Canlı • ${remoteRttMs}ms • ${fps} FPS`;
+        if (stats) stats.textContent = `${remoteRttMs}ms • ${fps} FPS`;
       }
     });
   }
@@ -4536,7 +4453,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ==========================================
-// UNIFIED MASTER AUDIO & HAPTIC ENGINE (iOS SAFARI COMPLIANT)
+// UNIFIED MASTER AUDIO & HAPTIC ENGINE (iOS NATIVE COMPLIANT)
 // ==========================================
 const MasterAudioManager = (function() {
   let masterCtx = null;
@@ -4845,20 +4762,6 @@ function scanQRFromImageFile(input) {
   reader.readAsDataURL(file);
 }
 
-function downloadWinDropShortcut(ev) {
-  if (ev) ev.preventDefault();
-  haptic('medium');
-  const ipInp = document.getElementById('womicIpInput');
-  const portInp = document.getElementById('womicPortInput');
-  let ip = (ipInp && ipInp.value.trim()) ? ipInp.value.trim() : "192.168.1.158";
-  let port = (portInp && portInp.value.trim()) ? portInp.value.trim() : "8765";
-  const host = ip.includes(':') ? ip : `${ip}:${port}`;
-  const target = `http://${host}/windrop.shortcut`;
-  showDesktopToast("📲 iOS Kestirmesi İndiriliyor...");
-  window.location.href = target;
-  return false;
-}
-
 function toggleWomicDrawer(forceState) {
   haptic('light');
   const drawer = document.getElementById('womicDrawerBody');
@@ -4907,21 +4810,10 @@ async function connectWomicDirect(isManual = false) {
   const host = ip.includes(':') ? ip : `${ip}:${port}`;
   safeStorageSet("windrop_custom_pc_ip", host);
 
-  const scLink = document.getElementById('shortcutDownloadLink');
-  if (scLink) scLink.href = `http://${host}/windrop.shortcut`;
-
   if (badge) {
     badge.textContent = "⏳ Bağlanıyor...";
     badge.style.background = "rgba(255, 159, 10, 0.2)";
     badge.style.color = "#FF9F0A";
-  }
-
-  // If opened from HTTPS (e.g. GitHub Pages WebClip) and user tapped BAĞLAN, Mixed Content blocks fetch() to HTTP LAN IP.
-  // Top-level navigation to http://host/ is 100% allowed by iOS Safari/WebKit and opens the direct local app!
-  if (window.location.protocol === "https:" && isManual) {
-    showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
-    window.location.href = `http://${host}/`;
-    return;
   }
 
   try {
@@ -4931,7 +4823,7 @@ async function connectWomicDirect(isManual = false) {
       API_BASE = `http://${host}`;
       applyDiscoveredPC(host, data);
       if (badge) {
-        badge.textContent = "🟢 Bağlı: " + (data.pc_name || host) + " (" + host + ")";
+        badge.textContent = "🟢 " + (data.pc_name || host);
         badge.style.background = "rgba(48, 209, 88, 0.18)";
         badge.style.color = "#30D158";
       }
@@ -4943,16 +4835,10 @@ async function connectWomicDirect(isManual = false) {
       fetchRadarState();
       return;
     }
-  } catch (err) {
-    if (window.location.protocol === "https:") {
-      // Auto-redirect from HTTPS shell to direct local HTTP PC server
-      window.location.href = `http://${host}/`;
-      return;
-    }
-  }
+  } catch (err) {}
 
   if (badge) {
-    badge.textContent = "🔴 Bağlanılamadı (" + host + ")";
+    badge.textContent = "🔴 Bağlantı Yok";
     badge.style.background = "rgba(255, 69, 58, 0.18)";
     badge.style.color = "#FF453A";
   }
