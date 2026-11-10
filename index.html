@@ -183,7 +183,7 @@ function sendRemoteKeyCombo(comboKey) {
 
 let remoteAspectMode = 'fit';
 window.remoteForceLandscape = false;
-window.remoteStreamProfile = 'balanced';
+window.remoteStreamProfile = 'ultra';
 let _fabDimTimeout = null;
 
 function syncQualityUI(profile) {
@@ -455,6 +455,30 @@ function toggleRemoteFullscreen() {
     vp.classList.add('is-fullscreen');
     document.body.classList.add('remote-fullscreen');
 
+    // In Portrait orientation on iOS Safari, auto-enable 90° Horizontal Fullscreen so the 16:9 PC screen fills 100% of the screen AND Safari's 2-row Landscape URL/Tab bar never appears!
+    if (window.innerHeight > window.innerWidth) {
+      window.remoteForceLandscape = true;
+      document.body.classList.add('force-landscape');
+      vp.classList.add('force-landscape');
+      const sbBtnRotate = document.getElementById('sbBtnRotate');
+      const sbRotateText = document.getElementById('sbRotateText');
+      if (sbBtnRotate) {
+        sbBtnRotate.style.background = 'rgba(48,209,88,0.25)';
+        sbBtnRotate.style.color = '#30D158';
+      }
+      if (sbRotateText) sbRotateText.textContent = 'Dikey Yap';
+    }
+
+    try {
+      const reqFs = vp.requestFullscreen || vp.webkitRequestFullscreen || document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+      if (reqFs) {
+        Promise.resolve(reqFs.call(vp)).catch(() => {});
+      }
+    } catch (e) {}
+    try {
+      window.scrollTo(0, 1);
+    } catch (e) {}
+
     // Preserve host resolution dynamically (No 1080p distortion)
     if (remoteRenderer && remoteRenderer.canvas) {
       const sw = remoteRenderer.sourceWidth || 1920;
@@ -537,8 +561,22 @@ function checkAutoLandscape() {
     return;
   }
 
-  if (isLandscape && !_lastOrientationWasLandscape && !vp.classList.contains('is-fullscreen')) {
-    toggleRemoteFullscreen();
+  if (isLandscape) {
+    if (window.remoteForceLandscape) {
+      window.remoteForceLandscape = false;
+      document.body.classList.remove('force-landscape');
+      vp.classList.remove('force-landscape');
+      const sbBtnRotate = document.getElementById('sbBtnRotate');
+      const sbRotateText = document.getElementById('sbRotateText');
+      if (sbBtnRotate) {
+        sbBtnRotate.style.background = 'rgba(255,255,255,0.08)';
+        sbBtnRotate.style.color = '#fff';
+      }
+      if (sbRotateText) sbRotateText.textContent = '90° Yatay';
+    }
+    if (!_lastOrientationWasLandscape && !vp.classList.contains('is-fullscreen')) {
+      toggleRemoteFullscreen();
+    }
   }
   _lastOrientationWasLandscape = isLandscape;
 }
@@ -2099,6 +2137,12 @@ body.remote-fullscreen #remoteModeToast {
         <button onclick="toggleAnydeskDrawer(false)" style="background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:50%; width:26px; height:26px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
       </div>
 
+      <!-- 1-Tap Chrome-less Fullscreen App Launcher (Removes Safari Top URL/Tab Bar Completely) -->
+      <button onclick="window.location.href=(window.API_BASE||'')+'/profil'" class="action-btn" style="padding:10px 10px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:7px; background:linear-gradient(135deg, rgba(48,209,88,0.28), rgba(10,132,255,0.28)); color:#30D158; border:1px solid rgba(48,209,88,0.5);">
+        <span>📱</span>
+        <span>Safari Barını Kaldır (Tam Ekran Uygulama)</span>
+      </button>
+
       <!-- Control Grid (2x2) -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
         <!-- Mode Switcher -->
@@ -3318,7 +3362,7 @@ function applyDiscoveredPC(host, data) {
   API_BASE = (isTunnel ? "https://" : "http://") + finalHost;
   window.API_BASE = API_BASE;
   if (typeof syncQualityUI === "function") {
-    syncQualityUI(isTunnel ? "fast" : "balanced");
+    syncQualityUI("ultra");
   }
   if (isTunnel) {
     safeStorageSet("windrop_last_tunnel_url", API_BASE);
@@ -3904,11 +3948,7 @@ class RemoteScreenRenderer {
 
   pushFrame(frameData) {
     if (!frameData) return;
-    // Send sliding-window ACK immediately on network arrival so server streams continuously at 60 FPS
-    if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
-      try { remoteWS.send("a"); } catch (e) {}
-    }
-    // Latest-Frame-Only Pipeline: if GPU is currently decoding, overwrite _queuedFrame so newest frame renders next!
+    // Latest-Frame-Only Pipeline: if GPU is currently decoding, overwrite _queuedFrame so stale frames are dropped immediately
     if (this.isDecoding) {
       this._queuedFrame = frameData;
       return;
@@ -3932,6 +3972,8 @@ class RemoteScreenRenderer {
         if (this.isBitmapRenderer) {
           this.ctx.transferFromImageBitmap(bmp);
         } else {
+          this.ctx.imageSmoothingEnabled = true;
+          this.ctx.imageSmoothingQuality = 'high';
           this.ctx.drawImage(bmp, 0, 0, this.canvas.width, this.canvas.height);
           if (typeof bmp.close === 'function') bmp.close();
         }
@@ -4621,8 +4663,7 @@ function connectRemoteWebSocket() {
       try {
         remoteLastPingTime = performance.now();
         remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
-        const isTunnel = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(host);
-        const activeProf = window.remoteStreamProfile || (isTunnel ? "fast" : "balanced");
+        const activeProf = window.remoteStreamProfile || "ultra";
         if (typeof syncQualityUI === "function") syncQualityUI(activeProf);
         remoteWS.send(JSON.stringify({ action: "set_stream_profile", profile: activeProf }));
       } catch (e) {}
@@ -4638,6 +4679,9 @@ function connectRemoteWebSocket() {
 
     remoteWS.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
+        if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
+          try { remoteWS.send("a"); } catch (e) {}
+        }
         if (remoteRenderer) {
           remoteRenderer.pushFrame(event.data);
         }
@@ -5368,14 +5412,28 @@ document.addEventListener("DOMContentLoaded", () => {
     safeStorageSet("windrop_last_tunnel_url", location.origin);
     API_BASE = location.origin;
     window.API_BASE = API_BASE;
-    if (typeof syncQualityUI === "function") syncQualityUI("fast");
+    if (typeof syncQualityUI === "function") syncQualityUI("ultra");
     try {
       const savedTab = safeStorageGet('windrop_active_tab');
       if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
         switchMainTab(savedTab);
       }
     } catch(e) {}
-    setTimeout(() => fetchRadarState(true), 100);
+    setTimeout(() => fetchRadarState(true), 80);
+    // Zero-Lag Same-Wi-Fi Upgrade: If phone is in regular Safari on the same local Wi-Fi as PC, auto-switch from 100ms Cloud Tunnel to 2ms Direct LAN!
+    if (!window.navigator.standalone) {
+      setTimeout(() => {
+        const lanTarget = "http://192.168.1.158:8765";
+        const probeImg = new Image();
+        const t = setTimeout(() => { probeImg.src = ""; }, 650);
+        probeImg.onload = () => {
+          clearTimeout(t);
+          window.location.replace(lanTarget + "/");
+        };
+        probeImg.onerror = () => clearTimeout(t);
+        probeImg.src = lanTarget + "/icon-180.png?t=" + Date.now();
+      }, 150);
+    }
   } else {
     try {
       const savedTab = safeStorageGet('windrop_active_tab');
