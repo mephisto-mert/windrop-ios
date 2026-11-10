@@ -101,10 +101,6 @@ window.addEventListener('error', function(e) {
     window.location.href = base + "/api/download-all-store";
   }
 
-  function resetFullscreenControlsTimer() {
-    resetFabDimTimer();
-  }
-
 
 // ==========================================
 // Keyboard, Fullscreen, Aspect & Action Helpers
@@ -1846,8 +1842,8 @@ body.remote-fullscreen #anydeskBubble {
 
           <div id="womicWifiPanel" style="width: 100%; box-sizing: border-box;">
             <div style="display:flex; gap: 6px; width: 100%; box-sizing: border-box;">
-              <input type="text" id="womicIpInput" placeholder="192.168.1.158" style="flex: 1; min-width: 0; width: 100%; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 8px; font-size: 15px; font-family: 'SF Mono', monospace; box-sizing: border-box;">
-              <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 58px; flex-shrink: 0; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 2px; font-size: 15px; text-align: center; font-family: 'SF Mono', monospace; box-sizing: border-box;">
+              <input type="text" id="womicIpInput" placeholder="192.168.1.158" inputmode="decimal" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();connectWomicDirect(true);}" style="flex: 1; min-width: 0; width: 100%; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 8px; font-size: 16px; font-family: 'SF Mono', monospace; box-sizing: border-box;">
+              <input type="number" id="womicPortInput" placeholder="Port" value="8765" inputmode="decimal" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();connectWomicDirect(true);}" style="width: 58px; flex-shrink: 0; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 2px; font-size: 16px; text-align: center; font-family: 'SF Mono', monospace; box-sizing: border-box;">
               <button type="button" onclick="connectWomicDirect(true)" style="flex-shrink: 0; padding: 7px 12px; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">
                 Bağlan
               </button>
@@ -1892,9 +1888,10 @@ body.remote-fullscreen #anydeskBubble {
 
       <!-- Upload HUD -->
       <div id="uploadBox" class="upload-hud">
-        <div class="hud-top">
-          <span id="uploadStatusText">Aktarılıyor...</span>
-          <span id="uploadSpeedText">0 MB/sn</span>
+        <div class="hud-top" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span id="uploadStatusText" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Aktarılıyor...</span>
+          <span id="uploadSpeedText" style="flex-shrink:0;">0 MB/sn</span>
+          <button type="button" id="uploadCancelBtn" onclick="cancelActiveUpload()" style="background:rgba(255,69,58,0.22); border:1px solid rgba(255,69,58,0.45); color:#FF453A; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; cursor:pointer; flex-shrink:0;">✕ İptal</button>
         </div>
         <div class="hud-bar-bg"><div id="uploadBar" class="hud-bar-fill"></div></div>
         <div id="uploadHashText" class="hud-footer">Kayıpsız Bütünlük Doğrulanıyor...</div>
@@ -1920,7 +1917,10 @@ body.remote-fullscreen #anydeskBubble {
           </div>
         </div>
 
-        <!-- Mode Toggle Pill -->
+        <!-- Monitor Switcher & Mode Toggle Pill -->
+        <button type="button" class="action-btn" style="padding:5px 8px; font-size:11px; border-radius:8px; background:rgba(255,255,255,0.08); color:#fff; flex-direction:row; white-space:nowrap; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;" onclick="cycleRemoteMonitor()">
+          🖥️ Ekran
+        </button>
         <div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:2px; display:flex; gap:2px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">
           <button id="btnModeDirect" class="action-btn active" style="padding:5px 8px; font-size:11px; border-radius:8px; background:#0A84FF; color:#fff; flex-direction:row; white-space:nowrap; border:none; box-shadow:none;" onclick="setRemoteControlMode('direct')">
             📱 Dokunmatik
@@ -1962,7 +1962,9 @@ body.remote-fullscreen #anydeskBubble {
           <button style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="Tam Ekran Doldur / Orantılı" onclick="toggleRemoteAspectMode()">
             <span id="fsAspectIcon">📐</span>
           </button>
-
+          <button style="background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; padding:6px; cursor:pointer; white-space:nowrap;" title="Monitör Değiştir" onclick="cycleRemoteMonitor()">
+            🖥️ Ekran
+          </button>
           <button style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="Klavye Aç" onclick="openRemoteKeyboard()">
             ⌨️
           </button>
@@ -2064,6 +2066,11 @@ body.remote-fullscreen #anydeskBubble {
         <button id="sbBtnAspect" class="action-btn" onclick="toggleRemoteAspectMode()" style="padding:10px 4px; font-size:11px; font-weight:600; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(255,255,255,0.08);">
           <span id="sbAspectIcon" style="font-size:18px;">📐</span>
           <span id="sbAspectText">Sığdır</span>
+        </button>
+
+        <!-- Multi-Monitor Switcher Button -->
+        <button id="sbBtnMonitor" class="action-btn" onclick="cycleRemoteMonitor()" style="grid-column: span 2; padding:9px 4px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:6px; background:rgba(10,132,255,0.18); color:#64D2FF; border:1px solid rgba(10,132,255,0.35);">
+          <span>🖥️ Ekran</span>
         </button>
       </div>
 
@@ -2482,6 +2489,7 @@ function copyTextSafely(text) {
 }
 
 async function fetchPcClipboard(manual = false) {
+  if (!manual && document.hidden) return;
   try {
     const res = await fetch(API_BASE + "/api/clipboard?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) return;
@@ -2535,7 +2543,7 @@ function copyPcClipToPhone() {
     return;
   }
   const ok = copyTextSafely(txt);
-  if (ok || true) {
+  if (ok) {
     if (typeof showDesktopToast === "function") {
       const preview = txt.length > 22 ? txt.slice(0, 22) + "..." : txt;
       showDesktopToast("📋 iPhone Panosuna Kopyalandı: " + preview);
@@ -2648,7 +2656,7 @@ function copyHistoryById(id) {
     return;
   }
   const ok = copyTextSafely(fullText);
-  if (ok || true) {
+  if (ok) {
     if (typeof showDesktopToast === "function") {
       const preview = fullText.length > 22 ? fullText.slice(0, 22) + "..." : fullText;
       showDesktopToast("📋 iPhone Panosuna Kopyalandı: " + preview);
@@ -2722,9 +2730,13 @@ let currentIncomingAirDropFile = null;
 
 function playAirDropChime() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const actx = new AudioCtx();
+    const actx = (typeof MasterAudioManager !== 'undefined' && MasterAudioManager.getContext)
+      ? MasterAudioManager.getContext()
+      : (window._fallbackChimeAudioCtx || (window._fallbackChimeAudioCtx = new (window.AudioContext || window.webkitAudioContext)()));
+    if (!actx) return;
+    if (actx.state === 'suspended') {
+      actx.resume().catch(() => {});
+    }
     const now = actx.currentTime;
 
     // Bell Tone 1 (880Hz - A5)
@@ -2811,7 +2823,7 @@ function acceptIncomingAirDrop() {
                   /\.(jpg|jpeg|png|heic|gif|mp4|mov)$/i.test(fn);
   if (isMedia) {
     setTimeout(() => {
-      openLightbox(base + "/api/download/" + f.id, fn, f.mime || "image/jpeg");
+      openLightbox(base + "/api/preview/" + f.id, fn, f.mime || "image/jpeg");
     }, 800);
   }
 }
@@ -2824,9 +2836,32 @@ function declineIncomingAirDrop() {
   showDesktopToast("❌ Aktarım reddedildi");
 }
 
+window._radarWsRetryTimer = null;
+window._radarWsTargetBase = null;
+
 function initAirDropWebSocket() {
   try {
-    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+    if (window._radarWsRetryTimer) {
+      clearTimeout(window._radarWsRetryTimer);
+      window._radarWsRetryTimer = null;
+    }
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : window.location.origin;
+    if (
+      window.activeRadarWS &&
+      (window.activeRadarWS.readyState === WebSocket.OPEN || window.activeRadarWS.readyState === WebSocket.CONNECTING) &&
+      window._radarWsTargetBase === base
+    ) {
+      return;
+    }
+    if (window.activeRadarWS) {
+      try {
+        window.activeRadarWS.onclose = null;
+        window.activeRadarWS.onerror = null;
+        window.activeRadarWS.close();
+      } catch (e) {}
+      window.activeRadarWS = null;
+    }
+    window._radarWsTargetBase = base;
     const proto = base.startsWith("https:") ? "wss:" : "ws:";
     const host = base.replace(/^https?:\/\//, '') || location.host;
     const wsUrl = `${proto}//${host}/ws/radar?model=${encodeURIComponent(deviceModel || 'iPhone')}`;
@@ -2850,7 +2885,8 @@ function initAirDropWebSocket() {
     };
 
     ws.onclose = () => {
-      setTimeout(initAirDropWebSocket, 3000);
+      if (window._radarWsRetryTimer) clearTimeout(window._radarWsRetryTimer);
+      window._radarWsRetryTimer = setTimeout(initAirDropWebSocket, 3000);
     };
 
     ws.onerror = () => {
@@ -2873,17 +2909,21 @@ function renderIncoming(files) {
   const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
   container.innerHTML = files.map(f => {
     const fn = f.filename || f.name || "Dosya";
-    const isImg = (f.mime || "").startsWith("image/") || /\.(jpe?g|png|heic|webp|gif)$/i.test(fn);
+    const isImg = (f.mime || "").startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(fn);
     const isVid = (f.mime || "").startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(fn);
     const icon = isImg ? '🖼️' : (isVid ? '🎬' : '📄');
     const sizeMb = ((f.size || 0) / (1024 * 1024)).toFixed(2);
+    const subActionLabel = (isImg || isVid) ? 'Dokunarak Önizle' : 'Dokunarak İndir';
+    const clickAction = (!isVid && !/\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(fn))
+      ? `window.location.href='${base}/api/download/${f.id}'`
+      : `openLightbox('${base}/api/preview/${f.id}', '${escapeHTML(fn)}', '${f.mime || ""}')`;
     return `
       <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; margin-bottom:8px; gap:10px;">
-        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1; cursor:pointer;" onclick="openLightbox('${f.id}', '${escapeHTML(fn)}', '${f.mime || ""}')">
+        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1; cursor:pointer;" onclick="${clickAction}">
           <span style="font-size:24px;">${icon}</span>
           <div style="min-width:0; flex:1;">
             <div style="font-size:13px; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(fn)}</div>
-            <div style="font-size:11px; color:var(--sub); margin-top:2px;">${sizeMb} MB • Dokunarak Önizle</div>
+            <div style="font-size:11px; color:var(--sub); margin-top:2px;">${sizeMb} MB • ${subActionLabel}</div>
           </div>
         </div>
         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
@@ -2898,6 +2938,16 @@ function renderIncoming(files) {
 
 async function openLightbox(urlOrId, name, mime) {
   haptic('medium');
+  const isVideo = (mime && mime.startsWith("video/")) || /\.(mp4|mov|m4v|webm)$/i.test(name);
+  const isImg = (mime && mime.startsWith("image/")) || /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)$/i.test(name);
+  if (!isVideo && !isImg && !(typeof urlOrId === "string" && urlOrId.startsWith("blob:"))) {
+    const directDlUrl = (urlOrId.startsWith("http"))
+      ? urlOrId.replace("/api/preview/", "/api/download/")
+      : API_BASE + "/api/download/" + urlOrId;
+    window.location.href = directDlUrl;
+    return;
+  }
+
   currentLightboxParams = { urlOrId, name, mime };
   const modal = document.getElementById("lightboxModal");
   const img = document.getElementById("lightboxImg");
@@ -2907,10 +2957,13 @@ async function openLightbox(urlOrId, name, mime) {
   const err = document.getElementById("lightboxErrorBox");
   const dl = document.getElementById("lightboxDownloadBtn");
 
-  const targetUrl = (urlOrId.startsWith("http") || urlOrId.startsWith("blob:")) ? urlOrId : API_BASE + "/api/download/" + urlOrId;
+  const targetUrl = (urlOrId.startsWith("http") || urlOrId.startsWith("blob:")) ? urlOrId : API_BASE + "/api/preview/" + urlOrId;
+  const downloadUrl = (urlOrId.startsWith("http") || urlOrId.startsWith("blob:"))
+    ? urlOrId.replace("/api/preview/", "/api/download/")
+    : API_BASE + "/api/download/" + urlOrId;
   if (title) title.textContent = name || "Medya";
   if (dl) {
-    dl.href = targetUrl;
+    dl.href = downloadUrl;
     dl.download = name || "Dosya";
   }
 
@@ -2920,7 +2973,6 @@ async function openLightbox(urlOrId, name, mime) {
   if (img) img.style.display = "none";
   if (video) { video.style.display = "none"; video.pause(); }
 
-  const isVideo = (mime && mime.startsWith("video/")) || /\.(mp4|mov|m4v|webm)$/i.test(name);
   if (isVideo && video) {
     video.src = targetUrl;
     video.onloadeddata = () => { if (spin) spin.style.display = "none"; video.style.display = "block"; };
@@ -3024,8 +3076,24 @@ function triggerManualP2PDiscovery() {
 async function autoDiscoverPCPeer(force = false) {
   const now = Date.now();
   if (isDiscovering || (!force && (now - lastDiscoveryTime < 4000))) return;
+  if (window.location.protocol === "https:") return false;
   isDiscovering = true;
   lastDiscoveryTime = now;
+
+  const probeHostWithAbort = (host, timeoutMs, sharedCtrl) => {
+    const timer = setTimeout(() => sharedCtrl.abort(), timeoutMs);
+    return fetch("http://" + host + "/api/ping", { signal: sharedCtrl.signal, cache: "no-store" })
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "ok" || data.protocol === "windrop_p2p_v3") {
+            return { host, data };
+          }
+        }
+        throw new Error("fail");
+      })
+      .finally(() => clearTimeout(timer));
+  };
 
   try {
     const sub = document.getElementById("activeHostText");
@@ -3047,6 +3115,7 @@ async function autoDiscoverPCPeer(force = false) {
     if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
       candidates.push(location.hostname + ":8765");
     }
+    candidates.push("windrop.local:8765");
     candidates.push("192.168.1.158:8765");
     candidates.push("172.20.10.1:8765");
     candidates.push("172.20.10.2:8765");
@@ -3055,29 +3124,26 @@ async function autoDiscoverPCPeer(force = false) {
     candidates.push("192.168.1.1:8765");
 
     const tested = new Set();
+    const candCtrl = new AbortController();
     const candidatePromises = candidates.filter(h => h && !tested.has(h)).map(host => {
       tested.add(host);
-      return fetchWithTimeout("http://" + host + "/api/ping", 350)
-        .then(async res => {
-          if (res.ok) {
-            const data = await res.json();
-            if (data.status === "ok" || data.protocol === "windrop_p2p_v3") {
-              return { host, data };
-            }
-          }
-          throw new Error("fail");
-        });
+      return probeHostWithAbort(host, 400, candCtrl);
     });
 
     try {
       const winner = await Promise.any(candidatePromises);
+      candCtrl.abort();
       if (winner && winner.host) {
         applyDiscoveredPC(winner.host, winner.data);
         return true;
       }
-    } catch(e) {}
+    } catch(e) {
+      candCtrl.abort();
+    }
 
-    // 2. Subnet sweeps with chunking
+    // 2. Subnet sweeps with chunking (skip on HTTPS to prevent mixed-content floods)
+    if (window.location.protocol === "https:") return false;
+
     let baseSubnet = "192.168.1.";
     if (saved && saved.includes(".")) {
       const parts = saved.split(":")[0].split(".");
@@ -3105,26 +3171,19 @@ async function autoDiscoverPCPeer(force = false) {
       const CHUNK_SIZE = 30;
       for (let c = 0; c < ipBatch.length; c += CHUNK_SIZE) {
         const chunk = ipBatch.slice(c, c + CHUNK_SIZE);
-        const probePromises = chunk.map(h => {
-          return fetchWithTimeout("http://" + h + "/api/ping", 450)
-            .then(async r => {
-              if (r.ok) {
-                const d = await r.json();
-                if (d.status === "ok" || d.protocol === "windrop_p2p_v3") {
-                  return { host: h, data: d };
-                }
-              }
-              throw new Error("fail");
-            });
-        });
+        const chunkCtrl = new AbortController();
+        const probePromises = chunk.map(h => probeHostWithAbort(h, 450, chunkCtrl));
 
         try {
           const winner = await Promise.any(probePromises);
+          chunkCtrl.abort();
           if (winner && winner.host) {
             applyDiscoveredPC(winner.host, winner.data);
             return true;
           }
-        } catch (err) {}
+        } catch (err) {
+          chunkCtrl.abort();
+        }
       }
     }
 
@@ -3143,114 +3202,6 @@ async function autoDiscoverPCPeer(force = false) {
     isDiscovering = false;
   }
 }
-async function _legacyAutoDiscover() {
-  const now = Date.now();
-  if (isDiscovering || (!force && (now - lastDiscoveryTime < 6000))) return;
-  isDiscovering = true;
-  lastDiscoveryTime = now;
-
-  const sub = document.getElementById("activeHostText");
-  const badge = document.getElementById("connBadgeText");
-  if (badge && !badge.textContent.includes("🟢")) {
-    badge.textContent = "🔍 Aranıyor";
-    document.getElementById("connBadge").style.borderColor = "rgba(255, 159, 10, 0.4)";
-    document.getElementById("connBadge").style.color = "#FF9F0A";
-  }
-  if (sub && !sub.textContent.includes("🟢")) {
-    sub.textContent = "🔍 Yerel Ağ Taranıyor (PC Otomatik Aranıyor)...";
-    sub.style.color = "#FF9F0A";
-  }
-
-  // 1. Direct high-probability targets
-  const candidates = [];
-  const saved = safeStorageGet("windrop_custom_pc_ip");
-  if (saved) candidates.push(saved);
-  candidates.push("192.168.1.158:8765");
-  candidates.push("172.20.10.1:8765");
-  candidates.push("172.20.10.2:8765");
-  candidates.push("192.168.1.1:8765");
-  candidates.push("192.168.0.1:8765");
-  candidates.push("192.168.0.100:8765");
-
-  const tested = new Set();
-  for (const host of candidates) {
-    if (!host || tested.has(host)) continue;
-    tested.add(host);
-    try {
-      const res = await fetchWithTimeout("http://" + host + "/api/ping", 350);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === "ok" || data.protocol === "windrop_p2p_v3") {
-          applyDiscoveredPC(host, data);
-          isDiscovering = false;
-          return true;
-        }
-      }
-    } catch (e) {}
-  }
-
-  // 2. Parallel sweep across local /24 subnets in concurrent chunks of 30
-  let baseSubnet = "192.168.1.";
-  if (saved && saved.includes(".")) {
-    const parts = saved.split(":")[0].split(".");
-    if (parts.length === 4) {
-      baseSubnet = parts[0] + "." + parts[1] + "." + parts[2] + ".";
-    }
-  }
-
-  const subnetsToSweep = [baseSubnet];
-  if (!subnetsToSweep.includes("192.168.1.")) subnetsToSweep.push("192.168.1.");
-  if (!subnetsToSweep.includes("172.20.10.")) subnetsToSweep.push("172.20.10.");
-
-  for (const snet of subnetsToSweep) {
-    const ipBatch = [];
-    for (let i = 2; i <= 254; i++) {
-      const host = snet + i + ":8765";
-      if (!tested.has(host)) {
-        tested.add(host);
-        ipBatch.push(host);
-      }
-    }
-
-    const CHUNK_SIZE = 30;
-    for (let c = 0; c < ipBatch.length; c += CHUNK_SIZE) {
-      const chunk = ipBatch.slice(c, c + CHUNK_SIZE);
-      const probePromises = chunk.map(h => {
-        return fetchWithTimeout("http://" + h + "/api/ping", 500)
-          .then(async r => {
-            if (r.ok) {
-              const d = await r.json();
-              if (d.status === "ok" || d.protocol === "windrop_p2p_v3") {
-                return { host: h, data: d };
-              }
-            }
-            throw new Error("fail");
-          });
-      });
-
-      try {
-        const winner = await Promise.any(probePromises);
-        if (winner && winner.host) {
-          applyDiscoveredPC(winner.host, winner.data);
-          isDiscovering = false;
-          return true;
-        }
-      } catch (err) {}
-    }
-  }
-
-  isDiscovering = false;
-  if (!document.getElementById("connBadgeText").textContent.includes("🟢")) {
-    document.getElementById("connBadgeText").textContent = "🔴 Bekleniyor";
-    document.getElementById("connBadge").style.borderColor = "rgba(255, 69, 58, 0.4)";
-    document.getElementById("connBadge").style.color = "#FF453A";
-    if (sub) {
-      sub.textContent = "⚠️ PC Bekleniyor — Aynı Wi-Fi'da Olduğunuzdan Emin Olun";
-      sub.style.color = "#FF453A";
-    }
-  }
-  return false;
-}
 
 function applyDiscoveredPC(host, data) {
   if (window.activeRadarWS) {
@@ -3261,7 +3212,8 @@ function applyDiscoveredPC(host, data) {
     } catch(e) {}
     window.activeRadarWS = null;
   }
-  API_BASE = "http://" + host;
+  const isTunnel = /trycloudflare\.com|ngrok|loca\.lt/i.test(host);
+  API_BASE = (isTunnel ? "https://" : "http://") + host;
   safeStorageSet("windrop_custom_pc_ip", host);
   const pcName = data.pc_name || "DESKTOP-EIJNT5O";
   const lanIp = data.lan_ip || host.split(":")[0];
@@ -3276,9 +3228,7 @@ function applyDiscoveredPC(host, data) {
     sub.textContent = "🟢 " + pcName + " (" + lanIp + ") ile P2P Eşleşildi";
     sub.style.color = "#30D158";
   }
-  if (typeof HapticEngine !== "undefined" && HapticEngine.trigger) {
-    HapticEngine.trigger("success");
-  }
+  if (typeof haptic === "function") haptic("heavy");
   if (typeof initAirDropWebSocket === "function") {
     initAirDropWebSocket();
   }
@@ -3289,16 +3239,19 @@ function applyDiscoveredPC(host, data) {
   }
 }
 
-async function fetchRadarState() {
+async function fetchRadarState(manual = false) {
+  if (!manual && document.hidden) return;
   try {
+    const t0 = performance.now();
     const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2200);
     if (!res.ok) throw new Error("Bad status");
+    const rtt = Math.round(performance.now() - t0);
     const data = await res.json();
     const pcName = data.pc_name || "DESKTOP-EIJNT5O";
     document.getElementById("pcName").textContent = pcName;
     const rTitle = document.getElementById("remoteHostTitle");
     if (rTitle) rTitle.textContent = pcName;
-    document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
+    document.getElementById("connBadgeText").textContent = `🟢 Bağlı (${rtt}ms)`;
     document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
     document.getElementById("connBadge").style.color = "#30D158";
     const sub = document.getElementById("activeHostText");
@@ -3320,7 +3273,57 @@ async function fetchRadarState() {
   }
 }
 
-function uploadViaWebSocket(file, onProgress) {
+window._activeUploadXhr = null;
+window._uploadCancelled = false;
+
+function cancelActiveUpload() {
+  haptic('heavy');
+  window._uploadCancelled = true;
+  if (window._activeUploadXhr) {
+    try { window._activeUploadXhr.abort(); } catch (e) {}
+    window._activeUploadXhr = null;
+  }
+  const statusTxt = document.getElementById("uploadStatusText");
+  const speedTxt = document.getElementById("uploadSpeedText");
+  const hashTxt = document.getElementById("uploadHashText");
+  const box = document.getElementById("uploadBox");
+  if (statusTxt) statusTxt.textContent = "⛔ Aktarım İptal Edildi";
+  if (speedTxt) speedTxt.textContent = "İptal";
+  if (hashTxt) hashTxt.textContent = "Kullanıcı tarafından durduruldu";
+  showDesktopToast("⛔ Aktarım iptal edildi");
+  if (box) setTimeout(() => { box.style.display = "none"; }, 1800);
+}
+
+async function uploadViaWebSocket(file, onProgress) {
+  if (file.size > 12 * 1024 * 1024) {
+    const CHUNK_BYTES = 2 * 1024 * 1024;
+    const uploadId = "up_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    const safeFileName = encodeURIComponent(file.name || ("iPhone_Video_" + Date.now() + ".mov"));
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+    for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
+      if (window._uploadCancelled) throw new Error("Upload cancelled");
+      const slice = file.slice(offset, Math.min(offset + CHUNK_BYTES, file.size));
+      const isLast = (offset + CHUNK_BYTES >= file.size) ? "1" : "0";
+      const res = await fetch(`${base}/api/upload-chunk`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Upload-Id": uploadId,
+          "X-File-Name": safeFileName,
+          "X-Chunk-Offset": String(offset),
+          "X-Total-Size": String(file.size),
+          "X-Is-Last-Chunk": isLast
+        },
+        body: slice
+      });
+      if (!res.ok) throw new Error("Chunk upload failed: " + res.status);
+      if (onProgress) {
+        onProgress(Math.min(100, Math.round(((offset + slice.size) / file.size) * 100)));
+      }
+    }
+    return { ok: true };
+  }
+
   const ws = (window.activeRadarWS && window.activeRadarWS.readyState === WebSocket.OPEN)
     ? window.activeRadarWS
     : (window.remoteWS && window.remoteWS.readyState === WebSocket.OPEN ? window.remoteWS : null);
@@ -3354,6 +3357,7 @@ function uploadViaWebSocket(file, onProgress) {
 async function uploadFiles(fileList) {
   if (!fileList || !fileList.length) return;
   haptic();
+  window._uploadCancelled = false;
   const box = document.getElementById("uploadBox");
   const statusTxt = document.getElementById("uploadStatusText");
   const speedTxt = document.getElementById("uploadSpeedText");
@@ -3364,6 +3368,7 @@ async function uploadFiles(fileList) {
   let successfulUploads = 0;
 
   for (let i = 0; i < fileList.length; i++) {
+    if (window._uploadCancelled) break;
     const file = fileList[i];
     const safeName = file.name || `iPhone_Medya_${Date.now()}`;
     statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
@@ -3376,6 +3381,7 @@ async function uploadFiles(fileList) {
     try {
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        window._activeUploadXhr = xhr;
         const startTime = performance.now();
         const uploadUrl = (typeof API_BASE !== 'undefined' && API_BASE) ? (API_BASE + "/upload") : "/upload";
         xhr.open("POST", uploadUrl, true);
@@ -3388,10 +3394,12 @@ async function uploadFiles(fileList) {
             bar.style.width = pct + "%";
             const elapsed = Math.max((performance.now() - startTime) / 1000, 0.05);
             const mbps = (e.loaded / 1048576) / elapsed;
+            statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
             speedTxt.textContent = mbps.toFixed(1) + " MB/sn (" + pct + "%)";
           }
         };
         xhr.onload = () => {
+          window._activeUploadXhr = null;
           if (xhr.status >= 200 && xhr.status < 300) {
             bar.style.width = "100%";
             speedTxt.textContent = "Tamamlandı (100%)";
@@ -3403,24 +3411,37 @@ async function uploadFiles(fileList) {
             reject(new Error(`HTTP ${xhr.status}`));
           }
         };
-        xhr.onerror = () => reject(new Error("XHR Network/CORS Error"));
-        xhr.ontimeout = () => reject(new Error("Timeout"));
+        xhr.onabort = () => {
+          window._activeUploadXhr = null;
+          reject(new Error("Upload cancelled"));
+        };
+        xhr.onerror = () => {
+          window._activeUploadXhr = null;
+          reject(new Error("XHR Network/CORS Error"));
+        };
+        xhr.ontimeout = () => {
+          window._activeUploadXhr = null;
+          reject(new Error("Timeout"));
+        };
         xhr.send(formData);
       });
     } catch (httpErr) {
-      console.warn("[WinDrop] HTTP upload failed, attempting WebSocket tunnel fallback:", httpErr);
-      // 2. Secondary Fallback: Live WebSocket Tunnel (Bypasses WKWebView SOP & file:/// restrictions)
+      if (window._uploadCancelled) break;
+      console.warn("[WinDrop] HTTP upload failed, attempting WebSocket/Chunked tunnel fallback:", httpErr);
+      // 2. Secondary Fallback: Live WebSocket / Chunked Tunnel
       try {
-        hashTxt.textContent = "Canlı WebSocket tüneli üzerinden aktarılıyor...";
+        hashTxt.textContent = "Canlı tünel üzerinden aktarılıyor...";
         await uploadViaWebSocket(file, (pct) => {
           bar.style.width = pct + "%";
+          statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
         });
         bar.style.width = "100%";
-        speedTxt.textContent = "Tamamlandı (WebSocket)";
+        speedTxt.textContent = "Tamamlandı (Tünel)";
         hashTxt.textContent = "✅ Kayıpsız Aktarıldı (PC Masaüstünde)";
         showDesktopToast(`✅ ${safeName} ulaştı!`);
         fileUploaded = true;
       } catch (wsErr) {
+        if (window._uploadCancelled) break;
         console.error("[WinDrop] All upload channels failed:", wsErr);
         speedTxt.textContent = "Hata";
         hashTxt.textContent = "❌ Aktarım reddedildi";
@@ -3434,8 +3455,10 @@ async function uploadFiles(fileList) {
     haptic();
   }
 
-  if (successfulUploads > 0) {
-    statusTxt.textContent = `🎉 ${successfulUploads} dosya masaüstüne ulaştı!`;
+  if (window._uploadCancelled) {
+    statusTxt.textContent = `⛔ Aktarım İptal Edildi`;
+  } else if (successfulUploads > 0) {
+    statusTxt.textContent = `🎉 ${successfulUploads}/${fileList.length} dosya masaüstüne ulaştı!`;
   } else {
     statusTxt.textContent = `❌ Aktarım başarısız oldu`;
   }
@@ -3505,38 +3528,6 @@ async function copyClipBoxToPhone() {
   }
 }
 
-async function pasteFromPhoneToClipBox() {
-  haptic('medium');
-  const el = document.getElementById("clipBox");
-  if (!el) return;
-  if (navigator.clipboard && navigator.clipboard.readText) {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        el.value = text;
-        updateClipCharCount();
-        if (typeof showDesktopToast === "function") showDesktopToast("📥 iPhone Panosu Yapıştırıldı!");
-      } else {
-        if (typeof showDesktopToast === "function") showDesktopToast("⚠️ iPhone panosu boş");
-      }
-    } catch(e) {
-      if (typeof showDesktopToast === "function") showDesktopToast("⚠️ Panoyu yapıştırmak için kutuyu basılı tutun");
-    }
-  } else {
-    el.focus();
-  }
-}
-
-function clearClipBox() {
-  haptic('heavy');
-  const el = document.getElementById("clipBox");
-  if (el) {
-    el.value = "";
-    updateClipCharCount();
-    if (typeof showDesktopToast === "function") showDesktopToast("🧹 Pano Temizlendi");
-  }
-}
-
 function insertClipSnippet(snippet) {
   haptic('light');
   const el = document.getElementById("clipBox");
@@ -3546,12 +3537,14 @@ function insertClipSnippet(snippet) {
   updateClipCharCount();
 }
 
-try {
-  const savedTab = safeStorageGet('windrop_active_tab');
-  if (savedTab && ['radar', 'clipboard', 'files'].includes(savedTab)) {
-    switchMainTab(savedTab);
-  }
-} catch(e) {}
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const savedTab = safeStorageGet('windrop_active_tab');
+    if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
+      switchMainTab(savedTab);
+    }
+  } catch(e) {}
+});
 
 
 // --- iOS / VisionOS Toast & Helper Functions ---
@@ -4057,6 +4050,32 @@ class RemoteTouchGestureEngine {
     };
   }
 
+  _showLongPressRing(clientX, clientY) {
+    let ring = document.getElementById('remoteLongPressRing');
+    if (!ring) {
+      ring = document.createElement('div');
+      ring.id = 'remoteLongPressRing';
+      ring.style.cssText = 'position:fixed; width:48px; height:48px; border-radius:50%; border:2.5px solid #0A84FF; background:rgba(10,132,255,0.18); box-shadow:0 0 14px rgba(10,132,255,0.55); pointer-events:none; z-index:2147483646; transform:translate(-50%,-50%) scale(0.45); opacity:0; transition:transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.15s ease;';
+      document.body.appendChild(ring);
+    }
+    ring.style.left = clientX + 'px';
+    ring.style.top = clientY + 'px';
+    ring.style.transition = 'none';
+    ring.style.transform = 'translate(-50%,-50%) scale(0.45)';
+    ring.style.opacity = '0.95';
+    void ring.offsetWidth;
+    ring.style.transition = 'transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.15s ease';
+    ring.style.transform = 'translate(-50%,-50%) scale(1.05)';
+  }
+
+  _hideLongPressRing() {
+    const ring = document.getElementById('remoteLongPressRing');
+    if (ring) {
+      ring.style.opacity = '0';
+      ring.style.transform = 'translate(-50%,-50%) scale(0.45)';
+    }
+  }
+
   _onTouchStart(e) {
     e.preventDefault();
     if (typeof resetFabDimTimer === 'function') resetFabDimTimer();
@@ -4076,7 +4095,9 @@ class RemoteTouchGestureEngine {
       if (this.options.mode === 'direct') {
         const coords = this._mapClientToRemote(t.clientX, t.clientY);
         clearTimeout(this.longPressTimer);
+        this._showLongPressRing(t.clientX, t.clientY);
         this.longPressTimer = setTimeout(() => {
+          this._hideLongPressRing();
           if (!this.isDragging && e.touches.length === 1 && !this.isPinching) {
             this.longPressFired = true;
             this._emit({ action: 'touch_click', button: 'right', x_pct: coords.x_pct, y_pct: coords.y_pct });
@@ -4086,6 +4107,7 @@ class RemoteTouchGestureEngine {
       }
     } else if (touches.length === 2) {
       clearTimeout(this.longPressTimer);
+      this._hideLongPressRing();
       this.isDragging = false;
       this.isPinching = true;
       const t1 = touches[0];
@@ -4115,6 +4137,7 @@ class RemoteTouchGestureEngine {
 
       if (dist > this.options.tapSlopPx) {
         clearTimeout(this.longPressTimer);
+        this._hideLongPressRing();
       }
 
       if (this.options.mode === 'direct') {
@@ -4124,7 +4147,20 @@ class RemoteTouchGestureEngine {
           this._emit({ action: 'mouse_down', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
         }
         if (this.isDragging) {
-          this._emit({ action: 'mouse_move', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          this._pendingMoveCoords = coords;
+          const now = performance.now();
+          if (!this._moveRafId && (now - (this._lastMoveEmitTime || 0) >= 16)) {
+            this._lastMoveEmitTime = now;
+            this._emit({ action: 'mouse_move', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          } else if (!this._moveRafId) {
+            this._moveRafId = requestAnimationFrame(() => {
+              this._moveRafId = null;
+              if (this.isDragging && this._pendingMoveCoords) {
+                this._lastMoveEmitTime = performance.now();
+                this._emit({ action: 'mouse_move', x_pct: this._pendingMoveCoords.x_pct, y_pct: this._pendingMoveCoords.y_pct });
+              }
+            });
+          }
         }
       } else {
         // Trackpad mode relative delta
@@ -4142,13 +4178,16 @@ class RemoteTouchGestureEngine {
         this.trackpadAccum.x += rawDx * moveScale;
         this.trackpadAccum.y += rawDy * moveScale;
 
-        const stepX = Math.trunc(this.trackpadAccum.x);
-        const stepY = Math.trunc(this.trackpadAccum.y);
+        if (now - (this._lastMoveEmitTime || 0) >= 16) {
+          const stepX = Math.trunc(this.trackpadAccum.x);
+          const stepY = Math.trunc(this.trackpadAccum.y);
 
-        if (stepX !== 0 || stepY !== 0) {
-          this.trackpadAccum.x -= stepX;
-          this.trackpadAccum.y -= stepY;
-          this._emit({ action: 'mouse_delta', dx: stepX, dy: stepY });
+          if (stepX !== 0 || stepY !== 0) {
+            this.trackpadAccum.x -= stepX;
+            this.trackpadAccum.y -= stepY;
+            this._lastMoveEmitTime = now;
+            this._emit({ action: 'mouse_delta', dx: stepX, dy: stepY });
+          }
         }
       }
     } else if (touches.length === 2) {
@@ -4190,8 +4229,8 @@ class RemoteTouchGestureEngine {
         }
       }
 
-      // If at 1.0x in Trackpad mode without pinching: 2-finger wheel scroll
-      if (this.scale <= 1.05 && this.options.mode === 'trackpad') {
+      // Two-finger wheel scroll in BOTH direct and trackpad modes when not zoomed/pinching
+      if (this.scale <= 1.05 && distDelta <= 12) {
         const deltaX = midX - this.lastMidpoint.x;
         const deltaY = midY - this.lastMidpoint.y;
         this.lastMidpoint = { x: midX, y: midY };
@@ -4210,6 +4249,11 @@ class RemoteTouchGestureEngine {
   _onTouchEnd(e) {
     e.preventDefault();
     clearTimeout(this.longPressTimer);
+    this._hideLongPressRing();
+    if (this._moveRafId) {
+      cancelAnimationFrame(this._moveRafId);
+      this._moveRafId = null;
+    }
     const now = performance.now();
     this.lastTouchEndTime = now;
 
@@ -4238,14 +4282,20 @@ class RemoteTouchGestureEngine {
       if (totalMovement <= this.options.tapSlopPx && pressDuration < 380) {
         haptic('light');
         const coords = this._mapClientToRemote(t.clientX, t.clientY);
-        this.lastTapTime = now;
-        this.lastTapPos = { x: t.clientX, y: t.clientY };
+        const isDoubleTap = (now - this.lastTapTime < this.options.doubleTapDelayMs) &&
+                            (Math.hypot(t.clientX - this.lastTapPos.x, t.clientY - this.lastTapPos.y) <= 24);
 
-        // Clean single tap dispatch without double-click or zoom distortion
-        if (this.options.mode === 'trackpad') {
-          this._emit({ action: 'touch_click', button: 'left' });
+        if (isDoubleTap) {
+          this.lastTapTime = 0;
+          this._emit({ action: 'double_click', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
         } else {
-          this._emit({ action: 'touch_click', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          this.lastTapTime = now;
+          this.lastTapPos = { x: t.clientX, y: t.clientY };
+          if (this.options.mode === 'trackpad') {
+            this._emit({ action: 'touch_click', button: 'left' });
+          } else {
+            this._emit({ action: 'touch_click', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          }
         }
       }
     } else if (e.touches.length === 0 && e.changedTouches.length === 2) {
@@ -4260,6 +4310,11 @@ class RemoteTouchGestureEngine {
   _onTouchCancel(e) {
     if (e && e.cancelable) e.preventDefault();
     clearTimeout(this.longPressTimer);
+    this._hideLongPressRing();
+    if (this._moveRafId) {
+      cancelAnimationFrame(this._moveRafId);
+      this._moveRafId = null;
+    }
     this.longPressFired = false;
     this.isPinching = false;
     if (this.isDragging) {
@@ -4503,6 +4558,29 @@ function sendRemoteAction(action) {
   }
 }
 
+window._activeMonIdx = 0;
+window._totalMonitors = 2;
+window.cycleRemoteMonitor = async function() {
+  haptic('medium');
+  try {
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+    const res = await fetchWithTimeout(base + "/api/remote/status", 1500);
+    if (res && res.ok) {
+      const st = await res.json();
+      if (st && typeof st.monitor_count === 'number' && st.monitor_count > 0) {
+        window._totalMonitors = st.monitor_count;
+      } else if (st && Array.isArray(st.monitors) && st.monitors.length > 0) {
+        window._totalMonitors = st.monitors.length;
+      }
+    }
+  } catch (e) {}
+  window._activeMonIdx = ((window._activeMonIdx || 0) + 1) % (window._totalMonitors || 2);
+  sendRemoteAction({ action: 'set_monitor', index: window._activeMonIdx });
+  const msg = "🖥️ Monitör " + (window._activeMonIdx + 1) + " aktif";
+  showRemoteToast(msg);
+  if (typeof showDesktopToast === 'function') showDesktopToast(msg);
+};
+
 // Attach Enter submit on remoteTextInput and VisualViewport keyboard tracking
 document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('remoteTextInput');
@@ -4520,7 +4598,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleViewportChange = () => {
       const drawer = document.getElementById('remoteKeyboardDrawer');
       if (drawer && drawer.classList.contains('is-open')) {
-        const offset = window.innerHeight - window.visualViewport.height;
+        const offset = window.innerHeight - window.visualViewport.height - (window.visualViewport.offsetTop || 0);
         drawer.style.bottom = Math.max(0, offset) + 'px';
       }
     };
@@ -4945,12 +5023,13 @@ async function connectWomicDirect(isManual = false) {
   const targetBase = isHttpsDomain ? `https://${host.split(':')[0]}` : `http://${host}`;
 
   // If opened from an https:// host (e.g. GitHub Pages WebClip) and targeting a local HTTP PC IP,
-  // iOS WebKit blocks mixed-content fetch() calls. Redirect directly to the PC's HTTP server!
-  if (window.location.protocol === "https:" && targetProto === "http") {
-    if (isManual) {
-      showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
-    }
+  // iOS WebKit blocks mixed-content fetch() calls. Redirect directly to the PC's HTTP server ONLY on manual connect!
+  if (isManual && window.location.protocol === "https:" && targetProto === "http") {
+    showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
     window.location.href = `${targetBase}/`;
+    return;
+  }
+  if (!isManual && window.location.protocol === "https:" && targetProto === "http") {
     return;
   }
 
