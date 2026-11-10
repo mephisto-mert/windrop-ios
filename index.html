@@ -3434,9 +3434,19 @@ async function autoDiscoverPCPeer(force = false) {
   isDiscovering = true;
   lastDiscoveryTime = now;
 
-  const probeHostWithAbort = (host, timeoutMs, sharedCtrl) => {
-    const timer = setTimeout(() => sharedCtrl.abort(), timeoutMs);
-    return fetch("http://" + host + "/api/ping", { signal: sharedCtrl.signal, cache: "no-store" })
+  const activeControllers = [];
+  const abortAllProbes = () => {
+    while (activeControllers.length) {
+      const c = activeControllers.pop();
+      try { c.abort(); } catch (e) {}
+    }
+  };
+
+  const probeHostFast = (host, timeoutMs) => {
+    const ctrl = new AbortController();
+    activeControllers.push(ctrl);
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, timeoutMs);
+    return fetch("http://" + host + "/api/ping", { signal: ctrl.signal, cache: "no-store" })
       .then(async res => {
         if (res.ok) {
           const data = await res.json();
@@ -3462,12 +3472,12 @@ async function autoDiscoverPCPeer(force = false) {
       sub.style.color = "#FF9F0A";
     }
 
-    // 1. Concurrent probe of high-probability candidate targets
+    // 1. Concurrent probe of high-probability candidate targets (zero 777-socket subnet flood on iOS WebKit)
     const candidates = [];
     const saved = safeStorageGet("windrop_custom_pc_ip");
     if (saved) candidates.push(saved);
     if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-      candidates.push(location.hostname + ":8765");
+      candidates.push(location.hostname + ":" + (location.port || "8765"));
     }
     candidates.push("windrop.local:8765");
     candidates.push("192.168.1.158:8765");
@@ -3478,74 +3488,27 @@ async function autoDiscoverPCPeer(force = false) {
     candidates.push("192.168.1.1:8765");
 
     const tested = new Set();
-    const candCtrl = new AbortController();
     const candidatePromises = candidates.filter(h => h && !tested.has(h)).map(host => {
       tested.add(host);
-      return probeHostWithAbort(host, 400, candCtrl);
+      return probeHostFast(host, 650);
     });
 
     try {
       const winner = await Promise.any(candidatePromises);
-      candCtrl.abort();
+      abortAllProbes();
       if (winner && winner.host) {
         applyDiscoveredPC(winner.host, winner.data);
         return true;
       }
     } catch(e) {
-      candCtrl.abort();
+      abortAllProbes();
     }
 
-    // 1.5. Fast Cloud Tunnel (WAN / Work Wi-Fi / 4.5G) Failover before slow subnet sweep
+    // 2. Cloud Tunnel (WAN / Work Wi-Fi / 4.5G) Failover
     try {
       const cloudOk = await connectCloudTunnelAuto(false);
       if (cloudOk) return true;
     } catch (e) {}
-
-    // 2. Subnet sweeps with chunking (skip on HTTPS to prevent mixed-content floods)
-    if (window.location.protocol === "https:") return false;
-
-    let baseSubnet = "192.168.1.";
-    if (saved && saved.includes(".")) {
-      const parts = saved.split(":")[0].split(".");
-      if (parts.length === 4) {
-        baseSubnet = parts[0] + "." + parts[1] + "." + parts[2] + ".";
-      }
-    }
-
-    const subnetsToSweep = [baseSubnet];
-    ["192.168.1.", "192.168.0.", "172.20.10.", "192.168.137."].forEach(s => {
-      if (!subnetsToSweep.includes(s)) subnetsToSweep.push(s);
-    });
-
-    for (const snet of subnetsToSweep) {
-      const maxIp = (snet === "172.20.10.") ? 15 : 254;
-      const ipBatch = [];
-      for (let i = 1; i <= maxIp; i++) {
-        const host = snet + i + ":8765";
-        if (!tested.has(host)) {
-          tested.add(host);
-          ipBatch.push(host);
-        }
-      }
-
-      const CHUNK_SIZE = 30;
-      for (let c = 0; c < ipBatch.length; c += CHUNK_SIZE) {
-        const chunk = ipBatch.slice(c, c + CHUNK_SIZE);
-        const chunkCtrl = new AbortController();
-        const probePromises = chunk.map(h => probeHostWithAbort(h, 450, chunkCtrl));
-
-        try {
-          const winner = await Promise.any(probePromises);
-          chunkCtrl.abort();
-          if (winner && winner.host) {
-            applyDiscoveredPC(winner.host, winner.data);
-            return true;
-          }
-        } catch (err) {
-          chunkCtrl.abort();
-        }
-      }
-    }
 
     const badgeText = document.getElementById("connBadgeText");
     if (badgeText && !badgeText.textContent.includes("🟢")) {
@@ -4165,7 +4128,8 @@ class RemoteScreenRenderer {
       mode: 'contain',
       enableStats: true,
       onFpsUpdate: null,
-      onResolutionChange: null
+      onResolutionChange: null,
+      onFrameConsumed: null
     }, options);
 
     this.sourceWidth = 1920;
@@ -4173,6 +4137,8 @@ class RemoteScreenRenderer {
     this.canvas.width = this.sourceWidth;
     this.canvas.height = this.sourceHeight;
     this.isRendering = false;
+    this.isDecoding = false;
+    this._queuedItem = null;
     this.pendingFrame = null;
     this.rafId = null;
 
@@ -4180,92 +4146,100 @@ class RemoteScreenRenderer {
     this.lastFpsTimestamp = performance.now();
     this.currentFps = 0;
 
-    this.ctx = null;
+    // Force 2D context universally (iOS Safari WebKit leaks Metal IOSurface buffers with bitmaprenderer)
     this.isBitmapRenderer = false;
-    try {
-      this.ctx = this.canvas.getContext('bitmaprenderer', { alpha: false });
-      if (this.ctx && typeof this.ctx.transferFromImageBitmap === 'function') {
-        this.isBitmapRenderer = true;
-      }
-    } catch (e) {}
-
-    if (!this.ctx) {
-      this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
-      this.isBitmapRenderer = false;
-    }
+    this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true }) || this.canvas.getContext('2d');
   }
 
   setSourceResolution(width, height) {
-    if (this.sourceWidth === width && this.sourceHeight === height) return;
-    this.sourceWidth = width;
-    this.sourceHeight = height;
-    this.canvas.width = width;
-    this.canvas.height = height;
-    if (this.options.onResolutionChange) {
-      this.options.onResolutionChange(width, height);
+    const safeW = Math.max(1, width | 0);
+    const safeH = Math.max(1, height | 0);
+    const maxBackingW = 1920;
+    const backingW = safeW > maxBackingW ? maxBackingW : safeW;
+    const backingH = safeW > maxBackingW ? Math.max(1, Math.round(safeH * (maxBackingW / safeW))) : safeH;
+    const changed = (this.sourceWidth !== safeW || this.sourceHeight !== safeH);
+    this.sourceWidth = safeW;
+    this.sourceHeight = safeH;
+    if (this.canvas.width !== backingW || this.canvas.height !== backingH) {
+      this.canvas.width = backingW;
+      this.canvas.height = backingH;
+    }
+    if (changed && this.options.onResolutionChange) {
+      this.options.onResolutionChange(safeW, safeH);
     }
   }
 
-  pushFrame(frameData) {
-    if (!frameData) return;
-    // Latest-Frame-Only Pipeline: if GPU is currently decoding, overwrite _queuedFrame so stale frames are dropped immediately
-    if (this.isDecoding) {
-      this._queuedFrame = frameData;
+  pushFrame(frameData, needsAck = false) {
+    if (!frameData) {
+      if (needsAck && this.options.onFrameConsumed) {
+        try { this.options.onFrameConsumed(); } catch (e) {}
+      }
       return;
     }
-    this._decodeAndDraw(frameData);
+    // Latest-Frame-Only Pipeline: drop & ACK superseded queued frame immediately so memory never grows
+    if (this.isDecoding) {
+      if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
+        try { this.options.onFrameConsumed(); } catch (e) {}
+      }
+      this._queuedItem = { data: frameData, needsAck: Boolean(needsAck) };
+      return;
+    }
+    this._decodeAndDraw(frameData, Boolean(needsAck));
   }
 
-  _decodeAndDraw(frameData) {
+  _decodeAndDraw(frameData, needsAck = false) {
     this.isDecoding = true;
     const sourceBlob = (frameData instanceof ArrayBuffer)
       ? new Blob([frameData], { type: 'image/jpeg' })
       : frameData;
 
     createImageBitmap(sourceBlob).then((bmp) => {
-      this.isDecoding = false;
       if (bmp) {
-        if (bmp.width !== this.sourceWidth || bmp.height !== this.sourceHeight) {
-          this.setSourceResolution(bmp.width, bmp.height);
-        }
-
-        if (this.isBitmapRenderer) {
-          this.ctx.transferFromImageBitmap(bmp);
-        } else {
-          this.ctx.imageSmoothingEnabled = true;
-          this.ctx.imageSmoothingQuality = 'high';
-          this.ctx.drawImage(bmp, 0, 0, this.canvas.width, this.canvas.height);
-          if (typeof bmp.close === 'function') bmp.close();
-        }
-
-        this.frameCount++;
-        const now = performance.now();
-        const elapsed = now - this.lastFpsTimestamp;
-        if (elapsed >= 1000) {
-          this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
-          this.frameCount = 0;
-          this.lastFpsTimestamp = now;
-          if (this.options.onFpsUpdate) {
-            this.options.onFpsUpdate(this.currentFps);
+        try {
+          if (bmp.width !== this.sourceWidth || bmp.height !== this.sourceHeight) {
+            this.setSourceResolution(bmp.width, bmp.height);
+          }
+          if (this.ctx) {
+            this.ctx.imageSmoothingEnabled = true;
+            this.ctx.imageSmoothingQuality = 'medium';
+            this.ctx.drawImage(bmp, 0, 0, this.canvas.width, this.canvas.height);
+          }
+          this.frameCount++;
+          const now = performance.now();
+          const elapsed = now - this.lastFpsTimestamp;
+          if (elapsed >= 1000) {
+            this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
+            this.frameCount = 0;
+            this.lastFpsTimestamp = now;
+            if (this.options.onFpsUpdate) {
+              this.options.onFpsUpdate(this.currentFps);
+            }
+          }
+        } finally {
+          if (typeof bmp.close === 'function') {
+            try { bmp.close(); } catch (e) {}
           }
         }
       }
-      if (this._queuedFrame) {
-        const next = this._queuedFrame;
-        this._queuedFrame = null;
-        this._decodeAndDraw(next);
-      }
-    }).catch(() => {
+    }).catch(() => {}).finally(() => {
       this.isDecoding = false;
-      if (this._queuedFrame) {
-        const next = this._queuedFrame;
-        this._queuedFrame = null;
-        this._decodeAndDraw(next);
+      if (needsAck && this.options.onFrameConsumed) {
+        try { this.options.onFrameConsumed(); } catch (e) {}
+      }
+      if (this._queuedItem) {
+        const next = this._queuedItem;
+        this._queuedItem = null;
+        this._decodeAndDraw(next.data, next.needsAck);
       }
     });
   }
 
+  clearQueue() {
+    this._queuedItem = null;
+  }
+
   destroy() {
+    this._queuedItem = null;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     if (this.pendingFrame && typeof this.pendingFrame.close === 'function') {
       this.pendingFrame.close();
@@ -4846,6 +4820,11 @@ function startRemoteStream() {
           remoteGestureEngine.options.sourceWidth = w;
           remoteGestureEngine.options.sourceHeight = h;
         }
+      },
+      onFrameConsumed: () => {
+        if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
+          try { remoteWS.send("a"); } catch (e) {}
+        }
       }
     });
     window.remoteRenderer = remoteRenderer;
@@ -4886,6 +4865,9 @@ function stopRemoteStream() {
   if (remotePingInterval) {
     clearInterval(remotePingInterval);
     remotePingInterval = null;
+  }
+  if (remoteRenderer && typeof remoteRenderer.clearQueue === 'function') {
+    remoteRenderer.clearQueue();
   }
   if (remoteWS) {
     try {
@@ -4939,11 +4921,10 @@ function connectRemoteWebSocket() {
 
     remoteWS.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
-        if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
-          try { remoteWS.send("a"); } catch (e) {}
-        }
         if (remoteRenderer) {
-          remoteRenderer.pushFrame(event.data);
+          remoteRenderer.pushFrame(event.data, true);
+        } else if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
+          try { remoteWS.send("a"); } catch (e) {}
         }
       } else if (typeof event.data === 'string') {
         try {
@@ -5635,31 +5616,14 @@ async function connectWomicDirect(isManual = false) {
   const targetProto = isHttpsDomain ? "https" : "http";
   const targetBase = isHttpsDomain ? `https://${ip}` : `http://${host}`;
 
-  // If opened from an https:// host (e.g. GitHub Pages WebClip) and targeting a local HTTP PC IP:
-  // On manual click, switch to direct HTTP LAN if reachable, or fallback to Cloud Tunnel!
+  // If opened from an https:// host (GitHub Pages / Cloudflare WebClip) and targeting a local HTTP PC IP:
+  // NEVER redirect window.location.href to http://192.168.x.x (breaks iOS FullScreen WebClip & triggers Safari HTTPS-Only socket failure).
   if (window.location.protocol === "https:" && targetProto === "http") {
-    if (!isManual) {
-      await connectCloudTunnelAuto(false);
-      return;
+    const cloudOk = await connectCloudTunnelAuto(Boolean(isManual));
+    if (!cloudOk && isManual) {
+      showDesktopToast("⚠️ Güvenli bulut tüneli yanıt vermedi — PC'de WinDrop açık mı?");
     }
-    // Check if local LAN PC is reachable on current Wi-Fi via passive Image probe (800ms)
-    const lanReachable = await new Promise((resolve) => {
-      const img = new Image();
-      const t = setTimeout(() => { img.src = ""; resolve(false); }, 850);
-      img.onload = () => { clearTimeout(t); resolve(true); };
-      img.onerror = () => { clearTimeout(t); resolve(false); };
-      img.src = `${targetBase}/icon-180.png?t=${Date.now()}`;
-    });
-    if (lanReachable) {
-      showDesktopToast("⚡ Ev Wi-Fi Algılandı — Doğrudan PC'ye Geçiliyor (" + host + ")...");
-      window.location.href = `${targetBase}/`;
-      return;
-    } else {
-      const cloudOk = await connectCloudTunnelAuto(true);
-      if (cloudOk) return;
-      showDesktopToast("⚠️ Ev Wi-Fi'da değilsiniz ve uzaktan tünel bulunamadı!");
-      return;
-    }
+    return;
   }
 
   // Try the requested port first, then fallback ports (8765, 53843, 9000) automatically
