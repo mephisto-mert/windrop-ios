@@ -180,7 +180,11 @@ function sendRemoteKeyCombo(comboKey) {
     'alt_tab': { action: 'hotkey', combo: 'alt+tab' },
     'win_d': { action: 'hotkey', combo: 'win+d' },
     'win_l': { action: 'hotkey', combo: 'win+l' },
-    'f11': { action: 'hotkey', combo: 'f11' }
+    'f11': { action: 'hotkey', combo: 'f11' },
+    'left': { action: 'key_press', key: 'left' },
+    'right': { action: 'key_press', key: 'right' },
+    'up': { action: 'key_press', key: 'up' },
+    'down': { action: 'key_press', key: 'down' }
   };
   const act = actionMap[comboKey] || { action: 'key_press', key: comboKey };
   sendRemoteAction(act);
@@ -191,7 +195,14 @@ function sendRemoteKeyCombo(comboKey) {
 let remoteAspectMode = 'fit';
 window.remoteForceLandscape = false;
 window.remoteStreamProfile = 'ultra';
+window._userSelectedQuality = false;
 let _fabDimTimeout = null;
+
+function autoSelectOptimalStreamProfile(isTunnelConn) {
+  if (window._userSelectedQuality) return;
+  const target = isTunnelConn ? 'balanced' : 'ultra';
+  syncQualityUI(target);
+}
 
 function syncQualityUI(profile) {
   const norm = (profile === 'fast' || profile === 'ultra') ? profile : 'balanced';
@@ -230,7 +241,10 @@ function syncQualityUI(profile) {
 }
 
 function setRemoteStreamQuality(profile, silent = false) {
-  if (!silent) haptic('light');
+  if (!silent) {
+    window._userSelectedQuality = true;
+    haptic('light');
+  }
   const norm = (profile === 'fast' || profile === 'ultra') ? profile : 'balanced';
   syncQualityUI(norm);
   if (typeof sendRemoteAction === 'function') {
@@ -2515,9 +2529,10 @@ body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
       <span class="tabbar-icon">📋</span>
       <span>Pano</span>
     </button>
-    <button class="tabbar-item" onclick="switchMainTab('files', this)">
+    <button class="tabbar-item" style="position:relative;" onclick="switchMainTab('files', this)">
       <span class="tabbar-icon">📥</span>
       <span>Gelenler</span>
+      <span id="filesTabBadge" style="display:none; position:absolute; top:2px; right:20%; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#FF453A; color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; box-shadow:0 2px 6px rgba(255,69,58,0.55); pointer-events:none;">0</span>
     </button>
   </nav>
 
@@ -3162,6 +3177,12 @@ function openIncomingFileById(fileId) {
 
 function renderIncoming(files) {
   window.currentOutgoingFiles = files || [];
+  const tabBadge = document.getElementById("filesTabBadge");
+  if (tabBadge) {
+    const count = (files && files.length) ? files.length : 0;
+    tabBadge.textContent = count > 99 ? "99+" : String(count);
+    tabBadge.style.display = count > 0 ? "inline-block" : "none";
+  }
   const container = document.getElementById("incomingList");
   const galleryGrid = document.getElementById("liveGalleryGrid");
   if (!container) return;
@@ -3538,8 +3559,10 @@ function applyDiscoveredPC(host, data) {
   const finalHost = isTunnel ? cleanRaw.split(":")[0] : cleanRaw;
   API_BASE = (isTunnel ? "https://" : "http://") + finalHost;
   window.API_BASE = API_BASE;
-  if (typeof syncQualityUI === "function") {
-    syncQualityUI("ultra");
+  if (typeof autoSelectOptimalStreamProfile === "function") {
+    autoSelectOptimalStreamProfile(isTunnel);
+  } else if (typeof syncQualityUI === "function") {
+    syncQualityUI(isTunnel ? "balanced" : "ultra");
   }
   if (isTunnel) {
     safeStorageSet("windrop_last_tunnel_url", API_BASE);
@@ -3708,6 +3731,34 @@ async function uploadViaWebSocket(file, onProgress) {
     reader.readAsDataURL(file);
   });
 }
+
+// Direct Clipboard Image / Media Paste AirDrop Upload
+window.addEventListener("paste", (ev) => {
+  try {
+    const tag = (ev.target && ev.target.tagName) ? ev.target.tagName.toUpperCase() : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || (ev.target && ev.target.isContentEditable)) return;
+    const items = ev.clipboardData && ev.clipboardData.items;
+    if (!items || !items.length) return;
+    const pastedFiles = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const rawFile = items[i].getAsFile();
+        if (rawFile) {
+          const ext = (rawFile.type && rawFile.type.includes("/")) ? rawFile.type.split("/")[1].split("+")[0] : "png";
+          const named = (rawFile.name && rawFile.name !== "image.png")
+            ? rawFile
+            : new File([rawFile], `Pano_Medya_${Date.now()}_${i + 1}.${ext}`, { type: rawFile.type || "image/png" });
+          pastedFiles.push(named);
+        }
+      }
+    }
+    if (pastedFiles.length > 0) {
+      ev.preventDefault();
+      showDesktopToast("📋 Panodan " + pastedFiles.length + " Dosya Aktarılıyor...");
+      uploadFiles(pastedFiles);
+    }
+  } catch (err) {}
+});
 
 async function uploadFiles(fileList) {
   if (!fileList || !fileList.length) return;
@@ -3996,20 +4047,31 @@ try {
       </div>
 
       <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <input id="remoteTextInput" type="text" placeholder="PC'ye yazılacak metin..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.22); border-radius:12px; padding:10px 14px; font-size:16px; color:#fff; outline:none; -webkit-user-select:text; user-select:text;">
+        <input id="remoteTextInput" type="text" placeholder="PC'ye yazılacak metin..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();sendRemoteTypedText();}" style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.22); border-radius:12px; padding:10px 14px; font-size:16px; color:#fff; outline:none; -webkit-user-select:text; user-select:text;">
         <button onclick="sendRemoteTypedText()" style="background:#0A84FF; border:none; border-radius:12px; padding:0 18px; color:#fff; font-weight:700; font-size:14px; cursor:pointer;">
           Gönder ↵
         </button>
       </div>
 
       <!-- Quick Action Keys -->
-      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
         <button class="action-btn" style="flex:1; min-width:52px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('enter')">↵ Enter</button>
         <button class="action-btn" style="flex:1; min-width:52px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('backspace')">⌫ Sil</button>
         <button class="action-btn" style="flex:1; min-width:44px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('tab')">Tab</button>
         <button class="action-btn" style="flex:1; min-width:44px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('escape')">Esc</button>
         <button class="action-btn" style="flex:1; min-width:50px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('space')">Boşluk</button>
         <button class="action-btn" style="flex:1; min-width:54px; padding:8px 4px; font-size:12px; border-radius:10px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_v')">Ctrl+V</button>
+      </div>
+      <!-- Pro PC Shortcuts & Arrow Keys -->
+      <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_a')">Ctrl+A</button>
+        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_c')">Ctrl+C</button>
+        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#FFD60A;" onclick="sendRemoteKeyCombo('ctrl_z')">Ctrl+Z</button>
+        <button class="action-btn" style="flex:1; min-width:48px; padding:7px 3px; font-size:11px; border-radius:9px; color:#30D158;" onclick="sendRemoteKeyCombo('alt_tab')">Alt+Tab</button>
+        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('left')">◀</button>
+        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('up')">▲</button>
+        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('down')">▼</button>
+        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('right')">▶</button>
       </div>
     </div>
 
@@ -5636,7 +5698,7 @@ document.addEventListener("DOMContentLoaded", () => {
     safeStorageSet("windrop_last_tunnel_url", location.origin);
     API_BASE = location.origin;
     window.API_BASE = API_BASE;
-    if (typeof syncQualityUI === "function") syncQualityUI("ultra");
+    if (typeof autoSelectOptimalStreamProfile === "function") autoSelectOptimalStreamProfile(true);
     try {
       const savedTab = safeStorageGet('windrop_active_tab');
       if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
