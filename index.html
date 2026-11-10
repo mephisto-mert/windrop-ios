@@ -2070,14 +2070,14 @@ body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
             🔴 Bağlantı Yok
           </div>
           <div style="display:flex; gap: 5px; align-items:center; flex-shrink: 0;">
-            <button type="button" onclick="connectCloudTunnelAuto(true)" title="Farklı Ağdan / İş Yerinden / 4.5G'den Otomatik Bağlan" style="background: rgba(48,209,88,0.16); border: 1px solid rgba(48,209,88,0.38); color: #30D158; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
-              🌐 Uzaktan
+            <button type="button" onclick="connectCloudTunnelAuto(true)" title="Bulut Tünel ile Uzaktan Bağlan / Yenile" style="background: rgba(48,209,88,0.16); border: 1px solid rgba(48,209,88,0.38); color: #30D158; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+              🌐
             </button>
             <button type="button" onclick="openQRScannerModal()" style="background: rgba(10,132,255,0.16); border: 1px solid rgba(10,132,255,0.35); color: #64D2FF; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
               📷 QR
             </button>
             <button type="button" id="womicDrawerToggleBtn" onclick="toggleWomicDrawer()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #EBEBF5; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
-              ⚙️ IP / USB ▾
+              ⚙️ Ağ ▾
             </button>
           </div>
         </div>
@@ -2555,10 +2555,12 @@ try {
 } catch (e) {}
 const DEFAULT_LAN_HOST = "192.168.1.158:8765";
 const SAVED_HOST = safeStorageGet("windrop_custom_pc_ip") || DEFAULT_LAN_HOST;
-let API_BASE = (location.origin.startsWith("http") && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app"))
+const _isStaticCloudHost = location.hostname.includes("github.io") || location.hostname.includes("vercel.app");
+let API_BASE = (location.origin.startsWith("http") && !_isStaticCloudHost)
   ? location.origin
-  : "http://" + SAVED_HOST;
+  : (location.protocol === "https:" ? (safeStorageGet("windrop_last_tunnel_url") || "") : ("http://" + SAVED_HOST));
 window.API_BASE = API_BASE;
+window._windropBooted = false;
 let activeWS = null;
 
 // High-Performance iOS WebKit Acoustic Haptic Synthesis Engine
@@ -2641,8 +2643,8 @@ function haptic(type = 'light') {
   } catch (e) {}
 }
 
-function switchMainTab(tabId, el) {
-  haptic();
+function switchMainTab(tabId, el, skipNetwork = false) {
+  if (!skipNetwork) haptic();
   try {
     safeStorageSet('windrop_active_tab', tabId);
   } catch(e) {}
@@ -2655,6 +2657,14 @@ function switchMainTab(tabId, el) {
   if (targetPane) targetPane.classList.add('active');
 
   const tabIndex = ['radar', 'remote', 'clipboard', 'files'].indexOf(tabId);
+  const tabbarBtns = document.querySelectorAll('.tabbar-item');
+  if (tabbarBtns[tabIndex]) tabbarBtns[tabIndex].classList.add('active');
+
+  const segmentBtns = document.querySelectorAll('.ios-segment-btn');
+  if (segmentBtns[tabIndex]) segmentBtns[tabIndex].classList.add('active');
+
+  if (skipNetwork) return;
+
   if (tabId === 'remote') {
     if (typeof startRemoteStream === 'function') startRemoteStream();
   } else {
@@ -2665,11 +2675,6 @@ function switchMainTab(tabId, el) {
       toggleRemoteFullscreen();
     }
   }
-  const tabbarBtns = document.querySelectorAll('.tabbar-item');
-  if (tabbarBtns[tabIndex]) tabbarBtns[tabIndex].classList.add('active');
-
-  const segmentBtns = document.querySelectorAll('.ios-segment-btn');
-  if (segmentBtns[tabIndex]) segmentBtns[tabIndex].classList.add('active');
 
   if (tabId === 'clipboard') {
     if (typeof fetchPcClipboard === 'function') {
@@ -3093,6 +3098,7 @@ function declineIncomingAirDrop() {
 }
 
 window._radarWsRetryTimer = null;
+window._radarWsPingTimer = null;
 window._radarWsTargetBase = null;
 
 function initAirDropWebSocket() {
@@ -3101,13 +3107,19 @@ function initAirDropWebSocket() {
       clearTimeout(window._radarWsRetryTimer);
       window._radarWsRetryTimer = null;
     }
-    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : window.location.origin;
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+    if (!base || base.includes("github.io") || base.includes("vercel.app")) return;
+    if (location.protocol === "https:" && base.startsWith("http:")) return;
     if (
       window.activeRadarWS &&
       (window.activeRadarWS.readyState === WebSocket.OPEN || window.activeRadarWS.readyState === WebSocket.CONNECTING) &&
       window._radarWsTargetBase === base
     ) {
       return;
+    }
+    if (window._radarWsPingTimer) {
+      clearInterval(window._radarWsPingTimer);
+      window._radarWsPingTimer = null;
     }
     if (window.activeRadarWS) {
       try {
@@ -3126,8 +3138,12 @@ function initAirDropWebSocket() {
 
     ws.onopen = () => {
       console.log("[WebSocket] Connected to /ws/radar");
-      const badge = document.getElementById("connBadgeText");
-      if (badge) { badge.textContent = "🟢 Bağlı"; document.getElementById("connBadge").style.borderColor = "rgba(48,209,88,0.4)"; document.getElementById("connBadge").style.color = "#30D158"; }
+      if (window._radarWsPingTimer) clearInterval(window._radarWsPingTimer);
+      window._radarWsPingTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try { ws.send('{"action":"ping"}'); } catch (e) {}
+        }
+      }, 25000);
     };
 
     ws.onmessage = (event) => {
@@ -3141,6 +3157,10 @@ function initAirDropWebSocket() {
     };
 
     ws.onclose = () => {
+      if (window._radarWsPingTimer) {
+        clearInterval(window._radarWsPingTimer);
+        window._radarWsPingTimer = null;
+      }
       if (window._radarWsRetryTimer) clearTimeout(window._radarWsRetryTimer);
       window._radarWsRetryTimer = setTimeout(async () => {
         const curBase = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : window.location.origin;
@@ -3148,7 +3168,7 @@ function initAirDropWebSocket() {
           try { await connectCloudTunnelAuto(false); } catch (e) {}
         }
         initAirDropWebSocket();
-      }, 3000);
+      }, 3500);
     };
 
     ws.onerror = () => {
@@ -3156,8 +3176,6 @@ function initAirDropWebSocket() {
     };
   } catch(e) {}
 }
-
-setTimeout(initAirDropWebSocket, 1000);
 
 
 function openIncomingFileById(fileId) {
@@ -3593,7 +3611,7 @@ function applyDiscoveredPC(host, data) {
   const womicBadge = document.getElementById("womicStatusBadge");
   if (womicBadge) {
     womicBadge.textContent = isTunnel
-      ? ("🌐 Uzaktan: " + pcName)
+      ? "🟢 Uzaktan Aktif"
       : ("🟢 Bağlı: " + ((data && data.lan_ip) || finalHost.split(":")[0]) + ":" + ((data && data.port) || 8765));
     womicBadge.style.background = "rgba(48, 209, 88, 0.18)";
     womicBadge.style.color = "#30D158";
@@ -3610,7 +3628,11 @@ function applyDiscoveredPC(host, data) {
 }
 
 async function fetchRadarState(manual = false) {
-  if (!manual && document.hidden) return;
+  if (!manual && (!window._windropBooted || document.hidden)) return;
+  if (!API_BASE || API_BASE.includes("github.io") || API_BASE.includes("vercel.app") || (location.protocol === "https:" && API_BASE.startsWith("http:"))) {
+    autoDiscoverPCPeer();
+    return;
+  }
   try {
     const t0 = performance.now();
     const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2800);
@@ -3638,7 +3660,7 @@ async function fetchRadarState(manual = false) {
     const womicBadge = document.getElementById("womicStatusBadge");
     if (womicBadge) {
       womicBadge.textContent = isTunnel
-        ? ("🌐 Uzaktan Bağlı: " + pcName)
+        ? "🟢 Uzaktan Aktif"
         : ("🟢 Bağlı: " + (data.lan_ip || "PC") + ":" + (data.port || 8765));
       womicBadge.style.background = "rgba(48,209,88,0.18)";
       womicBadge.style.color = "#30D158";
@@ -4024,8 +4046,7 @@ async function openUrlOnPC() {
   }
 }
 
-fetchRadarState();
-setInterval(fetchRadarState, 5000);
+setInterval(() => fetchRadarState(false), 5000);
 try {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
@@ -5432,7 +5453,7 @@ function toggleWomicDrawer(forceState) {
   const nextState = typeof forceState === 'boolean' ? forceState : !isOpen;
   drawer.style.display = nextState ? 'block' : 'none';
   if (btn) {
-    btn.textContent = nextState ? '⚙️ Gizle ▴' : '⚙️ IP / USB ▾';
+    btn.textContent = nextState ? '⚙️ Gizle ▴' : '⚙️ Ağ ▾';
   }
 }
 
@@ -5537,34 +5558,46 @@ async function resolveLiveCloudTunnelUrl() {
   }
 }
 
+let _cloudConnectPromise = null;
+
 async function connectCloudTunnelAuto(isManual = false) {
   if (isManual) haptic('medium');
+  if (_cloudConnectPromise && !isManual) {
+    return _cloudConnectPromise;
+  }
   const badge = document.getElementById('womicStatusBadge');
   if (badge) {
-    badge.textContent = "🌐 Bulut Tünel Aranıyor...";
+    badge.textContent = "🌐 Tünel Aranıyor...";
     badge.style.background = "rgba(10, 132, 255, 0.22)";
     badge.style.color = "#64D2FF";
   }
-  const resolved = await resolveLiveCloudTunnelUrl();
-  if (resolved && resolved.url) {
-    applyDiscoveredPC(resolved.host, resolved.data);
-    toggleWomicDrawer(false);
-    if (isManual) {
-      playSuccessChime();
-      showDesktopToast("🌐 Uzaktan PC'ye Bağlanıldı (" + (resolved.data.pc_name || "Bulut Tünel") + ")!");
+  _cloudConnectPromise = (async () => {
+    try {
+      const resolved = await resolveLiveCloudTunnelUrl();
+      if (resolved && resolved.url) {
+        applyDiscoveredPC(resolved.host, resolved.data);
+        toggleWomicDrawer(false);
+        if (isManual) {
+          playSuccessChime();
+          showDesktopToast("🌐 Uzaktan PC'ye Bağlanıldı (" + (resolved.data.pc_name || "Bulut Tünel") + ")!");
+        }
+        await fetchRadarState(true);
+        return true;
+      }
+      if (isManual) {
+        if (badge) {
+          badge.textContent = "🔴 Tünel Bulunamadı";
+          badge.style.background = "rgba(255, 69, 58, 0.18)";
+          badge.style.color = "#FF453A";
+        }
+        showDesktopToast("⚠️ Uzaktan bulut tüneli yanıt vermedi. PC'de WinDrop açık mı?");
+      }
+      return false;
+    } finally {
+      _cloudConnectPromise = null;
     }
-    fetchRadarState();
-    return true;
-  }
-  if (isManual) {
-    if (badge) {
-      badge.textContent = "🔴 Uzaktan Tünel Bulunamadı";
-      badge.style.background = "rgba(255, 69, 58, 0.18)";
-      badge.style.color = "#FF453A";
-    }
-    showDesktopToast("⚠️ Uzaktan bulut tüneli yanıt vermedi. PC'de WinDrop açık mı?");
-  }
-  return false;
+  })();
+  return _cloudConnectPromise;
 }
 
 async function connectWomicDirect(isManual = false) {
@@ -5694,63 +5727,41 @@ document.addEventListener("DOMContentLoaded", () => {
   } else if (ipInp) {
     ipInp.value = cur;
   }
+
+  // Paint saved tab visually in 0ms without starting pre-load network streams (prevents Safari stuck loading bar!)
+  const savedTab = safeStorageGet('windrop_active_tab');
+  if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
+    try { switchMainTab(savedTab, null, true); } catch (e) {}
+  }
   if (isTunnelLoc) {
     safeStorageSet("windrop_last_tunnel_url", location.origin);
     API_BASE = location.origin;
     window.API_BASE = API_BASE;
     if (typeof autoSelectOptimalStreamProfile === "function") autoSelectOptimalStreamProfile(true);
-    try {
-      const savedTab = safeStorageGet('windrop_active_tab');
-      if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
-        switchMainTab(savedTab);
-      }
-    } catch(e) {}
-    setTimeout(() => fetchRadarState(true), 80);
-    // Zero-Lag Same-Wi-Fi Upgrade & Immortal Host Upgrade:
-    // If phone is on local Wi-Fi -> switch to 2ms Direct LAN; otherwise switch address bar to immortal GitHub Pages so Safari NEVER hits Error 1033 on future tunnel rotations!
-    if (!window.navigator.standalone) {
-      setTimeout(() => {
-        const lanTarget = "http://192.168.1.158:8765";
-        const immortalTarget = "https://mephisto-mert.github.io/windrop-ios/?tunnel=" + encodeURIComponent(location.origin);
-        let settled = false;
-        const switchToImmortal = () => {
-          if (settled) return;
-          settled = true;
-          window.location.replace(immortalTarget);
-        };
-        const probeImg = new Image();
-        const t = setTimeout(() => { probeImg.src = ""; switchToImmortal(); }, 650);
-        probeImg.onload = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(t);
-          window.location.replace(lanTarget + "/");
-        };
-        probeImg.onerror = () => {
-          clearTimeout(t);
-          switchToImmortal();
-        };
-        probeImg.src = lanTarget + "/icon-180.png?t=" + Date.now();
-      }, 150);
-    }
-  } else {
-    try {
-      const savedTab = safeStorageGet('windrop_active_tab');
-      if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab) && window.location.protocol !== "https:") {
-        switchMainTab(savedTab);
-      }
-    } catch(e) {}
-    setTimeout(async () => {
+  }
+
+  // Start all live API & WebSocket connections strictly AFTER window 'load' completes so Safari finishes loading 100% instantly!
+  const bootNetworkAfterLoad = async () => {
+    if (window._windropBooted) return;
+    window._windropBooted = true;
+    const activeTab = safeStorageGet('windrop_active_tab') || 'radar';
+    if (isTunnelLoc) {
+      await fetchRadarState(true);
+      initAirDropWebSocket();
+      if (activeTab === 'remote' && typeof startRemoteStream === 'function') startRemoteStream();
+      else if (activeTab === 'clipboard' && typeof fetchPcClipboard === 'function') fetchPcClipboard(false);
+    } else {
       await connectWomicDirect(false);
-      if (window.location.protocol === "https:") {
-        try {
-          const savedTab = safeStorageGet('windrop_active_tab');
-          if (savedTab && ['radar', 'remote', 'clipboard', 'files'].includes(savedTab)) {
-            switchMainTab(savedTab);
-          }
-        } catch(e) {}
-      }
-    }, 100);
+      initAirDropWebSocket();
+      if (activeTab === 'remote' && typeof startRemoteStream === 'function') startRemoteStream();
+      else if (activeTab === 'clipboard' && typeof fetchPcClipboard === 'function') fetchPcClipboard(false);
+    }
+  };
+
+  if (document.readyState === "complete") {
+    setTimeout(bootNetworkAfterLoad, 40);
+  } else {
+    window.addEventListener("load", () => setTimeout(bootNetworkAfterLoad, 40), { once: true });
   }
 });
 
