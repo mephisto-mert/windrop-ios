@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="WinDrop">
+<link rel="icon" href="data:,">
 <script>
 
 // Safe LocalStorage Wrapper for iOS WKWebView sandboxed / file:// contexts
@@ -121,6 +122,7 @@ function closeRemoteKeyboard() {
   if (input) input.blur();
   if (drawer) {
     drawer.classList.remove('is-open');
+    drawer.style.bottom = '0px';
     drawer.style.transform = 'translateY(115%)';
     drawer.style.pointerEvents = 'none';
     setTimeout(() => {
@@ -170,7 +172,7 @@ function sendRemoteKeyCombo(comboKey) {
 }
 
 
-let remoteAspectMode = 'cover';
+let remoteAspectMode = 'fit';
 let _fabDimTimeout = null;
 
 function resetFabDimTimer() {
@@ -268,13 +270,16 @@ function setRemoteAspectMode(mode) {
   }
 
   syncAspectUI(norm);
+  if (typeof remoteGestureEngine !== 'undefined' && remoteGestureEngine) {
+    remoteGestureEngine.resetTransform();
+  }
 
   const toasts = {
-    'cover': '🖼️ Kenarlıksız (Cover): 19.5:9 Ekrana Tam Yayılma (Siyah barsız)',
-    'fit': '📐 Sığdır (Fit): 16:9 PC Orantılı (OLED Siyah Barlı)',
+    'cover': '🖼️ Kenarlıksız (Cover): 19.5:9 Ekrana Tam Yayılma',
+    'fit': '📐 Sığdır (Fit): 16:9 PC Orantılı Tam Görünüm',
     'stretch': '↔️ Doldur (Fill): Tam Ekran Kenarlıksız Doldur'
   };
-  showRemoteToast(toasts[norm] || toasts['cover']);
+  showRemoteToast(toasts[norm] || toasts['fit']);
 }
 
 function setRemoteAspectFitMode(mode) {
@@ -315,14 +320,16 @@ function toggleAnydeskDrawer(forceOpen) {
     }
 
     const sbFsIcon = document.getElementById('sbFsIcon');
+    const sbFsText = document.getElementById('sbFsText');
     const vp = document.getElementById('remoteViewport');
     const isFs = vp && (vp.classList.contains('is-fullscreen') || document.body.classList.contains('remote-fullscreen'));
-    if (sbFsIcon) sbFsIcon.textContent = isFs ? '✕' : '⛶';
+    if (sbFsIcon) sbFsIcon.textContent = isFs ? '✕' : '⤢';
+    if (sbFsText) sbFsText.textContent = isFs ? 'Küçült' : 'Tam Ekran';
 
-    const isFit = vp && (vp.classList.contains('is-contain') || vp.getAttribute('data-aspect') === 'fit');
-    syncAspectUI(isFit ? 'fit' : 'fill');
+    const currentAspect = (vp && vp.getAttribute('data-aspect')) || remoteAspectMode || 'fit';
+    syncAspectUI(currentAspect);
   } else {
-    sb.style.right = '-320px';
+    sb.style.right = '-350px';
     sb.classList.remove('is-open');
     if (bd) bd.style.display = 'none';
     if (bubble) {
@@ -380,39 +387,57 @@ function toggleRemoteFullscreen() {
       }
     } catch(e) {}
 
-    showRemoteToast('⛶ Tam Ekrandan Çıkıldı');
+    showRemoteToast('⤢ Tam Ekrandan Çıkıldı');
+  }
+
+  if (typeof remoteGestureEngine !== 'undefined' && remoteGestureEngine) {
+    remoteGestureEngine.resetTransform();
   }
 
   const fsBtn = document.getElementById('remoteFsBtn');
-  if (fsBtn) fsBtn.textContent = targetFs ? '✕' : '⛶';
+  if (fsBtn) fsBtn.textContent = targetFs ? '✕' : '⤢';
+  const sbFsIcon = document.getElementById('sbFsIcon');
+  const sbFsText = document.getElementById('sbFsText');
+  if (sbFsIcon) sbFsIcon.textContent = targetFs ? '✕' : '⤢';
+  if (sbFsText) sbFsText.textContent = targetFs ? 'Küçült' : 'Tam Ekran';
 }
 
 
-// 3-Way Aspect Ratio Controller: cover (Zero-Gap) -> fit (16:9 Letterbox) -> stretch (Fill)
+// 3-Way Aspect Ratio Controller: fit (16:9 Letterbox) -> cover (Zero-Gap) -> stretch (Fill)
 function toggleRemoteAspectMode() {
   cycleRemoteAspectMode();
 }
 
 function cycleRemoteAspectMode() {
-  if (remoteAspectMode === 'cover') {
-    setRemoteAspectMode('fit');
-  } else if (remoteAspectMode === 'fit') {
+  if (remoteAspectMode === 'fit') {
+    setRemoteAspectMode('cover');
+  } else if (remoteAspectMode === 'cover') {
     setRemoteAspectMode('stretch');
   } else {
-    setRemoteAspectMode('cover');
+    setRemoteAspectMode('fit');
   }
 }
 
+let _lastOrientationWasLandscape = window.innerWidth > window.innerHeight;
 function checkAutoLandscape() {
+  const activeEl = document.activeElement;
+  if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+  const kbDrawer = document.getElementById('remoteKeyboardDrawer');
+  if (kbDrawer && kbDrawer.classList.contains('is-open')) return;
+
   const isLandscape = window.innerWidth > window.innerHeight;
   const vp = document.getElementById('remoteViewport');
   if (!vp) return;
   const tabRemote = document.getElementById('tab-remote');
-  if (!tabRemote || !tabRemote.classList.contains('active')) return;
+  if (!tabRemote || !tabRemote.classList.contains('active')) {
+    _lastOrientationWasLandscape = isLandscape;
+    return;
+  }
 
-  if (isLandscape && !vp.classList.contains('is-fullscreen')) {
+  if (isLandscape && !_lastOrientationWasLandscape && !vp.classList.contains('is-fullscreen')) {
     toggleRemoteFullscreen();
   }
+  _lastOrientationWasLandscape = isLandscape;
 }
 
 window.addEventListener('resize', checkAutoLandscape);
@@ -1502,6 +1527,9 @@ body.remote-fullscreen #remoteViewport {
   aspect-ratio: auto !important;
   z-index: 2147483640 !important;
   background: #000000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
   overflow: hidden !important;
   touch-action: none !important;
   display: block !important;
@@ -1530,7 +1558,8 @@ body.remote-fullscreen .ios-navbar,
 body.remote-fullscreen .ios-segmented,
 body.remote-fullscreen .ios-tabbar,
 body.remote-fullscreen .aurora-bg,
-body.remote-fullscreen #remoteTopHeader {
+body.remote-fullscreen #remoteTopHeader,
+body.remote-fullscreen #remoteQuickToolbar {
   display: none !important;
 }
 
@@ -1544,7 +1573,21 @@ body.remote-fullscreen .fs-only-controls {
   bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px)) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
+  max-width: calc(100dvw - 20px) !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
   z-index: 2147483641 !important;
+}
+@media (max-width: 430px) {
+  body.remote-fullscreen .fs-only-controls {
+    padding: 5px 10px !important;
+    gap: 4px !important;
+  }
+  body.remote-fullscreen .fs-only-controls button {
+    padding: 4px 5px !important;
+    font-size: 15px !important;
+  }
 }
 
 /* Dynamic Island & Notch Safe Area Alignment for Overlays */
@@ -1561,12 +1604,16 @@ body.remote-fullscreen #remoteFsBtn {
 }
 
 body.remote-fullscreen #remoteModeToast {
-  top: max(14px, calc(env(safe-area-inset-top, 0px) + 12px)) !important;
+  top: max(50px, calc(env(safe-area-inset-top, 0px) + 48px)) !important;
+  max-width: calc(100dvw - 24px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   z-index: 2147483642 !important;
 }
 
-#anydeskBubble {
-  right: max(50px, calc(env(safe-area-inset-right, 0px) + 50px)) !important;
+body.remote-fullscreen #anydeskBubble {
+  top: max(8px, calc(env(safe-area-inset-top, 0px) + 6px)) !important;
+  right: max(50px, calc(env(safe-area-inset-right, 0px) + 54px)) !important;
   z-index: 2147483642 !important;
 }
 
@@ -1578,6 +1625,11 @@ body.remote-fullscreen #remoteModeToast {
   padding-left: max(16px, calc(env(safe-area-inset-left, 0px) + 12px)) !important;
   width: min(270px, calc(82vw + env(safe-area-inset-right, 0px))) !important;
   box-sizing: border-box !important;
+  touch-action: pan-y !important;
+}
+#anydeskDrawer > *,
+#anydeskSidebar > * {
+  flex-shrink: 0 !important;
 }
 
 #remoteKeyboardDrawer {
@@ -1587,15 +1639,15 @@ body.remote-fullscreen #remoteModeToast {
   right: 0;
   transform: translateY(115%);
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 2147483646;
+  z-index: 2147483646 !important;
   background: rgba(22, 22, 28, 0.97);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border-top: 1px solid rgba(255, 255, 255, 0.22);
-  padding-top: 12px;
-  padding-bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px));
-  padding-left: max(16px, calc(env(safe-area-inset-left, 0px) + 12px));
-  padding-right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px));
+  padding-top: 12px !important;
+  padding-bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) !important;
+  padding-left: max(16px, calc(env(safe-area-inset-left, 0px) + 12px)) !important;
+  padding-right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px)) !important;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.9);
   pointer-events: none;
 }
@@ -1857,21 +1909,21 @@ body.remote-fullscreen #remoteModeToast {
 
         <!-- Mode Toggle Pill -->
         <div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:2px; display:flex; gap:2px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">
-          <button id="btnModeDirect" class="action-btn active" style="padding:5px 8px; font-size:11px; border-radius:8px; background:#0A84FF; color:#fff; flex-direction:row; white-space:nowrap;" onclick="setRemoteControlMode('direct')">
+          <button id="btnModeDirect" class="action-btn active" style="padding:5px 8px; font-size:11px; border-radius:8px; background:#0A84FF; color:#fff; flex-direction:row; white-space:nowrap; border:none; box-shadow:none;" onclick="setRemoteControlMode('direct')">
             📱 Dokunmatik
           </button>
-          <button id="btnModeTrackpad" class="action-btn" style="padding:5px 8px; font-size:11px; border-radius:8px; background:transparent; color:#8E8E93; flex-direction:row; white-space:nowrap;" onclick="setRemoteControlMode('trackpad')">
+          <button id="btnModeTrackpad" class="action-btn" style="padding:5px 8px; font-size:11px; border-radius:8px; background:transparent; color:#8E8E93; flex-direction:row; white-space:nowrap; border:none; box-shadow:none;" onclick="setRemoteControlMode('trackpad')">
             🖱️ Trackpad
           </button>
         </div>
       </div>
 
       <!-- Live Screen Viewport (Canvas) -->
-      <div id="remoteViewport" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); touch-action:none; -webkit-user-select:none; user-select:none;">
-        <canvas id="remoteScreenCanvas" style="width:100%; height:100%; display:block; object-fit:contain; transform-origin:0 0;"></canvas>
+      <div id="remoteViewport" data-aspect="fit" class="is-contain" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); touch-action:none; -webkit-user-select:none; user-select:none;">
+        <canvas id="remoteScreenCanvas" width="1920" height="1080" style="width:100%; height:100%; display:block; transform-origin:0 0;"></canvas>
         
-        <!-- Mode Toast Notification (Fades away in 1.2s, never obscures screen) -->
-        <div id="remoteModeToast" style="position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:6px 16px; font-size:12px; color:#fff; font-weight:600; pointer-events:none; z-index:30; opacity:0; transition:opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1); white-space:nowrap; box-shadow:0 4px 18px rgba(0,0,0,0.6);">
+        <!-- Mode Toast Notification (Fades away in 1.2s, never obscures top bar) -->
+        <div id="remoteModeToast" style="position:absolute; top:48px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.82); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:5px 14px; font-size:11.5px; color:#fff; font-weight:600; pointer-events:none; z-index:30; opacity:0; transition:opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1); white-space:nowrap; max-width:calc(100% - 20px); overflow:hidden; text-overflow:ellipsis; box-shadow:0 4px 18px rgba(0,0,0,0.6);">
         </div>
 
         <!-- FPS / RTT HUD Badge -->
@@ -1892,10 +1944,10 @@ body.remote-fullscreen #remoteModeToast {
         <!-- Fullscreen Floating Quick Dock (Only visible in Fullscreen mode) -->
         <div class="fs-only-controls" style="position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(18,18,22,0.88); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.2); border-radius:24px; padding:6px 14px; gap:8px; align-items:center; z-index:25; box-shadow:0 8px 32px rgba(0,0,0,0.75);">
           <button style="background:transparent; border:none; color:#fff; font-size:17px; padding:6px; cursor:pointer;" title="Mod Değiştir" onclick="setRemoteControlMode(remoteCurrentMode === 'trackpad' ? 'direct' : 'trackpad')">
-            <span id="fsModeIcon">🖱️</span>
+            <span id="fsModeIcon">📱</span>
           </button>
           <button style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="Tam Ekran Doldur / Orantılı" onclick="toggleRemoteAspectMode()">
-            <span id="fsAspectIcon">↔️</span>
+            <span id="fsAspectIcon">📐</span>
           </button>
 
           <button style="background:transparent; border:none; color:#fff; font-size:16px; padding:6px; cursor:pointer;" title="Klavye Aç" onclick="openRemoteKeyboard()">
@@ -1912,7 +1964,7 @@ body.remote-fullscreen #remoteModeToast {
       </div>
 
       <!-- Quick Command & Media Toolbar (Yatak / Film Kumandası) -->
-      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+      <div id="remoteQuickToolbar" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
         
         <!-- Media Playback Row -->
         <div style="display:flex; gap:6px; justify-content:space-between;">
@@ -1985,7 +2037,7 @@ body.remote-fullscreen #remoteModeToast {
 
         <!-- Fullscreen Button -->
         <button id="sbBtnFs" class="action-btn" onclick="toggleRemoteFullscreen(); toggleAnydeskDrawer(false);" style="padding:10px 4px; font-size:11px; font-weight:600; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(255,255,255,0.08);">
-          <span id="sbFsIcon" style="font-size:18px;">⛶</span>
+          <span id="sbFsIcon" style="font-size:18px;">⤢</span>
           <span id="sbFsText">Tam Ekran</span>
         </button>
 
@@ -1997,8 +2049,8 @@ body.remote-fullscreen #remoteModeToast {
 
         <!-- Aspect Stretch/Fit Toggle Quick Button -->
         <button id="sbBtnAspect" class="action-btn" onclick="toggleRemoteAspectMode()" style="padding:10px 4px; font-size:11px; font-weight:600; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(255,255,255,0.08);">
-          <span id="sbAspectIcon" style="font-size:18px;">↔️</span>
-          <span id="sbAspectText">Tam Doldur</span>
+          <span id="sbAspectIcon" style="font-size:18px;">📐</span>
+          <span id="sbAspectText">Sığdır</span>
         </button>
       </div>
 
@@ -2006,17 +2058,17 @@ body.remote-fullscreen #remoteModeToast {
       <div style="background:rgba(255,255,255,0.05); border-radius:14px; padding:11px; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; gap:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:10px; font-weight:800; color:#8E8E93; letter-spacing:0.5px;">TAM EKRAN MODU</span>
-          <span id="sbAspectBadge" style="font-size:10px; font-weight:700; color:#30D158; background:rgba(48,209,88,0.18); border:1px solid rgba(48,209,88,0.35); padding:2px 7px; border-radius:8px;">🖼️ Kenarlıksız</span>
+          <span id="sbAspectBadge" style="font-size:10px; font-weight:700; color:#64D2FF; background:rgba(10,132,255,0.18); border:1px solid rgba(10,132,255,0.35); padding:2px 7px; border-radius:8px;">📐 Sığdır (Fit)</span>
         </div>
         <div style="font-size:10.5px; color:#AEAEB2; line-height:1.35;">
           19.5:9 iPhone ekran görünüm modu:
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
-          <button id="btnAspectCover" class="action-btn" onclick="setRemoteAspectMode('cover')" style="padding:8px 2px; font-size:10px; font-weight:700; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(10,132,255,0.35); color:#64D2FF; border-color:rgba(10,132,255,0.45);" title="Kenarlıksız tam ekran (Zero-gap)">
+          <button id="btnAspectCover" class="action-btn" onclick="setRemoteAspectMode('cover')" style="padding:8px 2px; font-size:10px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(255,255,255,0.08);" title="Kenarlıksız tam ekran (Zero-gap)">
             <span style="font-size:14px;">🖼️</span>
             <span>Kenarsız</span>
           </button>
-          <button id="btnAspectFit" class="action-btn" onclick="setRemoteAspectMode('fit')" style="padding:8px 2px; font-size:10px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(255,255,255,0.08);" title="16:9 PC oranını koru (OLED siyah barlı)">
+          <button id="btnAspectFit" class="action-btn" onclick="setRemoteAspectMode('fit')" style="padding:8px 2px; font-size:10px; font-weight:700; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:rgba(10,132,255,0.35); color:#64D2FF; border-color:rgba(10,132,255,0.45);" title="16:9 PC oranını koru (OLED siyah barlı)">
             <span style="font-size:14px;">📐</span>
             <span>Sığdır</span>
           </button>
@@ -2314,7 +2366,7 @@ const HapticEngine = (function() {
 
 function haptic(type = 'light') {
   try {
-    if (navigator.vibrate) {
+    if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
       if (type === 'heavy') navigator.vibrate([20, 40, 20]);
       else if (type === 'medium') navigator.vibrate(25);
       else navigator.vibrate(12);
@@ -2347,6 +2399,11 @@ function switchMainTab(tabId, el) {
     if (typeof startRemoteStream === 'function') startRemoteStream();
   } else {
     if (typeof stopRemoteStream === 'function') stopRemoteStream();
+    if (typeof closeRemoteKeyboard === 'function') closeRemoteKeyboard();
+    if (typeof toggleAnydeskDrawer === 'function') toggleAnydeskDrawer(false);
+    if (document.body && document.body.classList.contains('remote-fullscreen') && typeof toggleRemoteFullscreen === 'function') {
+      toggleRemoteFullscreen();
+    }
   }
   const tabbarBtns = document.querySelectorAll('.tabbar-item');
   if (tabbarBtns[tabIndex]) tabbarBtns[tabIndex].classList.add('active');
@@ -3186,6 +3243,8 @@ function applyDiscoveredPC(host, data) {
   const pcName = data.pc_name || "DESKTOP-EIJNT5O";
   const lanIp = data.lan_ip || host.split(":")[0];
   document.getElementById("pcName").textContent = pcName;
+  const rTitle = document.getElementById("remoteHostTitle");
+  if (rTitle) rTitle.textContent = pcName;
   document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
   document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
   document.getElementById("connBadge").style.color = "#30D158";
@@ -3199,6 +3258,11 @@ function applyDiscoveredPC(host, data) {
   }
   if (typeof initAirDropWebSocket === "function") {
     initAirDropWebSocket();
+  }
+  const tabRemote = document.getElementById("tab-remote");
+  if ((tabRemote && tabRemote.classList.contains("active")) || (typeof remoteWS !== "undefined" && remoteWS)) {
+    if (typeof stopRemoteStream === "function") stopRemoteStream();
+    if (typeof startRemoteStream === "function") startRemoteStream();
   }
 }
 
@@ -3611,7 +3675,7 @@ try {
     <div id="qrScannerStatus" style="font-size: 13px; font-weight: 600; color: #64D2FF; text-align: center; min-height: 20px;">Kamera taranıyor...</div>
     
     <div style="display: flex; gap: 10px; width: 100%;">
-      <label class="touch-target-44" style="flex: 1; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 14px; padding: 12px; font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent;">
+      <label class="touch-target-44" style="position: relative; overflow: hidden; flex: 1; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 14px; padding: 12px; font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent;">
         <input type="file" id="qrPhotoInput" accept="image/*" capture="environment" onchange="scanQRFromImageFile(this)" style="display: none;">
         <span>🖼️ Fotoğraf Seç</span>
       </label>
@@ -3652,6 +3716,8 @@ class RemoteScreenRenderer {
 
     this.sourceWidth = 1920;
     this.sourceHeight = 1080;
+    this.canvas.width = this.sourceWidth;
+    this.canvas.height = this.sourceHeight;
     this.isRendering = false;
     this.pendingFrame = null;
     this.rafId = null;
@@ -4277,6 +4343,12 @@ function startRemoteStream() {
         const txt = `${fps} FPS • ${remoteRttMs}ms`;
         if (hud) hud.textContent = txt;
         if (stats) stats.textContent = `${remoteRttMs}ms • ${fps} FPS`;
+      },
+      onResolutionChange: (w, h) => {
+        if (remoteGestureEngine) {
+          remoteGestureEngine.options.sourceWidth = w;
+          remoteGestureEngine.options.sourceHeight = h;
+        }
       }
     });
   }
@@ -4284,8 +4356,8 @@ function startRemoteStream() {
   if (!remoteGestureEngine) {
     remoteGestureEngine = new RemoteTouchGestureEngine(canvas, {
       mode: remoteCurrentMode,
-      sourceWidth: 1920,
-      sourceHeight: 1080,
+      sourceWidth: remoteRenderer ? remoteRenderer.sourceWidth : 1920,
+      sourceHeight: remoteRenderer ? remoteRenderer.sourceHeight : 1080,
       onAction: (action) => {
         sendRemoteAction(action);
       },
@@ -4294,6 +4366,19 @@ function startRemoteStream() {
       }
     });
   }
+
+  // Immediate HTTP frame preload so the viewport displays the live PC desktop in <40ms
+  try {
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+    if (base && base.startsWith('http')) {
+      fetch(`${base}/api/remote/screen/frame?q=70&t=${Date.now()}`, { cache: 'no-store' })
+        .then(r => r.ok ? r.arrayBuffer() : null)
+        .then(buf => {
+          if (buf && remoteRenderer) remoteRenderer.pushFrame(buf);
+        })
+        .catch(() => {});
+    }
+  } catch (e) {}
 
   connectRemoteWebSocket();
 }
