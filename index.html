@@ -1810,7 +1810,7 @@ body.remote-fullscreen #remoteModeToast {
           <div style="display:flex; gap: 8px; margin-bottom: 10px;">
             <input type="text" id="womicIpInput" placeholder="PC IP (192.168.1.158)" style="flex: 2; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 12px; font-size: 14px; font-family: monospace;">
             <input type="number" id="womicPortInput" placeholder="Port" value="8765" style="width: 76px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; color: #fff; padding: 10px 6px; font-size: 14px; text-align: center; font-family: monospace;">
-            <button type="button" onclick="connectWomicDirect()" style="flex: 1.2; background: linear-gradient(135deg, #0A84FF, #0066CC); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">
+            <button type="button" onclick="connectWomicDirect(true)" style="flex: 1.2; background: linear-gradient(135deg, #0A84FF, #0066CC); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">
               BAĞLAN
             </button>
           </div>
@@ -1820,7 +1820,7 @@ body.remote-fullscreen #remoteModeToast {
               <button type="button" onclick="openQRScannerModal()" style="background: none; border: none; color: #64D2FF; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline;">
                 📷 QR Tara
               </button>
-              <a href="/windrop.shortcut" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: underline;">
+              <a id="shortcutDownloadLink" href="http://192.168.1.158:8765/windrop.shortcut" onclick="return downloadWinDropShortcut(event)" style="color: #30D158; font-size: 11px; font-weight: 600; text-decoration: underline; cursor: pointer;">
                 📲 Kestirme İndir
               </a>
             </div>
@@ -2397,9 +2397,9 @@ function switchMainTab(tabId, el) {
 
   const tabIndex = ['radar', 'remote', 'clipboard', 'files'].indexOf(tabId);
   if (tabId === 'remote') {
-    startRemoteStream();
+    if (typeof startRemoteStream === 'function') startRemoteStream();
   } else {
-    stopRemoteStream();
+    if (typeof stopRemoteStream === 'function') stopRemoteStream();
   }
   const tabbarBtns = document.querySelectorAll('.tabbar-item');
   if (tabbarBtns[tabIndex]) tabbarBtns[tabIndex].classList.add('active');
@@ -2820,8 +2820,9 @@ function declineIncomingAirDrop() {
 
 function initAirDropWebSocket() {
   try {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const host = API_BASE ? API_BASE.replace(/^https?:\/\//, '') : location.host;
+    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+    const proto = base.startsWith("https:") ? "wss:" : "ws:";
+    const host = base.replace(/^https?:\/\//, '') || location.host;
     const wsUrl = `${proto}//${host}/ws/radar?model=${encodeURIComponent(deviceModel || 'iPhone')}`;
     const ws = new WebSocket(wsUrl);
     window.activeRadarWS = ws;
@@ -3619,10 +3620,11 @@ setInterval(fetchRadarState, 5000);
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=14', {
+      const reg = await navigator.serviceWorker.register('./sw.js?v=20', {
         scope: './',
         updateViaCache: 'none'
       });
+      reg.update().catch(() => {});
       if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
     } catch (err) {}
   });
@@ -4637,289 +4639,6 @@ function playSuccessChime() {
 }
 
 // ==========================================
-// LIVE QR SCANNER & MANUAL IP CONTROLLERS
-// ==========================================
-let _qrMediaStream = null;
-let _qrScannerRunning = false;
-
-function openQRScannerModal() {
-  haptic('medium');
-  const modal = document.getElementById('qrScannerModal');
-  if (modal) {
-    modal.style.display = 'flex';
-  }
-  startLiveCameraScan();
-}
-
-function closeQRScannerModal() {
-  haptic('light');
-  _qrScannerRunning = false;
-  if (_qrMediaStream) {
-    try {
-      _qrMediaStream.getTracks().forEach(t => t.stop());
-    } catch(e) {}
-    _qrMediaStream = null;
-  }
-  const modal = document.getElementById('qrScannerModal');
-  if (modal) {
-    modal.style.display = 'none';
-  }
-}
-
-function startLiveCameraScan() {
-  const st = document.getElementById('qrScannerStatus');
-  const video = document.getElementById('qrVideoFeed');
-  if (st) st.textContent = "Kamera başlatılıyor...";
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    if (st) st.textContent = "Kamera bu tarayıcıda desteklenmiyor.";
-    return;
-  }
-
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: false
-  }).then(stream => {
-    _qrMediaStream = stream;
-    if (video) {
-      video.srcObject = stream;
-      video.setAttribute("playsinline", "true");
-      video.play();
-    }
-    if (st) st.textContent = "QR Kodu çerçeveye ortalayın...";
-    _qrScannerRunning = true;
-    requestAnimationFrame(_scanVideoFrameTick);
-  }).catch(err => {
-    if (st) st.textContent = "Kamera izni verilmedi: " + (err.message || err);
-  });
-}
-
-function _scanVideoFrameTick() {
-  if (!_qrScannerRunning) return;
-  const video = document.getElementById('qrVideoFeed');
-  const canvas = document.getElementById('qrScanCanvas');
-  const st = document.getElementById('qrScannerStatus');
-
-  if (video && video.readyState === video.HAVE_ENOUGH_DATA && canvas) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    if (typeof jsQR === 'function') {
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-      if (code && code.data) {
-        let clean = code.data.trim();
-        clean = clean.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-        if (clean) {
-          if (st) st.textContent = "✅ QR Okundu: " + clean;
-          haptic('heavy');
-          playSuccessChime();
-          applyDiscoveredPC(clean, {});
-          setTimeout(closeQRScannerModal, 600);
-          return;
-        }
-      }
-    }
-  }
-  requestAnimationFrame(_scanVideoFrameTick);
-}
-
-function openManualIPModal() {
-  haptic('medium');
-  const modal = document.getElementById('manualIPModal');
-  if (modal) {
-    modal.style.display = 'flex';
-  }
-  const inp = document.getElementById('manualIPInput');
-  if (inp) {
-    const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
-    inp.value = cur;
-    inp.focus();
-  }
-}
-
-function closeManualIPModal() {
-  haptic('light');
-  const modal = document.getElementById('manualIPModal');
-  if (modal) {
-    modal.style.display = 'none';
-  }
-}
-
-function applyManualIP() {
-  const inp = document.getElementById('manualIPInput');
-  if (!inp) return;
-  let val = inp.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-  if (!val) return;
-  if (!val.includes(':')) val += ':8765';
-  safeStorageSet("windrop_custom_pc_ip", val);
-  applyDiscoveredPC(val, {});
-  closeManualIPModal();
-  showDesktopToast("⚡ PC IP Ayarlandı: " + val);
-  setTimeout(() => location.reload(), 400);
-}
-
-function toggleCameraTorch() {
-  if (!_qrMediaStream) {
-    showDesktopToast("Kamera açık değil");
-    return;
-  }
-  try {
-    const track = _qrMediaStream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.torch) {
-      const cur = track.getSettings ? track.getSettings().torch : false;
-      track.applyConstraints({ advanced: [{ torch: !cur }] });
-      showDesktopToast(!cur ? "🔦 Flaş Açıldı" : "🔦 Flaş Kapatıldı");
-    } else {
-      showDesktopToast("Cihazınız web flaş kontrolünü desteklemiyor");
-    }
-  } catch(e) {
-    showDesktopToast("Flaş açılamadı");
-  }
-}
-
-function scanQRFromImageFile(input) {
-  if (!input || !input.files || !input.files[0]) return;
-  const file = input.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      if (typeof jsQR === 'function') {
-        const code = jsQR(imgData.data, imgData.width, imgData.height);
-        if (code && code.data) {
-          let clean = code.data.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-          applyDiscoveredPC(clean, {});
-          closeQRScannerModal();
-          showDesktopToast("✅ QR Fotoğraftan Okundu: " + clean);
-          return;
-        }
-      }
-      showDesktopToast("Fotoğrafta geçerli QR bulunamadı");
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-
-
-// ==========================================
-// UNIFIED MASTER AUDIO & HAPTIC ENGINE (iOS SAFARI COMPLIANT)
-// ==========================================
-const MasterAudioManager = (function() {
-  let masterCtx = null;
-  let clickBufferLight = null, clickBufferMedium = null, clickBufferHeavy = null;
-
-  function getContext() {
-    if (!masterCtx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        masterCtx = new AudioCtx({ latencyHint: 'interactive' });
-        initBuffers(masterCtx);
-      }
-    }
-    if (masterCtx && masterCtx.state === 'suspended') {
-      masterCtx.resume().catch(() => {});
-    }
-    return masterCtx;
-  }
-
-  function initBuffers(ctx) {
-    try {
-      const sr = ctx.sampleRate;
-      const makeBuf = (dur, freq, gain) => {
-        const count = Math.floor(sr * dur);
-        const buf = ctx.createBuffer(1, count, sr);
-        const d = buf.getChannelData(0);
-        for (let i = 0; i < count; i++) {
-          const t = i / sr;
-          d[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / (dur * 0.35)) * gain;
-        }
-        return buf;
-      };
-      clickBufferLight = makeBuf(0.010, 110, 0.45);
-      clickBufferMedium = makeBuf(0.016, 85, 0.75);
-      clickBufferHeavy = makeBuf(0.024, 65, 0.95);
-    } catch(e) {}
-  }
-
-  function playBuf(buf) {
-    const ctx = getContext();
-    if (!ctx || !buf) return;
-    try {
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start(0);
-    } catch(e) {}
-  }
-
-  const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown'];
-  function unlock() {
-    getContext();
-    unlockEvents.forEach(evt => window.removeEventListener(evt, unlock, true));
-  }
-  unlockEvents.forEach(evt => window.addEventListener(evt, unlock, { capture: true, passive: true }));
-
-  return {
-    getContext,
-    hapticLight: () => playBuf(clickBufferLight),
-    hapticMedium: () => playBuf(clickBufferMedium),
-    hapticHeavy: () => playBuf(clickBufferHeavy)
-  };
-})();
-
-function playPingSound() {
-  const ctx = MasterAudioManager.getContext();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(640, now);
-    osc.frequency.exponentialRampToValueAtTime(420, now + 0.18);
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.18);
-  } catch(e) {}
-}
-
-function playSuccessChime() {
-  const ctx = MasterAudioManager.getContext();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const t = now + (i * 0.07);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.25, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.35);
-    });
-  } catch(e) {}
-}
-
-// ==========================================
 // THROTTLED & BATTERY-SAFE QR SCANNER ENGINE
 // ==========================================
 let _qrMediaStream = null;
@@ -4959,7 +4678,7 @@ function startLiveCameraScan() {
   if (st) st.textContent = "Kamera başlatılıyor...";
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    if (st) st.textContent = "Kamera güvenli (HTTPS/localhost) olmayan ortamda doğrudan açılamıyor. Lütfen 'Fotoğraf Seç' veya 'IP Gir' butonunu kullanın.";
+    if (st) st.textContent = "Kamera doğrudan açılamadı. Aşağıdaki '🖼️ Fotoğraf Seç' butonuna basarak kamerayla QR kodu çekebilirsiniz.";
     return;
   }
 
@@ -4978,14 +4697,13 @@ function startLiveCameraScan() {
     _lastQrScanTick = 0;
     requestAnimationFrame(_scanVideoFrameTick);
   }).catch(err => {
-    if (st) st.textContent = "Kamera açılamadı: " + (err.message || err);
+    if (st) st.textContent = "Kamera izni verilmedi veya HTTP modunda: '🖼️ Fotoğraf Seç' butonunu kullanın.";
   });
 }
 
 function _scanVideoFrameTick(timestamp) {
   if (!_qrScannerRunning) return;
 
-  // Throttle scanning to 5 FPS (every 200ms) to conserve battery and eliminate 120Hz CPU spikes
   if (timestamp - _lastQrScanTick > 200) {
     _lastQrScanTick = timestamp;
     const video = document.getElementById('qrVideoFeed');
@@ -4993,7 +4711,6 @@ function _scanVideoFrameTick(timestamp) {
     const st = document.getElementById('qrScannerStatus');
 
     if (video && video.readyState === video.HAVE_ENOUGH_DATA && canvas) {
-      // Downscale to 480x360 max for instant, lightweight QR detection
       const targetW = 480;
       const targetH = Math.round((video.videoHeight / video.videoWidth) * targetW) || 360;
       if (canvas.width !== targetW || canvas.height !== targetH) {
@@ -5013,8 +4730,16 @@ function _scanVideoFrameTick(timestamp) {
             if (st) st.textContent = "✅ QR Okundu: " + clean;
             haptic('heavy');
             playSuccessChime();
+            const parts = clean.split(':');
+            const ipInp = document.getElementById('womicIpInput');
+            const portInp = document.getElementById('womicPortInput');
+            if (ipInp && parts[0]) ipInp.value = parts[0];
+            if (portInp && parts[1]) portInp.value = parts[1];
             applyDiscoveredPC(clean, {});
-            setTimeout(closeQRScannerModal, 600);
+            setTimeout(() => {
+              closeQRScannerModal();
+              connectWomicDirect(true);
+            }, 400);
             return;
           }
         }
@@ -5022,6 +4747,113 @@ function _scanVideoFrameTick(timestamp) {
     }
   }
   requestAnimationFrame(_scanVideoFrameTick);
+}
+
+function openManualIPModal() {
+  haptic('medium');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+  const inp = document.getElementById('manualIPInput');
+  if (inp) {
+    const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname && !location.hostname.includes("github.io") ? (location.hostname + ":8765") : "192.168.1.158:8765");
+    inp.value = cur;
+    inp.focus();
+  }
+}
+
+function closeManualIPModal() {
+  haptic('light');
+  const modal = document.getElementById('manualIPModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+function applyManualIP() {
+  const inp = document.getElementById('manualIPInput');
+  if (!inp) return;
+  let val = inp.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (!val) return;
+  if (!val.includes(':')) val += ':8765';
+  safeStorageSet("windrop_custom_pc_ip", val);
+  const parts = val.split(':');
+  const ipInp = document.getElementById('womicIpInput');
+  const portInp = document.getElementById('womicPortInput');
+  if (ipInp && parts[0]) ipInp.value = parts[0];
+  if (portInp && parts[1]) portInp.value = parts[1];
+  closeManualIPModal();
+  connectWomicDirect(true);
+}
+
+function toggleCameraTorch() {
+  if (!_qrMediaStream) {
+    showDesktopToast("Kamera açık değil");
+    return;
+  }
+  try {
+    const track = _qrMediaStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.torch) {
+      const cur = track.getSettings ? track.getSettings().torch : false;
+      track.applyConstraints({ advanced: [{ torch: !cur }] });
+      showDesktopToast(!cur ? "🔦 Flaş Açıldı" : "🔦 Flaş Kapatıldı");
+    } else {
+      showDesktopToast("Cihazınız web flaş kontrolünü desteklemiyor");
+    }
+  } catch(e) {
+    showDesktopToast("Flaş açılamadı");
+  }
+}
+
+function scanQRFromImageFile(input) {
+  if (!input || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (typeof jsQR === 'function') {
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          let clean = code.data.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+          const parts = clean.split(':');
+          const ipInp = document.getElementById('womicIpInput');
+          const portInp = document.getElementById('womicPortInput');
+          if (ipInp && parts[0]) ipInp.value = parts[0];
+          if (portInp && parts[1]) portInp.value = parts[1];
+          closeQRScannerModal();
+          showDesktopToast("✅ QR Fotoğraftan Okundu: " + clean);
+          connectWomicDirect(true);
+          return;
+        }
+      }
+      showDesktopToast("Fotoğrafta geçerli QR bulunamadı");
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function downloadWinDropShortcut(ev) {
+  if (ev) ev.preventDefault();
+  haptic('medium');
+  const ipInp = document.getElementById('womicIpInput');
+  const portInp = document.getElementById('womicPortInput');
+  let ip = (ipInp && ipInp.value.trim()) ? ipInp.value.trim() : "192.168.1.158";
+  let port = (portInp && portInp.value.trim()) ? portInp.value.trim() : "8765";
+  const host = ip.includes(':') ? ip : `${ip}:${port}`;
+  const target = `http://${host}/windrop.shortcut`;
+  showDesktopToast("📲 iOS Kestirmesi İndiriliyor...");
+  window.location.href = target;
+  return false;
 }
 
 function switchWomicMode(mode) {
@@ -5043,53 +4875,82 @@ function switchWomicMode(mode) {
   }
 }
 
-async function connectWomicDirect() {
-  haptic('medium');
+async function connectWomicDirect(isManual = false) {
+  if (isManual) haptic('medium');
   const ipInp = document.getElementById('womicIpInput');
   const portInp = document.getElementById('womicPortInput');
   const badge = document.getElementById('womicStatusBadge');
   
   let ip = (ipInp ? ipInp.value.trim() : "").replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
   let port = (portInp ? portInp.value.trim() : "") || "8765";
-  if (!ip) ip = "192.168.1.158";
+  if (!ip || ip.includes("github.io") || ip.includes("vercel.app")) {
+    ip = "192.168.1.158";
+    if (ipInp) ipInp.value = ip;
+  }
 
   const host = ip.includes(':') ? ip : `${ip}:${port}`;
+  safeStorageSet("windrop_custom_pc_ip", host);
+
+  const scLink = document.getElementById('shortcutDownloadLink');
+  if (scLink) scLink.href = `http://${host}/windrop.shortcut`;
+
   if (badge) {
     badge.textContent = "⏳ Bağlanıyor...";
     badge.style.background = "rgba(255, 159, 10, 0.2)";
     badge.style.color = "#FF9F0A";
   }
 
+  // If opened from HTTPS (e.g. GitHub Pages WebClip) and user tapped BAĞLAN, Mixed Content blocks fetch() to HTTP LAN IP.
+  // Top-level navigation to http://host/ is 100% allowed by iOS Safari/WebKit and opens the direct local app!
+  if (window.location.protocol === "https:" && isManual) {
+    showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
+    window.location.href = `http://${host}/`;
+    return;
+  }
+
   try {
-    const res = await fetch(`http://${host}/api/ping?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetchWithTimeout(`http://${host}/api/ping?t=${Date.now()}`, 2500);
     if (res.ok) {
       const data = await res.json();
       API_BASE = `http://${host}`;
-      safeStorageSet("windrop_custom_pc_ip", host);
       applyDiscoveredPC(host, data);
       if (badge) {
         badge.textContent = "🟢 Bağlandı: " + (data.pc_name || host);
         badge.style.background = "rgba(48, 209, 88, 0.2)";
         badge.style.color = "#30D158";
       }
-      playSuccessChime();
-      showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı!");
+      if (isManual) {
+        playSuccessChime();
+        showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı (" + host + ")!");
+      }
+      fetchRadarState();
       return;
     }
-  } catch (err) {}
+  } catch (err) {
+    if (window.location.protocol === "https:") {
+      // Auto-redirect from HTTPS shell to direct local HTTP PC server
+      window.location.href = `http://${host}/`;
+      return;
+    }
+  }
 
   if (badge) {
     badge.textContent = "🔴 Bağlanılamadı";
     badge.style.background = "rgba(255, 69, 58, 0.2)";
     badge.style.color = "#FF453A";
   }
-  showDesktopToast("⚠️ " + host + " yanıt vermedi! Aynı Wi-Fi'da mısınız?");
+  if (isManual) {
+    showDesktopToast("⚠️ " + host + " yanıt vermedi! Aynı Wi-Fi'da mısınız?");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   const ipInp = document.getElementById('womicIpInput');
   const portInp = document.getElementById('womicPortInput');
-  const cur = safeStorageGet("windrop_custom_pc_ip") || (location.hostname ? (location.hostname + ":8765") : "192.168.1.158:8765");
+  const hostFromLoc = (location.hostname && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app"))
+    ? (location.hostname + ":" + (location.port || "8765"))
+    : "";
+  const cur = hostFromLoc || safeStorageGet("windrop_custom_pc_ip") || "192.168.1.158:8765";
   if (cur && cur.includes(':')) {
     const parts = cur.split(':');
     if (ipInp) ipInp.value = parts[0];
@@ -5097,7 +4958,7 @@ document.addEventListener("DOMContentLoaded", () => {
   } else if (ipInp) {
     ipInp.value = cur;
   }
-  setTimeout(connectWomicDirect, 300);
+  setTimeout(() => connectWomicDirect(false), 150);
 });
 
 </script>

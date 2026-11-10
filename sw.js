@@ -1,5 +1,5 @@
-// WinDrop Immortal High-Speed PWA Service Worker v16
-const CACHE_NAME = 'windrop-immortal-pwa-v16';
+// WinDrop Immortal High-Speed PWA Service Worker v20
+const CACHE_NAME = 'windrop-immortal-pwa-v20';
 const SHELL_ASSETS = [
   './',
   './index.html',
