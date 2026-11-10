@@ -1825,6 +1825,9 @@ body.remote-fullscreen #anydeskBubble {
             🔴 Bağlantı Yok
           </div>
           <div style="display:flex; gap: 5px; align-items:center; flex-shrink: 0;">
+            <button type="button" onclick="connectCloudTunnelAuto(true)" title="Farklı Ağdan / İş Yerinden / 4.5G'den Otomatik Bağlan" style="background: rgba(48,209,88,0.16); border: 1px solid rgba(48,209,88,0.38); color: #30D158; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+              🌐 Uzaktan
+            </button>
             <button type="button" onclick="openQRScannerModal()" style="background: rgba(10,132,255,0.16); border: 1px solid rgba(10,132,255,0.35); color: #64D2FF; border-radius: 7px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">
               📷 QR
             </button>
@@ -1841,13 +1844,16 @@ body.remote-fullscreen #anydeskBubble {
           </div>
 
           <div id="womicWifiPanel" style="width: 100%; box-sizing: border-box;">
-            <div style="display:flex; gap: 6px; width: 100%; box-sizing: border-box;">
+            <div style="display:flex; gap: 6px; width: 100%; box-sizing: border-box; margin-bottom: 6px;">
               <input type="text" id="womicIpInput" placeholder="192.168.1.158" inputmode="decimal" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();connectWomicDirect(true);}" style="flex: 1; min-width: 0; width: 100%; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 8px; font-size: 16px; font-family: 'SF Mono', monospace; box-sizing: border-box;">
               <input type="number" id="womicPortInput" placeholder="Port" value="8765" inputmode="decimal" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();connectWomicDirect(true);}" style="width: 58px; flex-shrink: 0; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: #fff; padding: 7px 2px; font-size: 16px; text-align: center; font-family: 'SF Mono', monospace; box-sizing: border-box;">
               <button type="button" onclick="connectWomicDirect(true)" style="flex-shrink: 0; padding: 7px 12px; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">
                 Bağlan
               </button>
             </div>
+            <button type="button" onclick="connectCloudTunnelAuto(true)" style="width: 100%; padding: 7px 10px; background: linear-gradient(135deg, rgba(48,209,88,0.22), rgba(10,132,255,0.22)); border: 1px solid rgba(48,209,88,0.42); color: #30D158; border-radius: 8px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box;">
+              <span>🌐</span><span>İş Yeri / 4.5G Uzaktan Otomatik Bağlan</span>
+            </button>
           </div>
 
           <div id="womicUsbPanel" style="display: none; width: 100%; box-sizing: border-box; font-size: 11px; color: #E5E5EA; line-height: 1.45; padding: 2px; word-break: break-word;">
@@ -3076,7 +3082,15 @@ function triggerManualP2PDiscovery() {
 async function autoDiscoverPCPeer(force = false) {
   const now = Date.now();
   if (isDiscovering || (!force && (now - lastDiscoveryTime < 4000))) return;
-  if (window.location.protocol === "https:") return false;
+  if (window.location.protocol === "https:") {
+    isDiscovering = true;
+    lastDiscoveryTime = now;
+    try {
+      return await connectCloudTunnelAuto(force);
+    } finally {
+      isDiscovering = false;
+    }
+  }
   isDiscovering = true;
   lastDiscoveryTime = now;
 
@@ -3140,6 +3154,12 @@ async function autoDiscoverPCPeer(force = false) {
     } catch(e) {
       candCtrl.abort();
     }
+
+    // 1.5. Fast Cloud Tunnel (WAN / Work Wi-Fi / 4.5G) Failover before slow subnet sweep
+    try {
+      const cloudOk = await connectCloudTunnelAuto(false);
+      if (cloudOk) return true;
+    } catch (e) {}
 
     // 2. Subnet sweeps with chunking (skip on HTTPS to prevent mixed-content floods)
     if (window.location.protocol === "https:") return false;
@@ -3212,21 +3232,43 @@ function applyDiscoveredPC(host, data) {
     } catch(e) {}
     window.activeRadarWS = null;
   }
-  const isTunnel = /trycloudflare\.com|ngrok|loca\.lt/i.test(host);
-  API_BASE = (isTunnel ? "https://" : "http://") + host;
-  safeStorageSet("windrop_custom_pc_ip", host);
-  const pcName = data.pc_name || "DESKTOP-EIJNT5O";
-  const lanIp = data.lan_ip || host.split(":")[0];
+  const cleanRaw = String(host || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").trim();
+  const isTunnel = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(cleanRaw);
+  const finalHost = isTunnel ? cleanRaw.split(":")[0] : cleanRaw;
+  API_BASE = (isTunnel ? "https://" : "http://") + finalHost;
+  if (isTunnel) {
+    safeStorageSet("windrop_last_tunnel_url", API_BASE);
+    if (data && data.lan_ip) {
+      safeStorageSet("windrop_custom_pc_ip", data.lan_ip + ":" + (data.port || 8765));
+    }
+  } else {
+    safeStorageSet("windrop_custom_pc_ip", finalHost);
+    if (data && data.tunnel_url && String(data.tunnel_url).startsWith("https://")) {
+      safeStorageSet("windrop_last_tunnel_url", data.tunnel_url);
+    }
+  }
+  const pcName = (data && data.pc_name) ? data.pc_name : "DESKTOP-EIJNT5O";
+  const lanIp = isTunnel ? "Uzaktan Bulut Tünel" : ((data && data.lan_ip) ? data.lan_ip : finalHost.split(":")[0]);
   document.getElementById("pcName").textContent = pcName;
   const rTitle = document.getElementById("remoteHostTitle");
   if (rTitle) rTitle.textContent = pcName;
-  document.getElementById("connBadgeText").textContent = "🟢 Bağlı";
+  document.getElementById("connBadgeText").textContent = isTunnel ? "🟢 Uzaktan Bağlı" : "🟢 Bağlı";
   document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
   document.getElementById("connBadge").style.color = "#30D158";
   const sub = document.getElementById("activeHostText");
   if (sub) {
-    sub.textContent = "🟢 " + pcName + " (" + lanIp + ") ile P2P Eşleşildi";
+    sub.textContent = isTunnel
+      ? ("🌐 " + pcName + " ile Uzaktan Bulut Tünel Üzerinden Eşleşildi")
+      : ("🟢 " + pcName + " (" + lanIp + ") ile P2P Eşleşildi");
     sub.style.color = "#30D158";
+  }
+  const womicBadge = document.getElementById("womicStatusBadge");
+  if (womicBadge) {
+    womicBadge.textContent = isTunnel
+      ? ("🌐 Uzaktan: " + pcName)
+      : ("🟢 Bağlı: " + ((data && data.lan_ip) || finalHost.split(":")[0]) + ":" + ((data && data.port) || 8765));
+    womicBadge.style.background = "rgba(48, 209, 88, 0.18)";
+    womicBadge.style.color = "#30D158";
   }
   if (typeof haptic === "function") haptic("heavy");
   if (typeof initAirDropWebSocket === "function") {
@@ -3243,32 +3285,40 @@ async function fetchRadarState(manual = false) {
   if (!manual && document.hidden) return;
   try {
     const t0 = performance.now();
-    const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2200);
+    const res = await fetchWithTimeout(API_BASE + "/api/state?model=" + encodeURIComponent(deviceModel), 2800);
     if (!res.ok) throw new Error("Bad status");
     const rtt = Math.round(performance.now() - t0);
     const data = await res.json();
+    if (data && data.tunnel_url && String(data.tunnel_url).startsWith("https://")) {
+      safeStorageSet("windrop_last_tunnel_url", data.tunnel_url);
+    }
+    const isTunnel = API_BASE.startsWith("https://") && /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(API_BASE);
     const pcName = data.pc_name || "DESKTOP-EIJNT5O";
     document.getElementById("pcName").textContent = pcName;
     const rTitle = document.getElementById("remoteHostTitle");
     if (rTitle) rTitle.textContent = pcName;
-    document.getElementById("connBadgeText").textContent = `🟢 Bağlı (${rtt}ms)`;
+    document.getElementById("connBadgeText").textContent = isTunnel ? `🌐 Uzaktan (${rtt}ms)` : `🟢 Bağlı (${rtt}ms)`;
     document.getElementById("connBadge").style.borderColor = "rgba(48, 209, 88, 0.4)";
     document.getElementById("connBadge").style.color = "#30D158";
     const sub = document.getElementById("activeHostText");
     if (sub) {
-      sub.textContent = "🟢 " + pcName + " (" + (data.lan_ip || "Yerel Ağ") + ") ile Canlı Eşleşildi";
+      sub.textContent = isTunnel
+        ? ("🌐 " + pcName + " (İş Yeri / 4.5G Bulut Tünel) ile Canlı Eşleşildi")
+        : ("🟢 " + pcName + " (" + (data.lan_ip || "Yerel Ağ") + ") ile Canlı Eşleşildi");
       sub.style.color = "#30D158";
     }
     const womicBadge = document.getElementById("womicStatusBadge");
     if (womicBadge) {
-      womicBadge.textContent = "🟢 Bağlı: " + (data.lan_ip || "PC") + ":" + (data.port || 8765);
+      womicBadge.textContent = isTunnel
+        ? ("🌐 Uzaktan Bağlı: " + pcName)
+        : ("🟢 Bağlı: " + (data.lan_ip || "PC") + ":" + (data.port || 8765));
       womicBadge.style.background = "rgba(48,209,88,0.18)";
       womicBadge.style.color = "#30D158";
     }
     renderIncoming(data.outgoing_files || []);
     checkNewOutgoingFiles(data.outgoing_files || []);
   } catch (e) {
-    // Connection lost or host moved -> Trigger zero-config auto-discovery
+    // Connection lost or host moved -> Trigger zero-config auto-discovery (LAN + Cloud Tunnel)
     autoDiscoverPCPeer();
   }
 }
@@ -4989,6 +5039,116 @@ function switchWomicMode(mode) {
   }
 }
 
+async function resolveLiveCloudTunnelUrl() {
+  const candidateUrls = new Set();
+  const addCandidate = (u) => {
+    if (!u || typeof u !== "string") return;
+    const clean = u.trim().replace(/\/+$/, "");
+    if (clean.startsWith("https://") && /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(clean)) {
+      candidateUrls.add(clean);
+    }
+  };
+
+  if (location.origin.startsWith("https://") && /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(location.origin)) {
+    addCandidate(location.origin);
+  }
+  const cachedTun = safeStorageGet("windrop_last_tunnel_url");
+  if (cachedTun) addCandidate(cachedTun);
+
+  // Fetch live tunnel registries concurrently (ntfy.sh pub/sub + GitHub Gist + GitHub Pages)
+  const fetchTasks = [
+    fetchWithTimeout("https://ntfy.sh/windrop_tris_sync_8492a7c1e5/json?poll=1&since=48h", 2600)
+      .then(r => r.ok ? r.text() : "")
+      .then(txt => {
+        const lines = (txt || "").trim().split("\n").reverse();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line);
+            const msg = obj.message || "";
+            if (msg.startsWith("{")) {
+              const inner = JSON.parse(msg);
+              addCandidate(inner.primary);
+              addCandidate(inner.backup);
+              addCandidate(inner.url);
+            } else {
+              addCandidate(msg);
+            }
+          } catch (e) {}
+        }
+      }).catch(() => {}),
+    fetchWithTimeout("https://gist.githubusercontent.com/mephisto-mert/d5319f8e1452f20d79f5365e597eb6ab/raw/windrop_live_endpoint.json?t=" + Date.now(), 2600)
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => {
+        if (doc) {
+          addCandidate(doc.primary);
+          addCandidate(doc.backup);
+          addCandidate(doc.url);
+        }
+      }).catch(() => {}),
+    fetchWithTimeout("https://mephisto-mert.github.io/windrop-ios/live_endpoint.json?t=" + Date.now(), 2600)
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => {
+        if (doc) {
+          addCandidate(doc.primary);
+          addCandidate(doc.backup);
+          addCandidate(doc.url);
+        }
+      }).catch(() => {})
+  ];
+
+  await Promise.allSettled(fetchTasks);
+
+  const list = Array.from(candidateUrls);
+  if (!list.length) return null;
+
+  const probeTunnel = async (baseUrl) => {
+    const res = await fetchWithTimeout(`${baseUrl}/api/ping?t=${Date.now()}`, 3200);
+    if (!res.ok) throw new Error("Tunnel dead");
+    const data = await res.json();
+    if (data && (data.status === "ok" || data.protocol === "windrop_p2p_v3")) {
+      return { url: baseUrl, host: baseUrl.replace(/^https?:\/\//i, ""), data };
+    }
+    throw new Error("Invalid ping");
+  };
+
+  try {
+    return await Promise.any(list.map(u => probeTunnel(u)));
+  } catch (e) {
+    return null;
+  }
+}
+
+async function connectCloudTunnelAuto(isManual = false) {
+  if (isManual) haptic('medium');
+  const badge = document.getElementById('womicStatusBadge');
+  if (badge) {
+    badge.textContent = "🌐 Bulut Tünel Aranıyor...";
+    badge.style.background = "rgba(10, 132, 255, 0.22)";
+    badge.style.color = "#64D2FF";
+  }
+  const resolved = await resolveLiveCloudTunnelUrl();
+  if (resolved && resolved.url) {
+    applyDiscoveredPC(resolved.host, resolved.data);
+    toggleWomicDrawer(false);
+    if (isManual) {
+      playSuccessChime();
+      showDesktopToast("🌐 Uzaktan PC'ye Bağlanıldı (" + (resolved.data.pc_name || "Bulut Tünel") + ")!");
+    }
+    fetchRadarState();
+    return true;
+  }
+  if (isManual) {
+    if (badge) {
+      badge.textContent = "🔴 Uzaktan Tünel Bulunamadı";
+      badge.style.background = "rgba(255, 69, 58, 0.18)";
+      badge.style.color = "#FF453A";
+    }
+    showDesktopToast("⚠️ Uzaktan bulut tüneli yanıt vermedi. PC'de WinDrop açık mı?");
+  }
+  return false;
+}
+
 async function connectWomicDirect(isManual = false) {
   if (isManual) haptic('medium');
   const ipInp = document.getElementById('womicIpInput');
@@ -5009,8 +5169,11 @@ async function connectWomicDirect(isManual = false) {
     if (ipInp) ipInp.value = ip;
   }
 
-  const host = `${ip}:${port}`;
-  safeStorageSet("windrop_custom_pc_ip", host);
+  const isHttpsDomain = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(ip);
+  const host = isHttpsDomain ? ip : `${ip}:${port}`;
+  if (!isHttpsDomain) {
+    safeStorageSet("windrop_custom_pc_ip", host);
+  }
 
   if (badge) {
     badge.textContent = "⏳ Bağlanıyor...";
@@ -5018,52 +5181,73 @@ async function connectWomicDirect(isManual = false) {
     badge.style.color = "#FF9F0A";
   }
 
-  const isHttpsDomain = host.includes("trycloudflare.com") || host.includes("ngrok") || host.includes("loca.lt");
   const targetProto = isHttpsDomain ? "https" : "http";
-  const targetBase = isHttpsDomain ? `https://${host.split(':')[0]}` : `http://${host}`;
+  const targetBase = isHttpsDomain ? `https://${ip}` : `http://${host}`;
 
-  // If opened from an https:// host (e.g. GitHub Pages WebClip) and targeting a local HTTP PC IP,
-  // iOS WebKit blocks mixed-content fetch() calls. Redirect directly to the PC's HTTP server ONLY on manual connect!
-  if (isManual && window.location.protocol === "https:" && targetProto === "http") {
-    showDesktopToast("⚡ Doğrudan PC'ye Geçiliyor (" + host + ")...");
-    window.location.href = `${targetBase}/`;
-    return;
-  }
-  if (!isManual && window.location.protocol === "https:" && targetProto === "http") {
-    return;
+  // If opened from an https:// host (e.g. GitHub Pages WebClip) and targeting a local HTTP PC IP:
+  // On manual click, switch to direct HTTP LAN if reachable, or fallback to Cloud Tunnel!
+  if (window.location.protocol === "https:" && targetProto === "http") {
+    if (!isManual) {
+      await connectCloudTunnelAuto(false);
+      return;
+    }
+    // Check if local LAN PC is reachable on current Wi-Fi via passive Image probe (800ms)
+    const lanReachable = await new Promise((resolve) => {
+      const img = new Image();
+      const t = setTimeout(() => { img.src = ""; resolve(false); }, 850);
+      img.onload = () => { clearTimeout(t); resolve(true); };
+      img.onerror = () => { clearTimeout(t); resolve(false); };
+      img.src = `${targetBase}/icon-180.png?t=${Date.now()}`;
+    });
+    if (lanReachable) {
+      showDesktopToast("⚡ Ev Wi-Fi Algılandı — Doğrudan PC'ye Geçiliyor (" + host + ")...");
+      window.location.href = `${targetBase}/`;
+      return;
+    } else {
+      const cloudOk = await connectCloudTunnelAuto(true);
+      if (cloudOk) return;
+      showDesktopToast("⚠️ Ev Wi-Fi'da değilsiniz ve uzaktan tünel bulunamadı!");
+      return;
+    }
   }
 
   // Try the requested port first, then fallback ports (8765, 53843, 9000) automatically
-  const candidatePorts = [port];
-  for (const fp of ["8765", "53843", "9000"]) {
-    if (!candidatePorts.includes(fp)) candidatePorts.push(fp);
+  const candidatePorts = isHttpsDomain ? ["443"] : [port];
+  if (!isHttpsDomain) {
+    for (const fp of ["8765", "53843", "9000"]) {
+      if (!candidatePorts.includes(fp)) candidatePorts.push(fp);
+    }
   }
 
   for (const tryPort of candidatePorts) {
-    const tryHost = `${ip}:${tryPort}`;
+    const tryHost = isHttpsDomain ? ip : `${ip}:${tryPort}`;
     const tryBase = isHttpsDomain ? `https://${ip}` : `http://${tryHost}`;
     try {
-      const res = await fetchWithTimeout(`${tryBase}/api/ping?t=${Date.now()}`, 3000);
+      const res = await fetchWithTimeout(`${tryBase}/api/ping?t=${Date.now()}`, 2200);
       if (res.ok) {
         const data = await res.json();
-        if (portInp && tryPort !== port) portInp.value = tryPort;
+        if (!isHttpsDomain && portInp && tryPort !== port) portInp.value = tryPort;
         API_BASE = tryBase;
-        safeStorageSet("windrop_custom_pc_ip", tryHost);
         applyDiscoveredPC(tryHost, data);
-        if (badge) {
-          badge.textContent = "🟢 " + (data.pc_name || tryHost);
-          badge.style.background = "rgba(48, 209, 88, 0.18)";
-          badge.style.color = "#30D158";
-        }
         toggleWomicDrawer(false);
         if (isManual) {
           playSuccessChime();
-          showDesktopToast("⚡ PC'ye Doğrudan Bağlanıldı (" + tryHost + ")!");
+          showDesktopToast("⚡ PC'ye Bağlanıldı (" + (isHttpsDomain ? "Bulut Tünel" : tryHost) + ")!");
         }
         fetchRadarState();
         return;
       }
     } catch (err) {}
+  }
+
+  // Local LAN IP did not respond (e.g. user is at work or on 4.5G/5G) -> Automatically try Cloud Tunnel!
+  const tunnelConnected = await connectCloudTunnelAuto(false);
+  if (tunnelConnected) {
+    if (isManual) {
+      playSuccessChime();
+      showDesktopToast("🌐 Farklı Ağ Algılandı — Bulut Tünel Üzerinden Bağlanıldı!");
+    }
+    return;
   }
 
   if (badge) {
@@ -5073,14 +5257,15 @@ async function connectWomicDirect(isManual = false) {
   }
   toggleWomicDrawer(true);
   if (isManual) {
-    showDesktopToast("⚠️ " + host + " yanıt vermedi! PC'de WinDrop açık mı?");
+    showDesktopToast("⚠️ " + host + " ve Bulut Tüneli yanıt vermedi! PC'de WinDrop açık mı?");
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   const ipInp = document.getElementById('womicIpInput');
   const portInp = document.getElementById('womicPortInput');
-  const hostFromLoc = (location.hostname && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app"))
+  const isTunnelLoc = /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(location.hostname || "");
+  const hostFromLoc = (location.hostname && !location.hostname.includes("github.io") && !location.hostname.includes("vercel.app") && !isTunnelLoc)
     ? (location.hostname + ":" + (location.port || "8765"))
     : "";
   const cur = hostFromLoc || safeStorageGet("windrop_custom_pc_ip") || "192.168.1.158:8765";
@@ -5091,7 +5276,13 @@ document.addEventListener("DOMContentLoaded", () => {
   } else if (ipInp) {
     ipInp.value = cur;
   }
-  setTimeout(() => connectWomicDirect(false), 150);
+  if (isTunnelLoc) {
+    safeStorageSet("windrop_last_tunnel_url", location.origin);
+    API_BASE = location.origin;
+    setTimeout(() => fetchRadarState(true), 100);
+  } else {
+    setTimeout(() => connectWomicDirect(false), 150);
+  }
 });
 
 </script>
