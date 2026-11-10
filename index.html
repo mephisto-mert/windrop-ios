@@ -5182,27 +5182,43 @@ function switchWomicMode(mode) {
 }
 
 async function resolveLiveCloudTunnelUrl() {
-  const candidateUrls = new Set();
-  const addCandidate = (u) => {
+  const freshCandidates = [];
+  const addFresh = (u) => {
     if (!u || typeof u !== "string") return;
     const clean = u.trim().replace(/\/+$/, "");
     if (clean.startsWith("https://") && /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(clean)) {
-      candidateUrls.add(clean);
+      if (!freshCandidates.includes(clean)) freshCandidates.push(clean);
     }
   };
 
   if (location.origin.startsWith("https://") && /trycloudflare\.com|lhr\.life|ngrok|loca\.lt/i.test(location.origin)) {
-    addCandidate(location.origin);
+    addFresh(location.origin);
   }
-  const cachedTun = safeStorageGet("windrop_last_tunnel_url");
-  if (cachedTun) addCandidate(cachedTun);
 
-  // Fetch live tunnel registries concurrently (ntfy.sh pub/sub + GitHub Gist + GitHub Pages)
+  // Fetch live tunnel registries concurrently (GitHub Gist + GitHub Pages + newest ntfy.sh messages)
   const fetchTasks = [
-    fetchWithTimeout("https://ntfy.sh/windrop_tris_sync_8492a7c1e5/json?poll=1&since=48h", 2600)
+    fetchWithTimeout("https://gist.githubusercontent.com/mephisto-mert/d5319f8e1452f20d79f5365e597eb6ab/raw/windrop_live_endpoint.json?t=" + Date.now(), 2600)
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => {
+        if (doc) {
+          addFresh(doc.primary);
+          addFresh(doc.backup);
+          addFresh(doc.url);
+        }
+      }).catch(() => {}),
+    fetchWithTimeout("https://mephisto-mert.github.io/windrop-ios/live_endpoint.json?t=" + Date.now(), 2600)
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => {
+        if (doc) {
+          addFresh(doc.primary);
+          addFresh(doc.backup);
+          addFresh(doc.url);
+        }
+      }).catch(() => {}),
+    fetchWithTimeout("https://ntfy.sh/windrop_tris_sync_8492a7c1e5/json?poll=1&since=12h", 2600)
       .then(r => r.ok ? r.text() : "")
       .then(txt => {
-        const lines = (txt || "").trim().split("\n").reverse();
+        const lines = (txt || "").trim().split("\n").reverse().slice(0, 3);
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
@@ -5210,38 +5226,23 @@ async function resolveLiveCloudTunnelUrl() {
             const msg = obj.message || "";
             if (msg.startsWith("{")) {
               const inner = JSON.parse(msg);
-              addCandidate(inner.primary);
-              addCandidate(inner.backup);
-              addCandidate(inner.url);
+              addFresh(inner.primary);
+              addFresh(inner.backup);
+              addFresh(inner.url);
             } else {
-              addCandidate(msg);
+              addFresh(msg);
             }
           } catch (e) {}
-        }
-      }).catch(() => {}),
-    fetchWithTimeout("https://gist.githubusercontent.com/mephisto-mert/d5319f8e1452f20d79f5365e597eb6ab/raw/windrop_live_endpoint.json?t=" + Date.now(), 2600)
-      .then(r => r.ok ? r.json() : null)
-      .then(doc => {
-        if (doc) {
-          addCandidate(doc.primary);
-          addCandidate(doc.backup);
-          addCandidate(doc.url);
-        }
-      }).catch(() => {}),
-    fetchWithTimeout("https://mephisto-mert.github.io/windrop-ios/live_endpoint.json?t=" + Date.now(), 2600)
-      .then(r => r.ok ? r.json() : null)
-      .then(doc => {
-        if (doc) {
-          addCandidate(doc.primary);
-          addCandidate(doc.backup);
-          addCandidate(doc.url);
         }
       }).catch(() => {})
   ];
 
   await Promise.allSettled(fetchTasks);
 
-  const list = Array.from(candidateUrls);
+  const cachedTun = safeStorageGet("windrop_last_tunnel_url");
+  if (cachedTun) addFresh(cachedTun);
+
+  const list = freshCandidates.slice(0, 4);
   if (!list.length) return null;
 
   const probeTunnel = async (baseUrl) => {
@@ -5249,6 +5250,7 @@ async function resolveLiveCloudTunnelUrl() {
     if (!res.ok) throw new Error("Tunnel dead");
     const data = await res.json();
     if (data && (data.status === "ok" || data.protocol === "windrop_p2p_v3")) {
+      safeStorageSet("windrop_last_tunnel_url", baseUrl);
       return { url: baseUrl, host: baseUrl.replace(/^https?:\/\//i, ""), data };
     }
     throw new Error("Invalid ping");
