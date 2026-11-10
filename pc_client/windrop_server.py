@@ -176,15 +176,24 @@ class WinDropEngine:
 
         self.lan_ip = get_best_lan_ip()
 
-        desktop = Path(os.path.expanduser("~")) / "Desktop"
+        home = Path(os.path.expanduser("~"))
+        desktop_candidates = [
+            home / "Desktop",
+            home / "Masaüstü",
+            home / "OneDrive" / "Desktop",
+            home / "OneDrive" / "Masaüstü",
+            home,
+        ]
+        desktop = next((d for d in desktop_candidates if d.exists()), home)
 
-        if not desktop.exists():
-
-            desktop = Path(os.path.expanduser("~"))
-
-        self.receive_dir = receive_dir or (desktop / "WinDrop_Gelenler")
-
-        self.receive_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = receive_dir or (desktop / "WinDrop_Gelenler")
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            self.receive_dir = target_dir
+        except Exception:
+            fallback_dir = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "WinDrop" / "WinDrop_Gelenler"
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            self.receive_dir = fallback_dir
 
 
 
@@ -660,7 +669,7 @@ def create_windrop_app(engine: WinDropEngine) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|.*\.local)(:\d+)?$",
+        allow_origins=["*"],
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -676,6 +685,7 @@ def create_windrop_app(engine: WinDropEngine) -> FastAPI:
 
     def resolve_template_content():
         candidates = [
+            Path(r"c:\Users\pc\Documents\projelerim\windrop_airdrop\templates\ios_radar.html"),
             Path(__file__).parent / "templates" / "ios_radar.html",
             Path(getattr(sys, '_MEIPASS', '')) / "templates" / "ios_radar.html",
             Path(sys.executable).parent / "templates" / "ios_radar.html",
@@ -683,7 +693,12 @@ def create_windrop_app(engine: WinDropEngine) -> FastAPI:
         ]
         for c in candidates:
             if c.exists():
-                return c.read_text(encoding="utf-8")
+                html = c.read_text(encoding="utf-8")
+                live_host = f"{engine.lan_ip}:{engine.port}"
+                html = html.replace("192.168.1.158:8765", live_host)
+                html = html.replace('placeholder="192.168.1.158"', f'placeholder="{engine.lan_ip}" value="{engine.lan_ip}"')
+                html = html.replace("DESKTOP-EIJNT5O", engine.pc_name)
+                return html
         return "<html><body><h1>WinDrop Ready</h1></body></html>"
 
     template_path = Path(__file__).parent / "templates" / "ios_radar.html"
@@ -749,66 +764,18 @@ def create_windrop_app(engine: WinDropEngine) -> FastAPI:
 
 
     @app.get("/sw.js")
-
     async def service_worker_js():
-
         sw_code = """
-
-const CACHE_NAME = 'windrop-ios-https-v6';
-
 self.addEventListener('install', (e) => {
-
-  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(['/'])));
-
   self.skipWaiting();
-
 });
-
 self.addEventListener('activate', (e) => {
-
-  e.waitUntil(self.clients.claim());
-
+  e.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).then(() => self.registration.unregister())
+  );
 });
-
-self.addEventListener('fetch', (e) => {
-
-  const url = new URL(e.request.url);
-
-  if (e.request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-
-    e.respondWith(
-
-      caches.match('/').then((cached) => {
-
-        const netFetch = fetch(e.request).then((res) => {
-
-          if (res && res.status === 200) {
-
-            const clone = res.clone();
-
-            caches.open(CACHE_NAME).then((c) => c.put('/', clone));
-
-            return res;
-
-          }
-
-          return cached || res;
-
-        }).catch(() => cached);
-
-        return cached || netFetch;
-
-      })
-
-    );
-
-  }
-
-});
-
 """
-
-        return HTMLResponse(content=sw_code.strip(), media_type="application/javascript")
+        return HTMLResponse(content=sw_code.strip(), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
 
 
@@ -836,7 +803,19 @@ self.addEventListener('fetch', (e) => {
     @app.get("/WinDrop.mobileconfig")
     @app.get("/api/download/mobileconfig")
     async def get_mobileconfig_profile():
-        """Serves iOS WebClip .mobileconfig profile for 1-click zero-sideload installation."""
+        """Serves dynamic iOS WebClip .mobileconfig profile tailored to the current PC's LAN IP."""
+        from fastapi.responses import Response
+        try:
+            from fix_webclip_springboard import build_clean_unsupervised_webclip
+            live_url = f"http://{engine.lan_ip}:{engine.port}/"
+            xml_bytes = build_clean_unsupervised_webclip(full_url=live_url)
+            return Response(
+                content=xml_bytes,
+                media_type="application/x-apple-aspen-config",
+                headers={"Content-Disposition": 'attachment; filename="WinDrop.mobileconfig"'}
+            )
+        except Exception:
+            pass
         cfg_path = Path(__file__).resolve().parent / "WinDrop.mobileconfig"
         if not cfg_path.exists():
             cfg_path = Path.home() / "Desktop" / "WinDrop.mobileconfig"
@@ -852,15 +831,36 @@ self.addEventListener('fetch', (e) => {
     @app.get("/WinDrop.ipa")
     @app.get("/api/download/ipa")
     async def download_ipa_file():
+        from fastapi.responses import Response
         ipa_candidates = [
+            Path(sys.executable).parent / "WinDrop.ipa",
+            Path(getattr(sys, "_MEIPASS", "")) / "WinDrop.ipa",
             Path(__file__).parent / "WinDrop.ipa",
+            Path.home() / "Desktop" / "WinDrop.ipa",
             Path(r"C:\Users\pc\Desktop\WinDrop.ipa"),
             Path(r"C:\Users\pc\Desktop\WinDrop_iOS.ipa"),
             Path(__file__).parent / "WinDrop_iOS.ipa"
         ]
         for p in ipa_candidates:
             if p.exists():
-                return FileResponse(path=str(p), filename="WinDrop.ipa", media_type="application/octet-stream")
+                try:
+                    import zipfile
+                    raw_in = io.BytesIO(p.read_bytes())
+                    raw_out = io.BytesIO()
+                    live_html = resolve_template_content().encode("utf-8")
+                    with zipfile.ZipFile(raw_in, "r") as zin, zipfile.ZipFile(raw_out, "w", zipfile.ZIP_DEFLATED) as zout:
+                        for item in zin.infolist():
+                            if item.filename in ("Payload/WinDrop.app/www/index.html", "Payload/WinDrop.app/_ww/index.html"):
+                                zout.writestr(item, live_html)
+                            else:
+                                zout.writestr(item, zin.read(item.filename))
+                    return Response(
+                        content=raw_out.getvalue(),
+                        media_type="application/octet-stream",
+                        headers={"Content-Disposition": 'attachment; filename="WinDrop.ipa"'}
+                    )
+                except Exception:
+                    return FileResponse(path=str(p), filename="WinDrop.ipa", media_type="application/octet-stream")
         return JSONResponse({"error": "WinDrop.ipa not found"}, status_code=404)
 
 
@@ -2758,24 +2758,24 @@ self.addEventListener('fetch', (e) => {
                     await asyncio.sleep(0.01)
 
                 while not stop_event.is_set():
-                    # Spacedesk-Grade Backpressure Flow Control: Wait for client ACK or 120ms safety timeout
+                    # Spacedesk-Grade Backpressure Flow Control: Wait for client ACK or 80ms safety timeout
                     try:
-                        await asyncio.wait_for(ack_event.wait(), timeout=0.12)
+                        await asyncio.wait_for(ack_event.wait(), timeout=0.08)
                     except asyncio.TimeoutError:
                         pass
-                    ack_event.clear()
 
                     # Retrieve newest dirty frame via thread condition
-                    seq, frame = await asyncio.to_thread(ring.get_latest_frame, last_seq, 0.04)
+                    seq, frame = await asyncio.to_thread(ring.get_latest_frame, last_seq, 0.03)
                     if seq > last_seq and frame:
                         last_seq = seq
+                        ack_event.clear()
                         try:
                             await websocket.send_bytes(frame)
                         except Exception:
                             break
                     else:
                         # Screen is still, sleep slightly before checking again
-                        await asyncio.sleep(0.015)
+                        await asyncio.sleep(0.012)
             except Exception:
                 pass
             finally:
@@ -2851,7 +2851,7 @@ self.addEventListener('fetch', (e) => {
                                     except Exception:
                                         pass
                                     continue
-                                await asyncio.to_thread(execute_remote_action, action_data, is_local)
+                                asyncio.create_task(asyncio.to_thread(execute_remote_action, action_data, is_local))
                                 ring.force_refresh()
                                 ack_event.set()  # Trigger immediate frame push after user interaction
                             except Exception:
@@ -3049,20 +3049,16 @@ class WinDropServerRunner:
         config = uvicorn.Config(self.app, host="0.0.0.0", port=self.engine.port, log_level="warning", access_log=False, log_config=None)
 
         self._server = uvicorn.Server(config)
-
-
+        self._server.install_signal_handlers = lambda: None
 
         def _run() -> None:
-
-            loop = asyncio.new_event_loop()
-
-            asyncio.set_event_loop(loop)
-
-            self._loop = loop
-
-            loop.run_until_complete(self._server.serve())
-
-
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                self._loop = loop
+                loop.run_until_complete(self._server.serve())
+            except Exception as e:
+                print(f"[server] Uvicorn thread error: {e}", flush=True)
 
         self._thread = threading.Thread(target=_run, daemon=True)
 

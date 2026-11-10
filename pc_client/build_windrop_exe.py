@@ -18,22 +18,24 @@ BASE_DIR = Path(r"c:\Users\pc\Documents\projelerim\windrop_airdrop")
 PACKAGE_DIR = Path(r"C:\Users\pc\Desktop\WinDrop_Arkadas_Paketi")
 ZIP_DEST = Path(r"C:\Users\pc\Desktop\WinDrop_Arkadas_Paketi.zip")
 
-build_dir = BASE_DIR / "build"
-dist_dir = BASE_DIR / "dist"
+build_dir = BASE_DIR / "build_standalone"
+dist_dir = BASE_DIR / "dist_standalone"
 if build_dir.exists():
     shutil.rmtree(build_dir, ignore_errors=True)
 if dist_dir.exists():
     shutil.rmtree(dist_dir, ignore_errors=True)
 
-# Kill any existing WinDrop process to release file lock on Desktop\WinDrop.exe
-print("[*] Terminating existing WinDrop processes to release file locks...")
+# Kill any existing WinDrop or background pythonw process to release file lock & port 8765
+print("[*] Terminating existing WinDrop and pythonw processes to release file locks & port 8765...")
 subprocess.run(["taskkill", "/f", "/im", "WinDrop.exe"], capture_output=True)
+subprocess.run(["taskkill", "/f", "/im", "pythonw.exe"], capture_output=True)
 time.sleep(1)
 
 cmd = [
     r"C:\Users\pc\AppData\Local\Programs\Python\Python312\python.exe",
     "-m", "PyInstaller",
-    "--clean",
+    "--workpath", str(build_dir),
+    "--distpath", str(dist_dir),
     str(BASE_DIR / "WinDrop.spec")
 ]
 
@@ -62,10 +64,14 @@ if res.returncode == 0:
         safe_copy(exe_src, desktop_exe)
         PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
         safe_copy(exe_src, package_exe)
-        bat_src = BASE_DIR / "Guvenlik_Duvari_Izni_Ver.bat"
-        if bat_src.exists():
-            safe_copy(bat_src, PACKAGE_DIR / "Guvenlik_Duvari_Izni_Ver.bat")
-            safe_copy(bat_src, Path(r"C:\Users\pc\Desktop\Guvenlik_Duvari_Izni_Ver.bat"))
+        for extra_name in ("Guvenlik_Duvari_Izni_Ver.bat", "WinDrop.ipa", "WinDrop.mobileconfig"):
+            extra_src = BASE_DIR / extra_name
+            if extra_src.exists():
+                safe_copy(extra_src, PACKAGE_DIR / extra_name)
+                safe_copy(extra_src, Path(r"C:\Users\pc\Desktop") / extra_name)
+        usb_bat = Path(r"C:\Users\pc\Desktop\Yukle_iPhone_USB.bat")
+        if usb_bat.exists():
+            safe_copy(usb_bat, PACKAGE_DIR / "Yukle_iPhone_USB.bat")
         print(f"[+] WinDrop.exe placed at: {desktop_exe} ({exe_src.stat().st_size // (1024*1024)} MB)")
 
         # Smoke test new binary
@@ -86,9 +92,17 @@ if res.returncode == 0:
                         zf.write(full_path, arcname=str(arcname))
             print(f"[+] ZIP created successfully: {ZIP_DEST.stat().st_size // (1024*1024)} MB")
 
-        # Launch fresh WinDrop.exe in background
-        print("[*] Launching fresh WinDrop.exe in tray...")
-        subprocess.Popen([str(desktop_exe), "--tray"], creationflags=0x00000008 | 0x00000200) # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        # Launch fresh standalone WinDrop.exe visibly via WMI so Job Objects never kill it on exit
+        print("[*] Launching fresh standalone WinDrop.exe with embedded P2P server...")
+        subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='\"{desktop_exe}\"'; CurrentDirectory='C:\\Users\\pc\\Desktop'}} | Out-Null",
+            ],
+            capture_output=True,
+        )
         print("[+] Fresh WinDrop.exe launched successfully!")
 else:
     print("STDOUT:", res.stdout[-2000:])

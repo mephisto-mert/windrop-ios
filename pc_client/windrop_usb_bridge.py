@@ -184,6 +184,73 @@ async def usb_install_app_profile(lan_ip: str = "192.168.1.158") -> Dict:
     }
 
 
+async def usb_auto_sync_loop(engine=None) -> None:
+    """Continuously watches USB-connected iPhone and pulls newly taken photos/screenshots to Desktop."""
+    try:
+        from pymobiledevice3.lockdown import create_using_usbmux
+        from pymobiledevice3.services.afc import AfcService
+    except ImportError:
+        return
+
+    dest_dir = getattr(engine, "receive_dir", None) or Path(r"C:\Users\pc\Desktop\WinDrop_Alinanlar")
+    dest_dir = Path(dest_dir)
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return
+    synced_log = dest_dir / ".synced_media.txt"
+    synced = set()
+    if synced_log.exists():
+        try:
+            synced = set(synced_log.read_text(encoding="utf-8").splitlines())
+        except Exception:
+            pass
+
+    first_scan = True
+    while True:
+        try:
+            ld = create_using_usbmux()
+            if hasattr(ld, "__await__"):
+                ld = await ld
+            afc = AfcService(lockdown=ld)
+            dcim_dirs = [d for d in await afc.listdir("/DCIM") if d.endswith("APPLE")]
+            dcim_dirs.sort()
+            if dcim_dirs:
+                latest_dir = f"/DCIM/{dcim_dirs[-1]}"
+                files = [f for f in await afc.listdir(latest_dir) if not f.startswith(".")]
+                if first_scan and not synced_log.exists():
+                    for fn in files:
+                        synced.add(fn)
+                    synced_log.write_text("\n".join(synced) + "\n", encoding="utf-8")
+                    first_scan = False
+                    await asyncio.sleep(2.5)
+                    continue
+                first_scan = False
+                files.sort(reverse=True)
+                for fn in files:
+                    if fn in synced:
+                        continue
+                    try:
+                        st = await afc.stat(f"{latest_dir}/{fn}")
+                        size = st.get("st_size", 0)
+                        if size > 300 * 1024 * 1024:
+                            continue
+                        loc_path = dest_dir / fn
+                        if not loc_path.exists():
+                            data = await afc.get_file_contents(f"{latest_dir}/{fn}")
+                            loc_path.write_bytes(data)
+                            if engine and hasattr(engine, "_emit"):
+                                engine._emit("file_received", {"name": fn, "size": len(data), "path": str(loc_path)})
+                        synced.add(fn)
+                        with open(synced_log, "a", encoding="utf-8") as f:
+                            f.write(f"{fn}\n")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        await asyncio.sleep(2.5)
+
+
 def cli_main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "status":
