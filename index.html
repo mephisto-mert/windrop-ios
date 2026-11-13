@@ -200,7 +200,7 @@ let _fabDimTimeout = null;
 
 function autoSelectOptimalStreamProfile(isTunnelConn) {
   if (window._userSelectedQuality) return;
-  const target = isTunnelConn ? 'balanced' : 'ultra';
+  const target = isTunnelConn ? 'fast' : 'ultra';
   syncQualityUI(target);
 }
 
@@ -232,11 +232,11 @@ function syncQualityUI(profile) {
   });
   if (badge) {
     const labels = {
-      'fast': '⚡ 4.5G Akıcı (720p)',
-      'balanced': '💎 Dengeli (1080p)',
-      'ultra': '🔥 Ultra (2K)'
+      'fast': '⚡ Düşük MS (Akıcı)',
+      'balanced': '💎 HD (720p)',
+      'ultra': '🔥 Ultra (1080p)'
     };
-    badge.textContent = labels[norm] || labels['balanced'];
+    badge.textContent = labels[norm] || labels['fast'];
   }
 }
 
@@ -252,11 +252,11 @@ function setRemoteStreamQuality(profile, silent = false) {
   }
   if (!silent) {
     const msgs = {
-      'fast': '⚡ 4.5G Akıcı Mod (720p Düşük Gecikme)',
-      'balanced': '💎 Dengeli Mod (1080p 60 FPS)',
-      'ultra': '🔥 Ultra Mod (2K Yüksek Kalite)'
+      'fast': '⚡ Düşük MS Akıcı Mod (Sıfır Takılma)',
+      'balanced': '💎 Dengeli HD Mod (720p)',
+      'ultra': '🔥 Ultra Keskin Mod (1080p 60 FPS)'
     };
-    showRemoteToast(msgs[norm] || msgs['balanced']);
+    showRemoteToast(msgs[norm] || msgs['fast']);
   }
 }
 window.setRemoteStreamQuality = setRemoteStreamQuality;
@@ -4314,9 +4314,9 @@ class RemoteTouchGestureEngine {
       sourceHeight: 1080,
       maxZoom: 4.5,
       minZoom: 1.0,
-      doubleTapDelayMs: 300,
-      longPressDelayMs: 450,
-      tapSlopPx: 10,
+      doubleTapDelayMs: 320,
+      longPressDelayMs: 460,
+      tapSlopPx: 18,
       trackpadSpeed: 1.35,
       trackpadAcceleration: 1.6,
       onAction: null,
@@ -4427,19 +4427,16 @@ class RemoteTouchGestureEngine {
   }
 
   _mapClientToRemote(clientX, clientY) {
-    const pRect = this._getParentRect();
+    const cRect = this.element.getBoundingClientRect();
     const isRotated90 = Boolean(window.remoteForceLandscape && document.body && document.body.classList.contains('force-landscape'));
-    const elemW = isRotated90 ? pRect.height : pRect.width;
-    const elemH = isRotated90 ? pRect.width : pRect.height;
+    const curScale = Math.max(0.1, this.scale || 1.0);
+    const elemW = Math.max(1, (isRotated90 ? cRect.height : cRect.width) / curScale);
+    const elemH = Math.max(1, (isRotated90 ? cRect.width : cRect.height) / curScale);
 
-    const localX = isRotated90 ? (clientY - pRect.top) : (clientX - pRect.left);
-    const localY = isRotated90 ? (pRect.right - clientX) : (clientY - pRect.top);
+    const unscaledX = (isRotated90 ? (clientY - cRect.top) : (clientX - cRect.left)) / curScale;
+    const unscaledY = (isRotated90 ? (cRect.right - clientX) : (clientY - cRect.top)) / curScale;
 
-    // Remove zoom and pan transformations to locate unscaled coordinate
-    const unscaledX = (localX - this.panX) / this.scale;
-    const unscaledY = (localY - this.panY) / this.scale;
-
-    const hostAspect = this.options.sourceWidth / this.options.sourceHeight;
+    const hostAspect = this.options.sourceWidth / Math.max(1, this.options.sourceHeight);
     const elemAspect = elemW / elemH;
 
     let renderW = elemW;
@@ -4480,6 +4477,27 @@ class RemoteTouchGestureEngine {
       x_pct: normX,
       y_pct: normY
     };
+  }
+
+  _showTapRipple(clientX, clientY, isDouble = false) {
+    let dot = document.getElementById('remoteTapRippleDot');
+    if (!dot) {
+      dot = document.createElement('div');
+      dot.id = 'remoteTapRippleDot';
+      dot.style.cssText = 'position:fixed; width:28px; height:28px; border-radius:50%; border:2px solid #30D158; background:rgba(48,209,88,0.22); box-shadow:0 0 10px rgba(48,209,88,0.6); pointer-events:none; z-index:2147483646; transform:translate(-50%,-50%) scale(0.4); opacity:0;';
+      document.body.appendChild(dot);
+    }
+    dot.style.borderColor = isDouble ? '#0A84FF' : '#30D158';
+    dot.style.background = isDouble ? 'rgba(10,132,255,0.25)' : 'rgba(48,209,88,0.22)';
+    dot.style.left = clientX + 'px';
+    dot.style.top = clientY + 'px';
+    dot.style.transition = 'none';
+    dot.style.transform = 'translate(-50%,-50%) scale(0.45)';
+    dot.style.opacity = '0.95';
+    void dot.offsetWidth;
+    dot.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+    dot.style.transform = 'translate(-50%,-50%) scale(1.25)';
+    dot.style.opacity = '0';
   }
 
   _showLongPressRing(clientX, clientY) {
@@ -4713,17 +4731,21 @@ class RemoteTouchGestureEngine {
     if (e.touches.length === 0 && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
       const totalMovement = Math.hypot(t.clientX - this.startTouchPos.x, t.clientY - this.startTouchPos.y);
-      const pressDuration = now - this.touchStartTime;
 
-      if (totalMovement <= this.options.tapSlopPx && pressDuration < 380) {
+      if (totalMovement <= this.options.tapSlopPx) {
         haptic('light');
         const coords = this._mapClientToRemote(t.clientX, t.clientY);
         const isDoubleTap = (now - this.lastTapTime < this.options.doubleTapDelayMs) &&
-                            (Math.hypot(t.clientX - this.lastTapPos.x, t.clientY - this.lastTapPos.y) <= 24);
+                            (Math.hypot(t.clientX - this.lastTapPos.x, t.clientY - this.lastTapPos.y) <= 28);
 
+        this._showTapRipple(t.clientX, t.clientY, isDoubleTap);
         if (isDoubleTap) {
           this.lastTapTime = 0;
-          this._emit({ action: 'double_click', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          if (this.options.mode === 'trackpad') {
+            this._emit({ action: 'double_click', button: 'left' });
+          } else {
+            this._emit({ action: 'double_click', button: 'left', x_pct: coords.x_pct, y_pct: coords.y_pct });
+          }
         } else {
           this.lastTapTime = now;
           this.lastTapPos = { x: t.clientX, y: t.clientY };
@@ -4806,6 +4828,7 @@ class RemoteTouchGestureEngine {
 }
 
 let remoteWS = null;
+let remoteInputWS = null;
 let remoteRenderer = null;
 let remoteGestureEngine = null;
 let remoteCurrentMode = 'direct';
@@ -4899,31 +4922,63 @@ function startRemoteStream() {
     window.remoteGestureEngine = remoteGestureEngine;
   }
 
+  const verifyEndpointAlive = async (candidateUrl) => {
+    if (!candidateUrl || !candidateUrl.startsWith('http') || /github\.io|vercel\.app/i.test(candidateUrl)) {
+      return false;
+    }
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 1600);
+      const r = await fetch(candidateUrl.replace(/\/+$/, '') + '/api/ping?t=' + Date.now(), {
+        cache: 'no-store',
+        signal: ctrl.signal
+      });
+      clearTimeout(tid);
+      if (r && r.ok) {
+        const j = await r.json();
+        return Boolean(j && j.status === 'ok');
+      }
+    } catch (e) {}
+    return false;
+  };
+
   const resolvePlayableBase = async () => {
-    let base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+    let base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE.replace(/\/+$/, '') : location.origin;
     const isInvalidStaticHost = !base || /github\.io|vercel\.app/i.test(base) ||
       (window.location.protocol === 'https:' && base.startsWith('http:'));
-    if (isInvalidStaticHost) {
-      const cachedTun = safeStorageGet('windrop_last_tunnel_url');
-      if (cachedTun && cachedTun.startsWith('https://') && !/github\.io|vercel\.app/i.test(cachedTun)) {
+
+    if (!isInvalidStaticHost && base === location.origin) {
+      return base;
+    }
+
+    if (!isInvalidStaticHost && await verifyEndpointAlive(base)) {
+      return base;
+    }
+
+    const cachedTun = (safeStorageGet('windrop_last_tunnel_url') || '').replace(/\/+$/, '');
+    if (cachedTun && cachedTun !== base && cachedTun.startsWith('https://') && !/github\.io|vercel\.app/i.test(cachedTun)) {
+      if (await verifyEndpointAlive(cachedTun)) {
         API_BASE = cachedTun;
         window.API_BASE = cachedTun;
-        base = cachedTun;
-      } else if (typeof connectCloudTunnelAuto === 'function') {
-        showRemoteToast('⏳ PC Ekranına Bağlanıyor...');
-        await connectCloudTunnelAuto(false);
-        base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+        return cachedTun;
       }
+    }
+
+    if (typeof connectCloudTunnelAuto === 'function') {
+      showRemoteToast('⏳ PC Ekranına Bağlanıyor...');
+      try { await connectCloudTunnelAuto(false); } catch (e) {}
+      base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE.replace(/\/+$/, '') : '';
     }
     return base;
   };
 
   resolvePlayableBase().then((base) => {
     if (!base || /github\.io|vercel\.app/i.test(base)) return;
-    // Immediate HTTP frame preload so the viewport displays the live PC desktop in <40ms
+    const isTunnel = base.startsWith('https:');
+    const preloadQ = isTunnel ? 54 : 75;
     try {
       if (base.startsWith('http')) {
-        fetch(`${base}/api/remote/screen/frame?q=75&t=${Date.now()}`, { cache: 'no-store' })
+        fetch(`${base}/api/remote/screen/frame?q=${preloadQ}&t=${Date.now()}`, { cache: 'no-store' })
           .then(r => r.ok ? r.arrayBuffer() : null)
           .then(buf => {
             if (buf && remoteRenderer) remoteRenderer.pushFrame(buf, false);
@@ -4931,6 +4986,7 @@ function startRemoteStream() {
           .catch(() => {});
       }
     } catch (e) {}
+    connectRemoteInputWebSocket();
     connectRemoteWebSocket();
   });
 }
@@ -4943,6 +4999,15 @@ function stopRemoteStream() {
   if (remoteRenderer && typeof remoteRenderer.clearQueue === 'function') {
     remoteRenderer.clearQueue();
   }
+  if (remoteInputWS) {
+    try {
+      remoteInputWS.onclose = null;
+      remoteInputWS.onerror = null;
+      remoteInputWS.close();
+    } catch(e) {}
+    remoteInputWS = null;
+    window.remoteInputWS = null;
+  }
   if (remoteWS) {
     try {
       remoteWS.onclose = null;
@@ -4954,16 +5019,76 @@ function stopRemoteStream() {
   }
 }
 
+function connectRemoteInputWebSocket() {
+  if (remoteInputWS && (remoteInputWS.readyState === WebSocket.OPEN || remoteInputWS.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin).replace(/\/+$/, '');
+  if (!base || /github\.io|vercel\.app/i.test(base)) return;
+  const isHttps = base.startsWith('https:');
+  const wsProto = isHttps ? 'wss:' : 'ws:';
+  const host = base.replace(/^https?:\/\//, '');
+  const inputUrl = `${wsProto}//${host}/ws/remote/input`;
+
+  try {
+    remoteInputWS = new WebSocket(inputUrl);
+    window.remoteInputWS = remoteInputWS;
+
+    remoteInputWS.onopen = () => {
+      try {
+        remoteLastPingTime = performance.now();
+        remoteInputWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
+      } catch (e) {}
+    };
+
+    remoteInputWS.onmessage = (event) => {
+      if (typeof event.data !== 'string') return;
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.action === "pong") {
+          const refT = (typeof msg.t === 'number' && msg.t > 0) ? msg.t : remoteLastPingTime;
+          remoteRttMs = Math.max(1, Math.round(performance.now() - refT));
+          const hud = document.getElementById('remoteFpsHud');
+          const stats = document.getElementById('remoteStatsDisplay');
+          const curFps = (remoteRenderer && remoteRenderer.currentFps > 4) ? remoteRenderer.currentFps : (base.startsWith('https:') ? 24 : 60);
+          if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
+          if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
+        } else if (msg.action === "error" || msg.status === "forbidden") {
+          const errTxt = "⚠️ " + (msg.error || "İşlem engellendi");
+          showRemoteToast(errTxt);
+          if (typeof showDesktopToast === 'function') showDesktopToast(errTxt);
+        }
+      } catch (e) {}
+    };
+
+    remoteInputWS.onclose = () => {
+      setTimeout(() => {
+        if (safeStorageGet('windrop_active_tab') === 'remote') {
+          connectRemoteInputWebSocket();
+        }
+      }, 1500);
+    };
+
+    remoteInputWS.onerror = () => {
+      try { remoteInputWS.close(); } catch (e) {}
+    };
+  } catch (e) {}
+}
+
 function connectRemoteWebSocket() {
   if (remoteWS && (remoteWS.readyState === WebSocket.OPEN || remoteWS.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
-  const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin;
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin).replace(/\/+$/, '');
+  if (!base || /github\.io|vercel\.app/i.test(base)) return;
   const isHttps = base.startsWith('https:');
   const wsProto = isHttps ? 'wss:' : 'ws:';
   const host = base.replace(/^https?:\/\//, '');
-  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120`;
+  const defaultProf = isHttps ? 'fast' : 'ultra';
+  const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
+  if (typeof syncQualityUI === 'function') syncQualityUI(activeProf);
+  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120&profile=${encodeURIComponent(activeProf)}`;
 
   try {
     remoteWS = new WebSocket(wsUrl);
@@ -4974,23 +5099,25 @@ function connectRemoteWebSocket() {
       console.log("[RemoteWS] Connected to", wsUrl);
       const dot = document.getElementById('remoteLiveDot');
       if (dot) dot.style.background = '#30D158';
+      connectRemoteInputWebSocket();
 
-      // Immediate ping + stream quality profile sync + instant first frame trigger
       try {
-        remoteLastPingTime = performance.now();
-        remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
-        const defaultProf = isHttps ? "balanced" : "ultra";
-        const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
-        if (typeof syncQualityUI === "function") syncQualityUI(activeProf);
         remoteWS.send(JSON.stringify({ action: "set_stream_profile", profile: activeProf }));
         remoteWS.send(JSON.stringify({ action: "force_refresh" }));
+        if (!remoteInputWS || remoteInputWS.readyState !== WebSocket.OPEN) {
+          remoteLastPingTime = performance.now();
+          remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
+        }
       } catch (e) {}
 
       if (remotePingInterval) clearInterval(remotePingInterval);
       remotePingInterval = setInterval(() => {
-        if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
-          remoteLastPingTime = performance.now();
-          remoteWS.send(JSON.stringify({ action: "ping", t: remoteLastPingTime }));
+        remoteLastPingTime = performance.now();
+        const pingPayload = JSON.stringify({ action: "ping", t: remoteLastPingTime });
+        if (remoteInputWS && remoteInputWS.readyState === WebSocket.OPEN) {
+          remoteInputWS.send(pingPayload);
+        } else if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
+          remoteWS.send(pingPayload);
         }
       }, 2500);
     };
@@ -5009,7 +5136,7 @@ function connectRemoteWebSocket() {
             remoteRttMs = Math.max(1, Math.round(performance.now() - remoteLastPingTime));
             const hud = document.getElementById('remoteFpsHud');
             const stats = document.getElementById('remoteStatsDisplay');
-            const curFps = (remoteRenderer && remoteRenderer.currentFps > 6) ? remoteRenderer.currentFps : 60;
+            const curFps = (remoteRenderer && remoteRenderer.currentFps > 4) ? remoteRenderer.currentFps : (isHttps ? 24 : 60);
             if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
             if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
           } else if (msg.action === "error" || msg.status === "forbidden") {
@@ -5032,9 +5159,10 @@ function connectRemoteWebSocket() {
           if (/trycloudflare\.com|lhr\.life|ngrok|loca\.lt|github\.io/i.test(curBase) && typeof connectCloudTunnelAuto === 'function') {
             try { await connectCloudTunnelAuto(false); } catch (e) {}
           }
+          connectRemoteInputWebSocket();
           connectRemoteWebSocket();
         }
-      }, 2000);
+      }, 1800);
     };
 
     remoteWS.onerror = () => {
@@ -5045,17 +5173,64 @@ function connectRemoteWebSocket() {
   }
 }
 
+let _resolvingActionTunnel = false;
 function sendRemoteAction(action) {
-  if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
-    remoteWS.send(JSON.stringify(action));
-  } else {
-    const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
-    fetch(base + "/api/remote/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action)
-    }).catch(() => {});
+  const payload = JSON.stringify(action);
+  if (remoteInputWS && remoteInputWS.readyState === WebSocket.OPEN) {
+    try {
+      remoteInputWS.send(payload);
+      return;
+    } catch (e) {}
   }
+  if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
+    try {
+      remoteWS.send(payload);
+      return;
+    } catch (e) {}
+  }
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '').replace(/\/+$/, '');
+  if (!base || /github\.io|vercel\.app/i.test(base)) {
+    if (!_resolvingActionTunnel && typeof connectCloudTunnelAuto === 'function') {
+      _resolvingActionTunnel = true;
+      connectCloudTunnelAuto(false).then(() => {
+        _resolvingActionTunnel = false;
+        connectRemoteInputWebSocket();
+        connectRemoteWebSocket();
+        const freshBase = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '').replace(/\/+$/, '');
+        if (freshBase && !/github\.io|vercel\.app/i.test(freshBase)) {
+          fetch(freshBase + "/api/remote/action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+          }).catch(() => {});
+        }
+      }).catch(() => { _resolvingActionTunnel = false; });
+    }
+    return;
+  }
+  fetch(base + "/api/remote/action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload
+  }).then((res) => {
+    if (res && res.status >= 500 && !_resolvingActionTunnel && typeof connectCloudTunnelAuto === 'function') {
+      _resolvingActionTunnel = true;
+      connectCloudTunnelAuto(false).then(() => {
+        _resolvingActionTunnel = false;
+        connectRemoteInputWebSocket();
+        connectRemoteWebSocket();
+      }).catch(() => { _resolvingActionTunnel = false; });
+    }
+  }).catch(() => {
+    if (!_resolvingActionTunnel && typeof connectCloudTunnelAuto === 'function') {
+      _resolvingActionTunnel = true;
+      connectCloudTunnelAuto(false).then(() => {
+        _resolvingActionTunnel = false;
+        connectRemoteInputWebSocket();
+        connectRemoteWebSocket();
+      }).catch(() => { _resolvingActionTunnel = false; });
+    }
+  });
 }
 
 window._activeMonIdx = 0;
