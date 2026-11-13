@@ -5293,7 +5293,7 @@ async function connectRemoteWebRTC(explicitBase) {
     await pc.setLocalDescription(offer);
     await new Promise((resolve) => {
       if (pc.iceGatheringState === 'complete') return resolve();
-      const tid = setTimeout(resolve, 900);
+      const tid = setTimeout(resolve, 350);
       pc.onicegatheringstatechange = () => {
         if (pc.iceGatheringState === 'complete') {
           clearTimeout(tid);
