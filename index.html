@@ -4154,6 +4154,7 @@ class RemoteScreenRenderer {
     this.isRendering = false;
     this.isDecoding = false;
     this._pendingKeyframe = null;
+    this._deltaQueue = [];
     this._queuedItem = null;
     this.pendingFrame = null;
     this.rafId = null;
@@ -4193,10 +4194,22 @@ class RemoteScreenRenderer {
     }
   }
 
-  _isKeyframePacket(data) {
-    if (!(data instanceof ArrayBuffer) || data.byteLength <= 12) return false;
+  _getWdPacketType(data) {
+    if (!(data instanceof ArrayBuffer) || data.byteLength < 12) return 0;
     const u8 = new Uint8Array(data, 0, 4);
-    return u8[0] === 0x57 && u8[1] === 0x44 && u8[2] === 0x01;
+    if (u8[0] === 0x57 && u8[1] === 0x44) return u8[2];
+    return 0;
+  }
+
+  _ackAndClearDeltas() {
+    if (this._deltaQueue && this._deltaQueue.length > 0) {
+      for (let i = 0; i < this._deltaQueue.length; i++) {
+        if (this._deltaQueue[i].needsAck && this.options.onFrameConsumed) {
+          try { this.options.onFrameConsumed(); } catch (e) {}
+        }
+      }
+      this._deltaQueue.length = 0;
+    }
   }
 
   pushFrame(frameData, needsAck = false) {
@@ -4206,16 +4219,37 @@ class RemoteScreenRenderer {
       }
       return;
     }
-    if (this.isDecoding) {
-      if (this._isKeyframePacket(frameData)) {
+    const pType = this._getWdPacketType(frameData);
+    if (pType === 0x01) {
+      this._ackAndClearDeltas();
+      if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
+        try { this.options.onFrameConsumed(); } catch (e) {}
+      }
+      this._queuedItem = null;
+      if (this.isDecoding) {
         if (this._pendingKeyframe && this._pendingKeyframe.needsAck && this.options.onFrameConsumed) {
           try { this.options.onFrameConsumed(); } catch (e) {}
         }
-        if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
-          try { this.options.onFrameConsumed(); } catch (e) {}
-        }
-        this._queuedItem = null;
         this._pendingKeyframe = { data: frameData, needsAck: Boolean(needsAck) };
+        return;
+      }
+      this._decodeAndDraw(frameData, Boolean(needsAck));
+      return;
+    }
+
+    if (this.isDecoding) {
+      if (pType === 0x02) {
+        if (this._deltaQueue.length >= 12) {
+          this._ackAndClearDeltas();
+          if (needsAck && this.options.onFrameConsumed) {
+            try { this.options.onFrameConsumed(); } catch (e) {}
+          }
+          if (this.options.onMissingKeyframe) {
+            try { this.options.onMissingKeyframe(); } catch (e) {}
+          }
+          return;
+        }
+        this._deltaQueue.push({ data: frameData, needsAck: Boolean(needsAck) });
         return;
       }
       if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
@@ -4326,6 +4360,11 @@ class RemoteScreenRenderer {
         this._decodeAndDraw(nextKf.data, nextKf.needsAck);
         return;
       }
+      if (this._deltaQueue.length > 0) {
+        const nextDl = this._deltaQueue.shift();
+        this._decodeAndDraw(nextDl.data, nextDl.needsAck);
+        return;
+      }
       if (this._queuedItem) {
         const next = this._queuedItem;
         this._queuedItem = null;
@@ -4358,7 +4397,7 @@ class RemoteScreenRenderer {
           return;
         }
 
-        if (pktType === 0x03) {
+        if (pktType === 0x02 || pktType === 0x03) {
           if (this._kfSeqMod !== kfSeqMod || !this._kfCanvas || !this._kfCanvas.width) {
             const now = performance.now();
             if (now - this._lastKfReq > 600 && this.options.onMissingKeyframe) {
@@ -4372,7 +4411,7 @@ class RemoteScreenRenderer {
             if (fullW !== this.sourceWidth || fullH !== this.sourceHeight) {
               this.setSourceResolution(fullW, fullH);
             }
-            if (this.ctx) {
+            if (pktType === 0x03 && this.ctx) {
               this.ctx.drawImage(this._kfCanvas, 0, 0, this.canvas.width, this.canvas.height);
             }
             this._bumpFpsCounter();
@@ -4406,11 +4445,16 @@ class RemoteScreenRenderer {
                 const sx = cw / Math.max(1, fullW);
                 const sy = ch / Math.max(1, fullH);
                 this.ctx.imageSmoothingEnabled = true;
-                this.ctx.drawImage(this._kfCanvas, 0, 0, cw, ch);
+                if (pktType === 0x03) {
+                  this.ctx.drawImage(this._kfCanvas, 0, 0, cw, ch);
+                }
                 for (let i = 0; i < decoded.length; i++) {
                   const it = decoded[i];
                   const rc = rects[i];
                   if (it && it.src && rc) {
+                    if (pktType === 0x02 && this._kfCtx) {
+                      this._kfCtx.drawImage(it.src, rc.rx, rc.ry, rc.rw, rc.rh);
+                    }
                     this.ctx.drawImage(it.src, rc.rx * sx, rc.ry * sy, rc.rw * sx, rc.rh * sy);
                   }
                 }
@@ -4443,6 +4487,7 @@ class RemoteScreenRenderer {
   }
 
   clearQueue() {
+    this._ackAndClearDeltas();
     if (this._pendingKeyframe && this._pendingKeyframe.needsAck && this.options.onFrameConsumed) {
       try { this.options.onFrameConsumed(); } catch (e) {}
     }
