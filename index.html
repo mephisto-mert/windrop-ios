@@ -5197,10 +5197,136 @@ function startRemoteStream() {
     } catch (e) {}
     connectRemoteInputWebSocket();
     connectRemoteWebSocket();
+    if (typeof connectRemoteWebRTC === 'function') {
+      connectRemoteWebRTC(base);
+    }
   });
 }
 
+let remotePC = null;
+let remoteCtrlDC = null;
+let remoteVideoDC = null;
+
+function stopRemoteWebRTC() {
+  try { if (remoteVideoDC) remoteVideoDC.close(); } catch (e) {}
+  try { if (remoteCtrlDC) remoteCtrlDC.close(); } catch (e) {}
+  try { if (remotePC) remotePC.close(); } catch (e) {}
+  remoteVideoDC = null;
+  remoteCtrlDC = null;
+  remotePC = null;
+}
+
+async function connectRemoteWebRTC(explicitBase) {
+  if (typeof RTCPeerConnection !== 'function') return;
+  if (remotePC && (remotePC.connectionState === 'connected' || remotePC.connectionState === 'connecting')) {
+    return;
+  }
+  const base = ((explicitBase || (typeof API_BASE !== 'undefined' && API_BASE) || location.origin) + '').replace(/\/+$/, '');
+  if (!base || /github\.io|vercel\.app/i.test(base)) return;
+
+  stopRemoteWebRTC();
+  const isHttps = base.startsWith('https:');
+  const defaultProf = isHttps ? 'fast' : 'ultra';
+  const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
+
+  try {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+    remotePC = pc;
+
+    const ctrlDC = pc.createDataChannel('wd_ctrl', { ordered: true });
+    remoteCtrlDC = ctrlDC;
+    ctrlDC.onopen = () => {
+      try {
+        remoteLastPingTime = performance.now();
+        ctrlDC.send(JSON.stringify({ action: 'ping', t: remoteLastPingTime }));
+      } catch (e) {}
+    };
+    ctrlDC.onmessage = (ev) => {
+      if (typeof ev.data !== 'string') return;
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.action === 'pong') {
+          const refT = (typeof msg.t === 'number' && msg.t > 0) ? msg.t : remoteLastPingTime;
+          const rawRtt = Math.max(1, Math.round(performance.now() - refT));
+          remoteRttMs = (remoteRttMs > 0 && remoteRttMs < 400) ? Math.round(remoteRttMs * 0.5 + rawRtt * 0.5) : rawRtt;
+          const hud = document.getElementById('remoteFpsHud');
+          const stats = document.getElementById('remoteStatsDisplay');
+          const curFps = remoteRenderer ? (remoteRenderer.displayFps || 60) : 60;
+          if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
+          if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
+        }
+      } catch (e) {}
+    };
+
+    const vidDC = pc.createDataChannel('wd_video', { ordered: true });
+    vidDC.binaryType = 'arraybuffer';
+    remoteVideoDC = vidDC;
+    let closedFallbackWs = false;
+    vidDC.onmessage = (ev) => {
+      if (!closedFallbackWs) {
+        closedFallbackWs = true;
+        if (remoteWS) {
+          try {
+            remoteWS.onclose = null;
+            remoteWS.onerror = null;
+            remoteWS.close();
+          } catch (e) {}
+          remoteWS = null;
+          window.remoteWS = null;
+        }
+        const dot = document.getElementById('remoteLiveDot');
+        if (dot) dot.style.background = '#30D158';
+      }
+      if (ev.data instanceof ArrayBuffer && remoteRenderer) {
+        remoteRenderer.pushFrame(ev.data, false);
+      }
+    };
+    vidDC.onclose = () => {
+      if (safeStorageGet('windrop_active_tab') === 'remote' && (!remoteWS || remoteWS.readyState !== WebSocket.OPEN)) {
+        connectRemoteWebSocket();
+      }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await new Promise((resolve) => {
+      if (pc.iceGatheringState === 'complete') return resolve();
+      const tid = setTimeout(resolve, 900);
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === 'complete') {
+          clearTimeout(tid);
+          resolve();
+        }
+      };
+    });
+
+    const resp = await fetch(`${base}/api/remote/webrtc/offer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sdp: pc.localDescription.sdp,
+        type: pc.localDescription.type,
+        profile: activeProf
+      })
+    });
+    if (!resp.ok) {
+      stopRemoteWebRTC();
+      return;
+    }
+    const ans = await resp.json();
+    if (ans && ans.sdp && remotePC === pc) {
+      await pc.setRemoteDescription(new RTCSessionDescription(ans));
+    }
+  } catch (e) {
+    console.warn('[WebRTC] fallback to WS:', e);
+    stopRemoteWebRTC();
+  }
+}
+
 function stopRemoteStream() {
+  stopRemoteWebRTC();
   if (remotePingInterval) {
     clearInterval(remotePingInterval);
     remotePingInterval = null;
@@ -5324,6 +5450,9 @@ function connectRemoteWebSocket() {
       remotePingInterval = setInterval(() => {
         remoteLastPingTime = performance.now();
         const pingPayload = JSON.stringify({ action: "ping", t: remoteLastPingTime });
+        if (remoteCtrlDC && remoteCtrlDC.readyState === 'open') {
+          try { remoteCtrlDC.send(pingPayload); return; } catch (e) {}
+        }
         if (remoteInputWS && remoteInputWS.readyState === WebSocket.OPEN) {
           remoteInputWS.send(pingPayload);
         } else if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
@@ -5388,6 +5517,12 @@ function connectRemoteWebSocket() {
 let _resolvingActionTunnel = false;
 function sendRemoteAction(action) {
   const payload = JSON.stringify(action);
+  if (remoteCtrlDC && remoteCtrlDC.readyState === 'open') {
+    try {
+      remoteCtrlDC.send(payload);
+      return;
+    } catch (e) {}
+  }
   if (remoteInputWS && remoteInputWS.readyState === WebSocket.OPEN) {
     try {
       remoteInputWS.send(payload);
