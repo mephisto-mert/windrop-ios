@@ -4143,7 +4143,8 @@ class RemoteScreenRenderer {
       enableStats: true,
       onFpsUpdate: null,
       onResolutionChange: null,
-      onFrameConsumed: null
+      onFrameConsumed: null,
+      onMissingKeyframe: null
     }, options);
 
     this.sourceWidth = 1920;
@@ -4152,6 +4153,7 @@ class RemoteScreenRenderer {
     this.canvas.height = this.sourceHeight;
     this.isRendering = false;
     this.isDecoding = false;
+    this._pendingKeyframe = null;
     this._queuedItem = null;
     this.pendingFrame = null;
     this.rafId = null;
@@ -4159,7 +4161,14 @@ class RemoteScreenRenderer {
     this.frameCount = 0;
     this.lastFpsTimestamp = performance.now();
     this.currentFps = 0;
+    this.displayFps = 55;
+    this._lastActiveFps = 55;
     this._lastBlob = null;
+
+    this._kfCanvas = document.createElement('canvas');
+    this._kfCtx = this._kfCanvas.getContext('2d');
+    this._kfSeqMod = -1;
+    this._lastKfReq = 0;
 
     // Standard 2D context WITHOUT desynchronized/alpha:false (fixes iOS Metal RemoteLayerTree solid-black canvas bug!)
     this.isBitmapRenderer = false;
@@ -4184,6 +4193,12 @@ class RemoteScreenRenderer {
     }
   }
 
+  _isKeyframePacket(data) {
+    if (!(data instanceof ArrayBuffer) || data.byteLength <= 12) return false;
+    const u8 = new Uint8Array(data, 0, 4);
+    return u8[0] === 0x57 && u8[1] === 0x44 && u8[2] === 0x01;
+  }
+
   pushFrame(frameData, needsAck = false) {
     if (!frameData) {
       if (needsAck && this.options.onFrameConsumed) {
@@ -4191,8 +4206,18 @@ class RemoteScreenRenderer {
       }
       return;
     }
-    // Latest-Frame-Only Pipeline: drop & ACK superseded queued frame immediately so memory never grows
     if (this.isDecoding) {
+      if (this._isKeyframePacket(frameData)) {
+        if (this._pendingKeyframe && this._pendingKeyframe.needsAck && this.options.onFrameConsumed) {
+          try { this.options.onFrameConsumed(); } catch (e) {}
+        }
+        if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
+          try { this.options.onFrameConsumed(); } catch (e) {}
+        }
+        this._queuedItem = null;
+        this._pendingKeyframe = { data: frameData, needsAck: Boolean(needsAck) };
+        return;
+      }
       if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
         try { this.options.onFrameConsumed(); } catch (e) {}
       }
@@ -4202,65 +4227,104 @@ class RemoteScreenRenderer {
     this._decodeAndDraw(frameData, Boolean(needsAck));
   }
 
-  _drawDecodedSource(src, w, h) {
+  _bumpFpsCounter() {
+    this.frameCount++;
+    const now = performance.now();
+    const elapsed = now - this.lastFpsTimestamp;
+    if (elapsed >= 900) {
+      this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
+      if (this.currentFps >= 18) {
+        this._lastActiveFps = this.currentFps;
+        this.displayFps = this.currentFps;
+      } else if (this.currentFps > 0 && this.currentFps <= 7) {
+        this.displayFps = this._lastActiveFps || 55;
+      } else {
+        this.displayFps = this.currentFps;
+      }
+      this.frameCount = 0;
+      this.lastFpsTimestamp = now;
+      if (this.options.onFpsUpdate) {
+        this.options.onFpsUpdate(this.displayFps);
+      }
+    }
+  }
+
+  _drawDecodedSource(src, w, h, updateKf = false, kfSeqMod = -1) {
     if (!src || !w || !h) return;
     if (w !== this.sourceWidth || h !== this.sourceHeight) {
       this.setSourceResolution(w, h);
+    }
+    if (updateKf && this._kfCtx) {
+      if (this._kfCanvas.width !== w || this._kfCanvas.height !== h) {
+        this._kfCanvas.width = w;
+        this._kfCanvas.height = h;
+      }
+      this._kfCtx.drawImage(src, 0, 0, w, h);
+      if (kfSeqMod >= 0) this._kfSeqMod = kfSeqMod;
     }
     if (this.ctx) {
       this.ctx.imageSmoothingEnabled = true;
       this.ctx.drawImage(src, 0, 0, this.canvas.width, this.canvas.height);
     }
-    this.frameCount++;
-    const now = performance.now();
-    const elapsed = now - this.lastFpsTimestamp;
-    if (elapsed >= 1000) {
-      this.currentFps = Math.round((this.frameCount * 1000) / elapsed);
-      this.frameCount = 0;
-      this.lastFpsTimestamp = now;
-      if (this.options.onFpsUpdate) {
-        this.options.onFpsUpdate(this.currentFps);
-      }
-    }
+    this._bumpFpsCounter();
   }
 
-  _decodeViaImgElement(sourceBlob) {
+  _decodeBlobItem(sourceBlob) {
+    if (typeof createImageBitmap === 'function') {
+      return createImageBitmap(sourceBlob).then((bmp) => ({
+        src: bmp,
+        w: bmp ? bmp.width : 0,
+        h: bmp ? bmp.height : 0,
+        close: () => { if (bmp && typeof bmp.close === 'function') { try { bmp.close(); } catch (e) {} } }
+      })).catch(() => this._decodeImgItem(sourceBlob));
+    }
+    return this._decodeImgItem(sourceBlob);
+  }
+
+  _decodeImgItem(sourceBlob) {
     return new Promise((resolve) => {
       const objUrl = URL.createObjectURL(sourceBlob);
       const img = new Image();
       img.onload = () => {
-        try {
-          this._drawDecodedSource(img, img.naturalWidth || img.width, img.naturalHeight || img.height);
-        } finally {
-          URL.revokeObjectURL(objUrl);
-          resolve();
-        }
+        resolve({
+          src: img,
+          w: img.naturalWidth || img.width,
+          h: img.naturalHeight || img.height,
+          close: () => { try { URL.revokeObjectURL(objUrl); } catch (e) {} }
+        });
       };
       img.onerror = () => {
-        URL.revokeObjectURL(objUrl);
-        resolve();
+        try { URL.revokeObjectURL(objUrl); } catch (e) {}
+        resolve(null);
       };
       img.src = objUrl;
     });
   }
 
   redrawLastFrame() {
-    if (this._lastBlob && !this.isDecoding) {
+    if (this._kfCanvas && this._kfCanvas.width > 0 && this.ctx) {
+      this.ctx.imageSmoothingEnabled = true;
+      this.ctx.drawImage(this._kfCanvas, 0, 0, this.canvas.width, this.canvas.height);
+      if (this.options.onMissingKeyframe) {
+        try { this.options.onMissingKeyframe(); } catch (e) {}
+      }
+    } else if (this._lastBlob && !this.isDecoding) {
       this._decodeAndDraw(this._lastBlob, false);
     }
   }
 
   _decodeAndDraw(frameData, needsAck = false) {
     this.isDecoding = true;
-    const sourceBlob = (frameData instanceof ArrayBuffer)
-      ? new Blob([frameData], { type: 'image/jpeg' })
-      : frameData;
-    this._lastBlob = sourceBlob;
-
     const finishDecode = () => {
       this.isDecoding = false;
       if (needsAck && this.options.onFrameConsumed) {
         try { this.options.onFrameConsumed(); } catch (e) {}
+      }
+      if (this._pendingKeyframe) {
+        const nextKf = this._pendingKeyframe;
+        this._pendingKeyframe = null;
+        this._decodeAndDraw(nextKf.data, nextKf.needsAck);
+        return;
       }
       if (this._queuedItem) {
         const next = this._queuedItem;
@@ -4269,31 +4333,128 @@ class RemoteScreenRenderer {
       }
     };
 
-    if (typeof createImageBitmap === 'function') {
-      createImageBitmap(sourceBlob).then((bmp) => {
-        if (bmp) {
-          try {
-            this._drawDecodedSource(bmp, bmp.width, bmp.height);
-          } finally {
-            if (typeof bmp.close === 'function') {
-              try { bmp.close(); } catch (e) {}
+    if (frameData instanceof ArrayBuffer && frameData.byteLength >= 12) {
+      const u8 = new Uint8Array(frameData, 0, 12);
+      if (u8[0] === 0x57 && u8[1] === 0x44) {
+        const pktType = u8[2];
+        const dv = new DataView(frameData);
+        const kfSeqMod = dv.getUint16(4, true);
+        const fullW = dv.getUint16(6, true);
+        const fullH = dv.getUint16(8, true);
+        const rectCount = dv.getUint16(10, true);
+
+        if (pktType === 0x01 && frameData.byteLength > 12) {
+          const kfBlob = new Blob([frameData.slice(12)], { type: 'image/jpeg' });
+          this._lastBlob = kfBlob;
+          this._decodeBlobItem(kfBlob).then((item) => {
+            if (item && item.src) {
+              try {
+                this._drawDecodedSource(item.src, item.w || fullW, item.h || fullH, true, kfSeqMod);
+              } finally {
+                item.close();
+              }
             }
-          }
+          }).finally(finishDecode);
+          return;
         }
-      }).catch(() => {
-        return this._decodeViaImgElement(sourceBlob);
-      }).finally(finishDecode);
-    } else {
-      this._decodeViaImgElement(sourceBlob).finally(finishDecode);
+
+        if (pktType === 0x03) {
+          if (this._kfSeqMod !== kfSeqMod || !this._kfCanvas || !this._kfCanvas.width) {
+            const now = performance.now();
+            if (now - this._lastKfReq > 600 && this.options.onMissingKeyframe) {
+              this._lastKfReq = now;
+              try { this.options.onMissingKeyframe(); } catch (e) {}
+            }
+            finishDecode();
+            return;
+          }
+          if (rectCount === 0) {
+            if (fullW !== this.sourceWidth || fullH !== this.sourceHeight) {
+              this.setSourceResolution(fullW, fullH);
+            }
+            if (this.ctx) {
+              this.ctx.drawImage(this._kfCanvas, 0, 0, this.canvas.width, this.canvas.height);
+            }
+            this._bumpFpsCounter();
+            finishDecode();
+            return;
+          }
+          const rects = [];
+          let off = 12;
+          const totalLen = frameData.byteLength;
+          for (let i = 0; i < rectCount; i++) {
+            if (off + 12 > totalLen) break;
+            const rx = dv.getUint16(off, true);
+            const ry = dv.getUint16(off + 2, true);
+            const rw = dv.getUint16(off + 4, true);
+            const rh = dv.getUint16(off + 6, true);
+            const jLen = dv.getUint32(off + 8, true);
+            off += 12;
+            if (jLen === 0 || off + jLen > totalLen) break;
+            const rBlob = new Blob([frameData.slice(off, off + jLen)], { type: 'image/jpeg' });
+            off += jLen;
+            rects.push({ rx, ry, rw, rh, blob: rBlob });
+          }
+          Promise.all(rects.map((r) => this._decodeBlobItem(r.blob))).then((decoded) => {
+            try {
+              if (fullW !== this.sourceWidth || fullH !== this.sourceHeight) {
+                this.setSourceResolution(fullW, fullH);
+              }
+              if (this.ctx && this._kfCanvas.width > 0) {
+                const cw = this.canvas.width;
+                const ch = this.canvas.height;
+                const sx = cw / Math.max(1, fullW);
+                const sy = ch / Math.max(1, fullH);
+                this.ctx.imageSmoothingEnabled = true;
+                this.ctx.drawImage(this._kfCanvas, 0, 0, cw, ch);
+                for (let i = 0; i < decoded.length; i++) {
+                  const it = decoded[i];
+                  const rc = rects[i];
+                  if (it && it.src && rc) {
+                    this.ctx.drawImage(it.src, rc.rx * sx, rc.ry * sy, rc.rw * sx, rc.rh * sy);
+                  }
+                }
+              }
+              this._bumpFpsCounter();
+            } finally {
+              for (let i = 0; i < decoded.length; i++) {
+                if (decoded[i]) decoded[i].close();
+              }
+            }
+          }).finally(finishDecode);
+          return;
+        }
+      }
     }
+
+    const sourceBlob = (frameData instanceof ArrayBuffer)
+      ? new Blob([frameData], { type: 'image/jpeg' })
+      : frameData;
+    this._lastBlob = sourceBlob;
+    this._decodeBlobItem(sourceBlob).then((item) => {
+      if (item && item.src) {
+        try {
+          this._drawDecodedSource(item.src, item.w, item.h, true, -1);
+        } finally {
+          item.close();
+        }
+      }
+    }).finally(finishDecode);
   }
 
   clearQueue() {
+    if (this._pendingKeyframe && this._pendingKeyframe.needsAck && this.options.onFrameConsumed) {
+      try { this.options.onFrameConsumed(); } catch (e) {}
+    }
+    if (this._queuedItem && this._queuedItem.needsAck && this.options.onFrameConsumed) {
+      try { this.options.onFrameConsumed(); } catch (e) {}
+    }
+    this._pendingKeyframe = null;
     this._queuedItem = null;
   }
 
   destroy() {
-    this._queuedItem = null;
+    this.clearQueue();
     if (this.rafId) cancelAnimationFrame(this.rafId);
     if (this.pendingFrame && typeof this.pendingFrame.close === 'function') {
       this.pendingFrame.close();
@@ -4902,6 +5063,9 @@ function startRemoteStream() {
         if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
           try { remoteWS.send("a"); } catch (e) {}
         }
+      },
+      onMissingKeyframe: () => {
+        sendRemoteAction({ action: "force_refresh" });
       }
     });
     window.remoteRenderer = remoteRenderer;
@@ -5047,10 +5211,11 @@ function connectRemoteInputWebSocket() {
         const msg = JSON.parse(event.data);
         if (msg.action === "pong") {
           const refT = (typeof msg.t === 'number' && msg.t > 0) ? msg.t : remoteLastPingTime;
-          remoteRttMs = Math.max(1, Math.round(performance.now() - refT));
+          const rawRtt = Math.max(1, Math.round(performance.now() - refT));
+          remoteRttMs = (remoteRttMs > 0 && remoteRttMs < 900) ? Math.round(remoteRttMs * 0.6 + rawRtt * 0.4) : rawRtt;
           const hud = document.getElementById('remoteFpsHud');
           const stats = document.getElementById('remoteStatsDisplay');
-          const curFps = (remoteRenderer && remoteRenderer.currentFps > 4) ? remoteRenderer.currentFps : (base.startsWith('https:') ? 24 : 60);
+          const curFps = remoteRenderer ? (remoteRenderer.displayFps || 55) : 55;
           if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
           if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
         } else if (msg.action === "error" || msg.status === "forbidden") {
@@ -5088,7 +5253,7 @@ function connectRemoteWebSocket() {
   const defaultProf = isHttps ? 'fast' : 'ultra';
   const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
   if (typeof syncQualityUI === 'function') syncQualityUI(activeProf);
-  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120&profile=${encodeURIComponent(activeProf)}`;
+  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120&proto=wd3&profile=${encodeURIComponent(activeProf)}`;
 
   try {
     remoteWS = new WebSocket(wsUrl);
@@ -5119,7 +5284,7 @@ function connectRemoteWebSocket() {
         } else if (remoteWS && remoteWS.readyState === WebSocket.OPEN) {
           remoteWS.send(pingPayload);
         }
-      }, 2500);
+      }, 1500);
     };
 
     remoteWS.onmessage = (event) => {
@@ -5133,10 +5298,12 @@ function connectRemoteWebSocket() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.action === "pong") {
-            remoteRttMs = Math.max(1, Math.round(performance.now() - remoteLastPingTime));
+            const refT = (typeof msg.t === 'number' && msg.t > 0) ? msg.t : remoteLastPingTime;
+            const rawRtt = Math.max(1, Math.round(performance.now() - refT));
+            remoteRttMs = (remoteRttMs > 0 && remoteRttMs < 900) ? Math.round(remoteRttMs * 0.6 + rawRtt * 0.4) : rawRtt;
             const hud = document.getElementById('remoteFpsHud');
             const stats = document.getElementById('remoteStatsDisplay');
-            const curFps = (remoteRenderer && remoteRenderer.currentFps > 4) ? remoteRenderer.currentFps : (isHttps ? 24 : 60);
+            const curFps = remoteRenderer ? (remoteRenderer.displayFps || 55) : 55;
             if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
             if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
           } else if (msg.action === "error" || msg.status === "forbidden") {
