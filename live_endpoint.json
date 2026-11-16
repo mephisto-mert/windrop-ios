@@ -1,9 +1,9 @@
 {
-  "primary": "https://record-recommended-cet-pos.trycloudflare.com",
+  "primary": "https://volvo-utilities-submissions-roy.trycloudflare.com",
   "backup": "",
-  "url": "https://record-recommended-cet-pos.trycloudflare.com",
+  "url": "https://volvo-utilities-submissions-roy.trycloudflare.com",
   "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1794828112
+  "updated_at": 1794836910
 }
