@@ -1,9 +1,9 @@
 {
-  "primary": "https://players-seven-seems-repository.trycloudflare.com",
+  "primary": "https://record-recommended-cet-pos.trycloudflare.com",
   "backup": "",
-  "url": "https://players-seven-seems-repository.trycloudflare.com",
+  "url": "https://record-recommended-cet-pos.trycloudflare.com",
   "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1794812692
+  "updated_at": 1794828112
 }
