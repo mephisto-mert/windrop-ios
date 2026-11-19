@@ -115,7 +115,9 @@ final class WinDropClient: NSObject, ObservableObject {
     // MARK: - Discovery (Bonjour mDNS + Saved Host + Cloudflare Tunnel)
 
     func startDiscovery() {
-        connectionStatus = "Wi-Fi & Bulut PC aranıyor..."
+        if activePeer == nil {
+            connectionStatus = "Wi-Fi & Bulut PC aranıyor..."
+        }
         browserHttp.stop()
         browserWinDrop.stop()
         resolvingServices.removeAll()
@@ -230,20 +232,32 @@ final class WinDropClient: NSObject, ObservableObject {
         }
     }
 
+    private func peerPriority(_ peer: WinDropPeer) -> Int {
+        if peer.isTunnel { return 1 }
+        if peer.baseURL.contains(".local") { return 2 }
+        return 3 // Direct LAN IP is fastest & most reliable
+    }
+
     private func registerPeer(_ peer: WinDropPeer, selectIfBetter: Bool) {
-        if let idx = discoveredPeers.firstIndex(where: { $0.baseURL == peer.baseURL }) {
-            discoveredPeers[idx] = peer
+        if let idx = discoveredPeers.firstIndex(where: { $0.baseURL == peer.baseURL || $0.name.caseInsensitiveCompare(peer.name) == .orderedSame }) {
+            let existing = discoveredPeers[idx]
+            if peerPriority(peer) >= peerPriority(existing) {
+                discoveredPeers[idx] = peer
+            }
         } else {
             discoveredPeers.append(peer)
         }
+        let best = discoveredPeers.first(where: { $0.name.caseInsensitiveCompare(peer.name) == .orderedSame }) ?? peer
         if selectIfBetter {
-            // Always prefer direct LAN over tunnel when both exist
-            if activePeer == nil || (activePeer?.isTunnel == true && !peer.isTunnel) {
-                activePeer = peer
+            if activePeer == nil || peerPriority(best) >= peerPriority(activePeer!) || activePeer?.name.caseInsensitiveCompare(best.name) == .orderedSame {
+                activePeer = best
                 isConnected = true
-                connectionStatus = "🟢 \(peer.name) • \(peer.via)"
+                connectionStatus = "🟢 Bağlandı: \(best.name) • \(best.via)"
                 Task { await refreshAll() }
             }
+        } else if let cur = activePeer {
+            isConnected = true
+            connectionStatus = "🟢 Bağlandı: \(cur.name) • \(cur.via)"
         }
     }
 

@@ -11,13 +11,12 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
-    info:
-      path: Info.plist
     dependencies:
       - target: WinDropShare
         embed: true
     settings:
       base:
+        INFOPLIST_FILE: Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios
         MARKETING_VERSION: 3.3.0
         CURRENT_PROJECT_VERSION: 330
@@ -34,10 +33,9 @@ targets:
     platform: iOS
     sources:
       - path: ShareExtension
-    info:
-      path: ShareExtension/Info.plist
     settings:
       base:
+        INFOPLIST_FILE: ShareExtension/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios.share
         MARKETING_VERSION: 3.3.0
         CURRENT_PROJECT_VERSION: 330

@@ -32,7 +32,9 @@ public final class StudioDiscovery: NSObject, ObservableObject {
 
     public func startDiscovery() {
         isSearching = true
-        statusText = "Wi-Fi & Bulut Stüdyo aranıyor..."
+        if activeStudio == nil {
+            statusText = "Wi-Fi & Bulut Stüdyo aranıyor..."
+        }
         browser.stop()
         resolving.removeAll()
         browser.searchForServices(ofType: "_omnimic._tcp.", inDomain: "local.")
@@ -125,15 +127,24 @@ public final class StudioDiscovery: NSObject, ObservableObject {
         return ok
     }
 
+    private func studioPriority(_ s: DiscoveredStudio) -> Int {
+        if s.isTunnel { return 1 }
+        if s.baseURL.contains(".local") { return 2 }
+        return 3
+    }
+
     private func registerStudio(_ studio: DiscoveredStudio) {
-        if let idx = discoveredStudios.firstIndex(where: { $0.baseURL == studio.baseURL }) {
-            discoveredStudios[idx] = studio
+        if let idx = discoveredStudios.firstIndex(where: { $0.baseURL == studio.baseURL || $0.name.caseInsensitiveCompare(studio.name) == .orderedSame }) {
+            if studioPriority(studio) >= studioPriority(discoveredStudios[idx]) {
+                discoveredStudios[idx] = studio
+            }
         } else {
             discoveredStudios.append(studio)
         }
-        if activeStudio == nil || (activeStudio?.isTunnel == true && !studio.isTunnel) {
-            activeStudio = studio
-            statusText = "🟢 \(studio.name) • \(studio.via)"
+        let best = discoveredStudios.first(where: { $0.name.caseInsensitiveCompare(studio.name) == .orderedSame }) ?? studio
+        if activeStudio == nil || studioPriority(best) >= studioPriority(activeStudio!) || activeStudio?.name.caseInsensitiveCompare(best.name) == .orderedSame {
+            activeStudio = best
+            statusText = "🟢 Bağlandı: \(best.name) • \(best.via)"
         }
     }
 
