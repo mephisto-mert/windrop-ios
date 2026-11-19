@@ -1,0 +1,24 @@
+name: OmniMicStudio
+options:
+  bundleIdPrefix: com.trisaudio
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  OmniMicStudio:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        INFOPLIST_FILE: Sources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.trisaudio.omnimic
+        MARKETING_VERSION: 6.2.0
+        CURRENT_PROJECT_VERSION: 620
+        SWIFT_VERSION: "5.9"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_BITCODE: "NO"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"

@@ -1,0 +1,49 @@
+name: Build OmniMic iOS (.IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'omnimic_ios_app/**'
+      - '.github/workflows/build_omnimic_ipa.yml'
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Generate Xcode Project via XcodeGen
+        working-directory: omnimic_ios_app
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Compile Unsigned iOS ARM64 Release App
+        working-directory: omnimic_ios_app
+        run: |
+          xcodebuild -project OmniMicStudio.xcodeproj \
+            -scheme OmniMicStudio \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package Payload into OmniMic.ipa
+        working-directory: omnimic_ios_app
+        run: |
+          rm -rf Payload OmniMic.ipa
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/OmniMicStudio.app Payload/OmniMic.app
+          zip -r9 OmniMic.ipa Payload
+          ls -lh OmniMic.ipa
+
+      - name: Upload OmniMic.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniMic_Native_iOS_IPA
+          path: omnimic_ios_app/OmniMic.ipa
