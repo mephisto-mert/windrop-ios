@@ -2,8 +2,8 @@
   "primary": "https://sherman-sectors-rhythm-dictionaries.trycloudflare.com",
   "backup": "",
   "url": "https://sherman-sectors-rhythm-dictionaries.trycloudflare.com",
-  "lan_ip": "127.0.0.1",
+  "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795108381
+  "updated_at": 1795108939
 }
