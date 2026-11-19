@@ -1,9 +1,9 @@
 {
-  "primary": "https://monitored-crm-role-smallest.trycloudflare.com",
+  "primary": "https://thumbnail-gen-coordination-module.trycloudflare.com",
   "backup": "",
-  "url": "https://monitored-crm-role-smallest.trycloudflare.com",
+  "url": "https://thumbnail-gen-coordination-module.trycloudflare.com",
   "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795120527
+  "updated_at": 1795120788
 }
