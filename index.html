@@ -24,6 +24,55 @@ try {
   }
 } catch (e) {}
 
+// Personal Device Token helper (saved from QR ?token=... or 1-time prompt)
+(function initWinDropDeviceToken() {
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    const urlTok = (params.get('token') || '').trim();
+    if (urlTok && window.localStorage) {
+      window.localStorage.setItem('windrop_device_token', urlTok);
+    }
+  } catch (e) {}
+  window.getWinDropDeviceToken = function() {
+    try {
+      return (window.localStorage && window.localStorage.getItem('windrop_device_token')) || '';
+    } catch (e) { return ''; }
+  };
+  const origFetch = window.fetch;
+  if (typeof origFetch === 'function') {
+    window.fetch = async function(input, init) {
+      const tok = window.getWinDropDeviceToken();
+      let res;
+      if (tok) {
+        const nextInit = Object.assign({}, init || {});
+        const hdrs = new Headers(nextInit.headers || (typeof input === 'object' && input && input.headers ? input.headers : undefined));
+        if (!hdrs.has('X-WinDrop-Token')) {
+          hdrs.set('X-WinDrop-Token', tok);
+        }
+        nextInit.headers = hdrs;
+        res = await origFetch.call(this, input, nextInit);
+      } else {
+        res = await origFetch.call(this, input, init);
+      }
+      if (res && res.status === 401 && !window._windropTokenPrompted) {
+        window._windropTokenPrompted = true;
+        try {
+          const entered = window.prompt('WinDrop Cihaz Tokeni (PC %LOCALAPPDATA%\\WinDrop\\device_token.txt):');
+          if (entered && entered.trim()) {
+            window.localStorage.setItem('windrop_device_token', entered.trim());
+            const retryInit = Object.assign({}, init || {});
+            const retryHdrs = new Headers(retryInit.headers || (typeof input === 'object' && input && input.headers ? input.headers : undefined));
+            retryHdrs.set('X-WinDrop-Token', entered.trim());
+            retryInit.headers = retryHdrs;
+            return await origFetch.call(this, input, retryInit);
+          }
+        } catch (e) {}
+      }
+      return res;
+    };
+  }
+})();
+
 // Safe LocalStorage Wrapper for iOS WKWebView sandboxed / file:// contexts
 function safeStorageGet(key, fallback = null) {
   try {
@@ -108,42 +157,51 @@ window.addEventListener('error', function(e) {
 
 function openRemoteKeyboard() {
   const now = performance.now();
-  if (now - (window._lastKbToggleTs || 0) < 500) return;
+  if (now - (window._lastKbToggleTs || 0) < 300) return;
   window._lastKbToggleTs = now;
+  const drawer = document.getElementById('remoteKeyboardDrawer');
+  const input = document.getElementById('remoteTextInput');
+  if (drawer && drawer.classList.contains('is-open')) {
+    closeRemoteKeyboard();
+    return;
+  }
   haptic('medium');
   if (typeof toggleAnydeskDrawer === 'function') {
     const sb = document.getElementById('anydeskDrawer');
     if (sb && sb.classList.contains('is-open')) toggleAnydeskDrawer(false);
   }
-  const drawer = document.getElementById('remoteKeyboardDrawer');
-  const input = document.getElementById('remoteTextInput');
   if (drawer) {
-    drawer.style.display = 'block';
+    drawer.style.display = 'flex';
     drawer.style.transform = '';
     drawer.classList.add('is-open');
     drawer.style.pointerEvents = 'auto';
     drawer.style.zIndex = '2147483647';
   }
   if (input) {
-    input.focus();
+    input.value = '';
+    input.focus({ preventScroll: true });
     input.click();
   }
-  showRemoteToast('⌨️ Klavye Açıldı');
+  if (typeof updateAnydeskKeyboardPos === 'function') updateAnydeskKeyboardPos();
 }
 
 function closeRemoteKeyboard() {
   haptic('light');
   const drawer = document.getElementById('remoteKeyboardDrawer');
   const input = document.getElementById('remoteTextInput');
-  if (input) input.blur();
+  if (input) {
+    input.value = '';
+    input.blur();
+  }
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   if (drawer) {
     drawer.classList.remove('is-open');
     drawer.style.bottom = '0px';
     drawer.style.transform = '';
     drawer.style.pointerEvents = 'none';
-    setTimeout(() => {
-      if (!drawer.classList.contains('is-open')) drawer.style.display = 'none';
-    }, 250);
+    drawer.style.display = 'none';
   }
 }
 
@@ -1685,8 +1743,7 @@ body.remote-fullscreen {
 }
 
 body.remote-fullscreen #tab-remote,
-body.remote-fullscreen #tab-remote .ios-card,
-body.remote-fullscreen #remoteViewport {
+body.remote-fullscreen #tab-remote .ios-card {
   position: fixed !important;
   inset: 0 !important;
   top: 0 !important;
@@ -1711,6 +1768,25 @@ body.remote-fullscreen #remoteViewport {
   display: block !important;
 }
 
+body.remote-fullscreen #remoteViewport {
+  position: fixed !important;
+  top: env(safe-area-inset-top, 0px) !important;
+  left: env(safe-area-inset-left, 0px) !important;
+  right: env(safe-area-inset-right, 0px) !important;
+  bottom: env(safe-area-inset-bottom, 0px) !important;
+  width: calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  aspect-ratio: auto !important;
+  z-index: 2147483640 !important;
+  background: #000000 !important;
+  overflow: hidden !important;
+  display: block !important;
+}
+
 body.remote-fullscreen #remoteScreenCanvas {
   position: absolute !important;
   inset: 0 !important;
@@ -1719,24 +1795,22 @@ body.remote-fullscreen #remoteScreenCanvas {
   right: 0 !important;
   bottom: 0 !important;
   width: 100% !important;
-  width: 100dvw !important;
   height: 100% !important;
-  height: 100dvh !important;
   margin: 0 !important;
   padding: 0 !important;
   touch-action: none !important;
   z-index: 1 !important;
 }
 
-/* Forced 90° Landscape Mode for iOS Portrait Orientation Lock */
+/* Forced 90° Landscape Mode for iOS Portrait Orientation Lock (Respects Top/Bottom Safe Areas!) */
 body.remote-fullscreen.force-landscape #remoteViewport {
   position: fixed !important;
   inset: auto !important;
-  top: 50% !important;
+  top: calc(50% + (env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2) !important;
   left: 50% !important;
   right: auto !important;
   bottom: auto !important;
-  width: 100dvh !important;
+  width: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
   height: 100dvw !important;
   transform: translate(-50%, -50%) rotate(90deg) !important;
   transform-origin: center center !important;
@@ -1768,9 +1842,9 @@ body.remote-fullscreen #remoteFsBtn {
 body.remote-fullscreen .fs-only-controls {
   display: flex !important;
   position: fixed !important;
-  top: max(8px, calc(env(safe-area-inset-top, 0px) + 6px)) !important;
-  right: max(10px, calc(env(safe-area-inset-right, 0px) + 10px)) !important;
-  bottom: auto !important;
+  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px)) !important;
+  right: max(14px, calc(env(safe-area-inset-right, 0px) + 12px)) !important;
+  top: auto !important;
   left: auto !important;
   transform: translateZ(20px) !important;
   -webkit-transform: translateZ(20px) !important;
@@ -2169,65 +2243,29 @@ body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
   <section id="tab-remote" class="tab-pane">
     <div class="ios-card" style="padding:8px; position:relative; overflow:hidden;">
       
-      <!-- Top Remote Header: Ultra-Compact Status & Mode Switcher -->
-      <div id="remoteTopHeader" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:nowrap; gap:5px; width:100%; min-width:0;">
-        <div style="display:flex; align-items:center; gap:5px; min-width:0; flex:1;">
-          <span id="remoteLiveDot" style="width:6px; height:6px; flex-shrink:0; border-radius:50%; background:#30D158; display:inline-block; box-shadow:0 0 6px #30D158;"></span>
-          <span style="font-size:11.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="remoteHostTitle">DESKTOP-EIJNT5O</span>
-          <span id="remoteStatsDisplay" style="font-size:10px; color:#30D158; white-space:nowrap;">0ms • 60 FPS</span>
-        </div>
-
-        <div style="background:rgba(255,255,255,0.08); border-radius:8px; padding:1.5px; display:flex; gap:2px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0;">
-          <button id="btnModeDirect" class="action-btn active" style="padding:3px 7px; font-size:10.5px; border-radius:6px; background:#0A84FF; color:#fff; flex-direction:row; white-space:nowrap; border:none; box-shadow:none;" onclick="setRemoteControlMode('direct')">
-            📱 Dokun
-          </button>
-          <button id="btnModeTrackpad" class="action-btn" style="padding:3px 7px; font-size:10.5px; border-radius:6px; background:transparent; color:#8E8E93; flex-direction:row; white-space:nowrap; border:none; box-shadow:none;" onclick="setRemoteControlMode('trackpad')">
-            🖱️ İztopu
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Screen Viewport (Canvas) -->
+      <!-- Live Screen Viewport (Canvas) — Clean AnyDesk View (No Top Settings Bars) -->
       <div id="remoteViewport" data-aspect="fit" class="is-contain" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); -webkit-user-select:none; user-select:none;">
         <canvas id="remoteScreenCanvas" width="1920" height="1080" style="width:100%; height:100%; display:block; touch-action:none; transform-origin:0 0;"></canvas>
         
         <!-- Mode Toast Notification (Fades away in 0.75s, ultra-compact) -->
-        <div id="remoteModeToast" style="position:absolute; top:34px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.2); border-radius:14px; padding:3px 10px; font-size:10.5px; color:#fff; font-weight:600; pointer-events:none; z-index:30; opacity:0; transition:opacity 0.2s ease; white-space:nowrap; max-width:calc(100% - 20px); overflow:hidden; text-overflow:ellipsis;">
+        <div id="remoteModeToast" style="position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.78); border:1px solid rgba(255,255,255,0.2); border-radius:14px; padding:3px 10px; font-size:10.5px; color:#fff; font-weight:600; pointer-events:none; z-index:30; opacity:0; transition:opacity 0.2s ease; white-space:nowrap; max-width:calc(100% - 20px); overflow:hidden; text-overflow:ellipsis;">
         </div>
 
-        <!-- FPS / RTT Micro HUD Badge -->
-        <div id="remoteFpsHud" style="position:absolute; top:6px; left:6px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:2px 5px; font-size:9px; font-family:-apple-system, monospace; color:#30D158; pointer-events:none; z-index:10; opacity:0.65;">
-          60 FPS
-        </div>
-
-        <!-- AnyDesk Settings Button inside Viewport Header (Hidden in Fullscreen) -->
-        <button id="anydeskBubble" ontouchend="event.preventDefault(); event.stopPropagation(); toggleAnydeskDrawer(true)" onclick="event.stopPropagation(); toggleAnydeskDrawer(true)" title="AnyDesk Ayarlar" style="position:absolute; top:6px; right:36px; width:28px; height:28px; border-radius:8px; background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.25); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; z-index:25; touch-action:manipulation; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);">
-          ⚙️
+        <!-- Single Unobtrusive Fullscreen AnyDesk Corner Bubble (Bottom-Right) -->
+        <button id="fsAnydeskBubble" class="fs-only-controls" ontouchend="event.preventDefault(); event.stopPropagation(); toggleAnydeskDrawer()" onclick="event.stopPropagation(); toggleAnydeskDrawer()" title="Menü" style="position:absolute; bottom:14px; right:14px; top:auto; width:38px; height:38px; border-radius:50%; background:rgba(20,20,28,0.65); border:1px solid rgba(255,255,255,0.22); color:#fff; align-items:center; justify-content:center; cursor:pointer; font-size:16px; z-index:35; opacity:0.55; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding:0;">
+          ⚡
         </button>
-
-        <!-- Fullscreen Expand Button (Hidden in Fullscreen) -->
-        <button id="remoteFsBtn" ontouchend="event.preventDefault(); event.stopPropagation(); toggleRemoteFullscreen()" onclick="event.stopPropagation(); toggleRemoteFullscreen()" title="Tam Ekran" style="position:absolute; top:6px; right:6px; width:28px; height:28px; border-radius:8px; background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.25); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:700; z-index:25; touch-action:manipulation; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);">
-          ⤢
-        </button>
-
-        <!-- Ultra-Compact AnyDesk Top-Right Micro-Pill (Only visible in Fullscreen — Zero Bottom Bar!) -->
-        <div class="fs-only-controls" style="align-items:center;">
-          <button style="background:transparent; border:none; color:#fff; cursor:pointer;" title="Klavye" ontouchend="event.preventDefault(); event.stopPropagation(); openRemoteKeyboard()" onclick="event.stopPropagation(); openRemoteKeyboard()">⌨️</button>
-          <button id="fsRotateBtn" style="background:transparent; border:none; color:#fff; cursor:pointer;" title="90° Yatay Döndür" ontouchend="event.preventDefault(); event.stopPropagation(); toggleRemoteLandscape()" onclick="event.stopPropagation(); toggleRemoteLandscape()"><span id="fsRotateIcon">🔄</span></button>
-          <button id="fsSettingsBtn" style="background:transparent; border:none; color:#fff; cursor:pointer;" title="Ayarlar & Tüm Tuşlar" ontouchend="event.preventDefault(); event.stopPropagation(); toggleAnydeskDrawer()" onclick="event.stopPropagation(); toggleAnydeskDrawer()">⚙️</button>
-          <button style="background:transparent; border:none; color:#FF453A; font-weight:700; cursor:pointer;" title="Tam Ekrandan Çık" ontouchend="event.preventDefault(); event.stopPropagation(); toggleRemoteFullscreen()" onclick="event.stopPropagation(); toggleRemoteFullscreen()">✕</button>
-        </div>
       </div>
 
-      <!-- Single Ultra-Compact Strip Toolbar (Takes 75% less space than old 3-row toolbar) -->
+      <!-- Single Ultra-Compact Strip Toolbar (Bottom of Viewport) -->
       <div id="remoteQuickToolbar" style="margin-top:6px; display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:4px;">
-        <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Klavye" onclick="openRemoteKeyboard()">⌨️</button>
+        <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Klavye" ontouchend="event.preventDefault(); event.stopPropagation(); openRemoteKeyboard()" onclick="openRemoteKeyboard()">⌨️</button>
+        <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Tam Ekran" onclick="toggleRemoteFullscreen()">⤢</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="90° Yatay Tam Ekran" onclick="toggleRemoteLandscape()">🔄</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Monitör Değiştir" onclick="cycleRemoteMonitor()">🖥️</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px; color:#64D2FF;" title="Oynat/Durdur" onclick="sendRemoteKeyCombo('media_play_pause')">⏯️</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Ses Kıs" onclick="sendRemoteKeyCombo('vol_down')">🔉</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Ses Aç" onclick="sendRemoteKeyCombo('vol_up')">🔊</button>
-        <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Alt+Tab" onclick="sendRemoteKeyCombo('alt_tab')">🪟</button>
         <button class="action-btn" style="padding:5px 2px; font-size:11px; border-radius:8px; min-height:28px;" title="Ayarlar & Tüm Tuşlar" onclick="toggleAnydeskDrawer(true)">⚙️</button>
       </div>
 
@@ -2287,6 +2325,18 @@ body.remote-fullscreen.force-landscape #remoteKeyboardDrawer.is-open {
         <button id="sbBtnRotate" class="action-btn" onclick="toggleRemoteLandscape(); toggleAnydeskDrawer(false);" style="padding:9px 4px; font-size:11.5px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:6px; background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.16);">
           <span>🔄</span>
           <span id="sbRotateText">90° Yatay</span>
+        </button>
+
+        <!-- Host PC Audio Mute (Parsec-style) -->
+        <button id="sbBtnHostMute" class="action-btn" onclick="toggleHostMute()" style="padding:9px 4px; font-size:11px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:5px; background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.16);">
+          <span>🔇</span>
+          <span id="sbHostMuteText">PC Sustur</span>
+        </button>
+
+        <!-- Privacy Curtain (AnyDesk/RustDesk Privacy Screen) -->
+        <button id="sbBtnPrivacy" class="action-btn" onclick="togglePrivacyCurtain()" style="padding:9px 4px; font-size:11px; font-weight:700; border-radius:12px; display:flex; flex-direction:row; justify-content:center; align-items:center; gap:5px; background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.16);">
+          <span>🕶️</span>
+          <span id="sbPrivacyText">Gizlilik</span>
         </button>
       </div>
 
@@ -3759,10 +3809,77 @@ window.addEventListener("paste", (ev) => {
   } catch (err) {}
 });
 
+window._uploadQueue = window._uploadQueue || [];
+window._uploadRunning = false;
+window._uploadTotalInBatch = 0;
+window._uploadDoneInBatch = 0;
+
+async function uploadFileChunked(file, onProgress) {
+  const CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB lossless raw slice
+  const total = file.size;
+  const uploadId = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+  const safeName = file.name || `iPhone_Medya_${Date.now()}`;
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '').replace(/\/+$/, '');
+  const chunkUrl = base + '/api/upload-chunk';
+  let offset = 0;
+  const startTime = performance.now();
+
+  while (offset < total) {
+    if (window._uploadCancelled) throw new Error('Upload cancelled');
+    const end = Math.min(offset + CHUNK_SIZE, total);
+    const slice = file.slice(offset, end);
+    const isLast = (end >= total) ? '1' : '0';
+
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      window._activeUploadXhr = xhr;
+      xhr.open('POST', chunkUrl, true);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('X-Upload-Id', uploadId);
+      xhr.setRequestHeader('X-File-Name', encodeURIComponent(safeName));
+      xhr.setRequestHeader('X-Chunk-Offset', String(offset));
+      xhr.setRequestHeader('X-Total-Size', String(total));
+      xhr.setRequestHeader('X-Is-Last-Chunk', isLast);
+      const tok = (typeof window.getWinDropDeviceToken === 'function') ? window.getWinDropDeviceToken() : '';
+      if (tok) xhr.setRequestHeader('X-WinDrop-Token', tok);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && typeof onProgress === 'function') {
+          const sent = offset + e.loaded;
+          const pct = Math.min(100, Math.round((sent / total) * 100));
+          const elapsed = Math.max((performance.now() - startTime) / 1000, 0.05);
+          const mbps = (sent / 1048576) / elapsed;
+          onProgress(pct, mbps);
+        }
+      };
+      xhr.onload = () => {
+        window._activeUploadXhr = null;
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error('HTTP ' + xhr.status));
+      };
+      xhr.onabort = () => { window._activeUploadXhr = null; reject(new Error('Upload cancelled')); };
+      xhr.onerror = () => { window._activeUploadXhr = null; reject(new Error('Chunk XHR Error')); };
+      xhr.ontimeout = () => { window._activeUploadXhr = null; reject(new Error('Chunk Timeout')); };
+      xhr.send(slice);
+    });
+    offset = end;
+  }
+}
+
 async function uploadFiles(fileList) {
   if (!fileList || !fileList.length) return;
+  const incoming = Array.from(fileList);
   haptic();
   window._uploadCancelled = false;
+  window._uploadQueue.push(...incoming);
+  window._uploadTotalInBatch += incoming.length;
+
+  if (window._uploadRunning) {
+    showDesktopToast(`➕ ${incoming.length} dosya kuyruğa eklendi (Toplam: ${window._uploadTotalInBatch})`);
+    return;
+  }
+
+  window._uploadRunning = true;
   const box = document.getElementById("uploadBox");
   const statusTxt = document.getElementById("uploadStatusText");
   const speedTxt = document.getElementById("uploadSpeedText");
@@ -3772,100 +3889,125 @@ async function uploadFiles(fileList) {
 
   let successfulUploads = 0;
 
-  for (let i = 0; i < fileList.length; i++) {
-    if (window._uploadCancelled) break;
-    const file = fileList[i];
-    const safeName = file.name || `iPhone_Medya_${Date.now()}`;
-    statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
-    bar.style.width = "0%";
-    hashTxt.textContent = "Kayıpsız ham veri aktarılıyor...";
+  try {
+    while (window._uploadQueue.length > 0) {
+      if (window._uploadCancelled) {
+        window._uploadQueue.length = 0;
+        break;
+      }
+      const file = window._uploadQueue.shift();
+      window._uploadDoneInBatch++;
+      const idx = window._uploadDoneInBatch;
+      const totalCount = window._uploadTotalInBatch;
+      const safeName = file.name || `iPhone_Medya_${Date.now()}`;
+      statusTxt.textContent = `(${idx}/${totalCount}) ${safeName}`;
+      bar.style.width = "0%";
+      hashTxt.textContent = "Kayıpsız orijinal veri aktarılıyor...";
 
-    let fileUploaded = false;
+      let fileUploaded = false;
+      const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '';
+      const isHttpsTunnel = base.startsWith('https://') || location.protocol === 'https:';
+      const useChunkedFirst = (file.size > 24 * 1024 * 1024) || (isHttpsTunnel && file.size > 12 * 1024 * 1024);
 
-    // 1. Primary Attempt: Standard Multipart HTTP POST
-    try {
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        window._activeUploadXhr = xhr;
-        const startTime = performance.now();
-        const uploadUrl = (typeof API_BASE !== 'undefined' && API_BASE) ? (API_BASE + "/upload") : "/upload";
-        xhr.open("POST", uploadUrl, true);
-        const formData = new FormData();
-        formData.append("file", file, safeName);
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
+      if (useChunkedFirst) {
+        try {
+          await uploadFileChunked(file, (pct, mbps) => {
             bar.style.width = pct + "%";
-            const elapsed = Math.max((performance.now() - startTime) / 1000, 0.05);
-            const mbps = (e.loaded / 1048576) / elapsed;
-            statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
+            statusTxt.textContent = `(${idx}/${window._uploadTotalInBatch}) ${safeName}`;
             speedTxt.textContent = mbps.toFixed(1) + " MB/sn (" + pct + "%)";
-          }
-        };
-        xhr.onload = () => {
-          window._activeUploadXhr = null;
-          if (xhr.status >= 200 && xhr.status < 300) {
+          });
+          bar.style.width = "100%";
+          speedTxt.textContent = "Tamamlandı (100%)";
+          hashTxt.textContent = "✅ Kayıpsız Parçalı Aktarıldı (PC Masaüstünde)";
+          showDesktopToast(`✅ ${safeName} ulaştı!`);
+          fileUploaded = true;
+        } catch (chunkErr) {
+          if (window._uploadCancelled) break;
+          console.warn("[WinDrop] Chunked upload failed, falling back:", chunkErr);
+        }
+      }
+
+      if (!fileUploaded) {
+        // 1. Standard Lossless Multipart HTTP POST
+        try {
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            window._activeUploadXhr = xhr;
+            const startTime = performance.now();
+            const uploadUrl = base ? (base + "/upload") : "/upload";
+            xhr.open("POST", uploadUrl, true);
+            const formData = new FormData();
+            formData.append("file", file, safeName);
+
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                bar.style.width = pct + "%";
+                const elapsed = Math.max((performance.now() - startTime) / 1000, 0.05);
+                const mbps = (e.loaded / 1048576) / elapsed;
+                statusTxt.textContent = `(${idx}/${window._uploadTotalInBatch}) ${safeName}`;
+                speedTxt.textContent = mbps.toFixed(1) + " MB/sn (" + pct + "%)";
+              }
+            };
+            xhr.onload = () => {
+              window._activeUploadXhr = null;
+              if (xhr.status >= 200 && xhr.status < 300) {
+                bar.style.width = "100%";
+                speedTxt.textContent = "Tamamlandı (100%)";
+                hashTxt.textContent = "✅ Kayıpsız Aktarıldı (PC Masaüstünde)";
+                showDesktopToast(`✅ ${safeName} ulaştı!`);
+                fileUploaded = true;
+                resolve();
+              } else {
+                reject(new Error(`HTTP ${xhr.status}`));
+              }
+            };
+            xhr.onabort = () => { window._activeUploadXhr = null; reject(new Error("Upload cancelled")); };
+            xhr.onerror = () => { window._activeUploadXhr = null; reject(new Error("XHR Network/CORS Error")); };
+            xhr.ontimeout = () => { window._activeUploadXhr = null; reject(new Error("Timeout")); };
+            xhr.send(formData);
+          });
+        } catch (httpErr) {
+          if (window._uploadCancelled) break;
+          console.warn("[WinDrop] HTTP upload failed, attempting WebSocket tunnel fallback:", httpErr);
+          try {
+            hashTxt.textContent = "Canlı tünel üzerinden aktarılıyor...";
+            await uploadViaWebSocket(file, (pct) => {
+              bar.style.width = pct + "%";
+              statusTxt.textContent = `(${idx}/${window._uploadTotalInBatch}) ${safeName}`;
+            });
             bar.style.width = "100%";
-            speedTxt.textContent = "Tamamlandı (100%)";
+            speedTxt.textContent = "Tamamlandı (Tünel)";
             hashTxt.textContent = "✅ Kayıpsız Aktarıldı (PC Masaüstünde)";
             showDesktopToast(`✅ ${safeName} ulaştı!`);
             fileUploaded = true;
-            resolve();
-          } else {
-            reject(new Error(`HTTP ${xhr.status}`));
+          } catch (wsErr) {
+            if (window._uploadCancelled) break;
+            console.error("[WinDrop] All upload channels failed:", wsErr);
+            speedTxt.textContent = "Hata";
+            hashTxt.textContent = "❌ Aktarım reddedildi";
+            showDesktopToast(`❌ Gönderilemedi: ${safeName}`);
           }
-        };
-        xhr.onabort = () => {
-          window._activeUploadXhr = null;
-          reject(new Error("Upload cancelled"));
-        };
-        xhr.onerror = () => {
-          window._activeUploadXhr = null;
-          reject(new Error("XHR Network/CORS Error"));
-        };
-        xhr.ontimeout = () => {
-          window._activeUploadXhr = null;
-          reject(new Error("Timeout"));
-        };
-        xhr.send(formData);
-      });
-    } catch (httpErr) {
-      if (window._uploadCancelled) break;
-      console.warn("[WinDrop] HTTP upload failed, attempting WebSocket/Chunked tunnel fallback:", httpErr);
-      // 2. Secondary Fallback: Live WebSocket / Chunked Tunnel
-      try {
-        hashTxt.textContent = "Canlı tünel üzerinden aktarılıyor...";
-        await uploadViaWebSocket(file, (pct) => {
-          bar.style.width = pct + "%";
-          statusTxt.textContent = `(${i+1}/${fileList.length}) ${safeName}`;
-        });
-        bar.style.width = "100%";
-        speedTxt.textContent = "Tamamlandı (Tünel)";
-        hashTxt.textContent = "✅ Kayıpsız Aktarıldı (PC Masaüstünde)";
-        showDesktopToast(`✅ ${safeName} ulaştı!`);
-        fileUploaded = true;
-      } catch (wsErr) {
-        if (window._uploadCancelled) break;
-        console.error("[WinDrop] All upload channels failed:", wsErr);
-        speedTxt.textContent = "Hata";
-        hashTxt.textContent = "❌ Aktarım reddedildi";
-        showDesktopToast(`❌ Gönderilemedi: ${safeName}`);
+        }
       }
+
+      if (fileUploaded) {
+        successfulUploads++;
+      }
+      haptic();
     }
 
-    if (fileUploaded) {
-      successfulUploads++;
+    if (window._uploadCancelled) {
+      statusTxt.textContent = `⛔ Aktarım İptal Edildi`;
+    } else if (successfulUploads > 0) {
+      statusTxt.textContent = `🎉 ${successfulUploads}/${window._uploadTotalInBatch} dosya kayıpsız masaüstüne ulaştı!`;
+    } else {
+      statusTxt.textContent = `❌ Aktarım başarısız oldu`;
     }
-    haptic();
-  }
-
-  if (window._uploadCancelled) {
-    statusTxt.textContent = `⛔ Aktarım İptal Edildi`;
-  } else if (successfulUploads > 0) {
-    statusTxt.textContent = `🎉 ${successfulUploads}/${fileList.length} dosya masaüstüne ulaştı!`;
-  } else {
-    statusTxt.textContent = `❌ Aktarım başarısız oldu`;
+  } finally {
+    window._uploadRunning = false;
+    window._uploadTotalInBatch = 0;
+    window._uploadDoneInBatch = 0;
   }
 
   try {
@@ -3874,7 +4016,7 @@ async function uploadFiles(fileList) {
     const a = document.getElementById('anyFileInput'); if (a) a.value = '';
     const r = document.getElementById('radarMediaInput'); if (r) r.value = '';
   } catch(e) {}
-  setTimeout(() => { box.style.display = "none"; }, 3500);
+  setTimeout(() => { if (!window._uploadRunning) box.style.display = "none"; }, 3500);
 }
 
 // Global Drag & Drop & Paste listeners for instantaneous file sending
@@ -4035,42 +4177,21 @@ try {
 </script>
 
 <!-- Hidden native keyboard proxy input -->
-    <!-- Remote Keyboard Floating Drawer (iOS Compatible Native Input) -->
-    <div id="remoteKeyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; background:rgba(22,22,28,0.96); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border-top:1px solid rgba(255,255,255,0.2); padding:12px 16px 20px 16px; z-index:1000001; box-shadow:0 -10px 40px rgba(0,0,0,0.85);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <span style="font-size:13px; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px;">
-          ⌨️ PC Klavye Girişi
-        </span>
-        <button onclick="closeRemoteKeyboard()" style="background:rgba(255,255,255,0.12); border:none; color:#fff; border-radius:12px; width:28px; height:28px; font-size:14px; font-weight:700; cursor:pointer;">✕</button>
-      </div>
-
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <input id="remoteTextInput" type="text" placeholder="PC'ye yazılacak metin..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();sendRemoteTypedText();}" style="flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.22); border-radius:12px; padding:10px 14px; font-size:16px; color:#fff; outline:none; -webkit-user-select:text; user-select:text;">
-        <button onclick="sendRemoteTypedText()" style="background:#0A84FF; border:none; border-radius:12px; padding:0 18px; color:#fff; font-weight:700; font-size:14px; cursor:pointer;">
-          Gönder ↵
-        </button>
-      </div>
-
-      <!-- Quick Action Keys -->
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
-        <button class="action-btn" style="flex:1; min-width:52px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('enter')">↵ Enter</button>
-        <button class="action-btn" style="flex:1; min-width:52px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('backspace')">⌫ Sil</button>
-        <button class="action-btn" style="flex:1; min-width:44px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('tab')">Tab</button>
-        <button class="action-btn" style="flex:1; min-width:44px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('escape')">Esc</button>
-        <button class="action-btn" style="flex:1; min-width:50px; padding:8px 4px; font-size:12px; border-radius:10px;" onclick="sendRemoteKeyCombo('space')">Boşluk</button>
-        <button class="action-btn" style="flex:1; min-width:54px; padding:8px 4px; font-size:12px; border-radius:10px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_v')">Ctrl+V</button>
-      </div>
-      <!-- Pro PC Shortcuts & Arrow Keys -->
-      <div style="display:flex; gap:5px; flex-wrap:wrap;">
-        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_a')">Ctrl+A</button>
-        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_c')">Ctrl+C</button>
-        <button class="action-btn" style="flex:1; min-width:46px; padding:7px 3px; font-size:11px; border-radius:9px; color:#FFD60A;" onclick="sendRemoteKeyCombo('ctrl_z')">Ctrl+Z</button>
-        <button class="action-btn" style="flex:1; min-width:48px; padding:7px 3px; font-size:11px; border-radius:9px; color:#30D158;" onclick="sendRemoteKeyCombo('alt_tab')">Alt+Tab</button>
-        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('left')">◀</button>
-        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('up')">▲</button>
-        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('down')">▼</button>
-        <button class="action-btn" style="flex:0.7; min-width:32px; padding:7px 2px; font-size:12px; border-radius:9px;" onclick="sendRemoteKeyCombo('right')">▶</button>
-      </div>
+    <!-- AnyDesk-Style Slim Live Keyboard Accessory Bar (Types directly to PC & closes cleanly) -->
+    <div id="remoteKeyboardDrawer" style="display:none; position:fixed; bottom:0; left:0; right:0; background:rgba(20,20,26,0.94); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.18); padding:6px 8px; z-index:2147483647; align-items:center; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap;">
+      <input id="remoteTextInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="position:fixed; left:-9999px; top:0; width:1px; height:1px; opacity:0.01; font-size:16px;" aria-label="AnyDesk Live Keyboard">
+      <button ontouchend="event.preventDefault(); event.stopPropagation(); closeRemoteKeyboard()" onclick="event.stopPropagation(); closeRemoteKeyboard()" style="background:#FF453A; border:none; color:#fff; border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;">✕ Kapat</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('escape')">Esc</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('tab')">Tab</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_c')">Ctrl+C</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0; color:#64D2FF;" onclick="sendRemoteKeyCombo('ctrl_v')">Ctrl+V</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0; color:#30D158;" onclick="sendRemoteKeyCombo('alt_tab')">Alt+Tab</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0; color:#64D2FF;" onclick="sendRemoteKeyCombo('win_d')">Win+D</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('left')">◀</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('up')">▲</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('down')">▼</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0;" onclick="sendRemoteKeyCombo('right')">▶</button>
+      <button class="action-btn" style="padding:6px 9px; font-size:11.5px; border-radius:8px; flex-shrink:0; color:#FF9F0A;" onclick="sendRemoteKeyCombo('ctrl_shift_esc')">Görev Yön.</button>
     </div>
 
 <!-- Live iOS QR Scanner Modal -->
@@ -5354,6 +5475,38 @@ function stopRemoteStream() {
   }
 }
 
+async function toggleHostMute() {
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin).replace(/\/+$/, '');
+  try {
+    const r = await fetch(`${base}/api/remote/audio/mute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const d = await r.json();
+    if (d && d.status === 'ok') {
+      const btn = document.getElementById('sbBtnHostMute');
+      const txt = document.getElementById('sbHostMuteText');
+      if (txt) txt.textContent = d.muted ? 'PC Sesi Aç' : 'PC Sustur';
+      if (btn) btn.style.background = d.muted ? 'rgba(255,159,10,0.28)' : 'rgba(255,255,255,0.08)';
+      if (typeof showRemoteToast === 'function') showRemoteToast(d.muted ? '🔇 PC hoparlörü susturuldu' : '🔊 PC sesi açıldı');
+    }
+  } catch (e) {}
+}
+
+async function togglePrivacyCurtain() {
+  const base = ((typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : location.origin).replace(/\/+$/, '');
+  try {
+    const r = await fetch(`${base}/api/remote/privacy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const d = await r.json();
+    if (d && d.status === 'ok') {
+      const btn = document.getElementById('sbBtnPrivacy');
+      const txt = document.getElementById('sbPrivacyText');
+      if (txt) txt.textContent = d.enabled ? 'Gizlilik Açık' : 'Gizlilik';
+      if (btn) btn.style.background = d.enabled ? 'rgba(48,209,88,0.28)' : 'rgba(255,255,255,0.08)';
+      if (typeof showRemoteToast === 'function') showRemoteToast(d.enabled ? '🕶️ PC monitörü karartıldı (Gizlilik Modu)' : '🖥️ PC monitörü normale döndü');
+    } else if (d && d.error && typeof showRemoteToast === 'function') {
+      showRemoteToast('⚠️ Gizlilik modu: ' + d.error);
+    }
+  } catch (e) {}
+}
+
 function connectRemoteInputWebSocket() {
   if (remoteInputWS && (remoteInputWS.readyState === WebSocket.OPEN || remoteInputWS.readyState === WebSocket.CONNECTING)) {
     return;
@@ -5363,7 +5516,8 @@ function connectRemoteInputWebSocket() {
   const isHttps = base.startsWith('https:');
   const wsProto = isHttps ? 'wss:' : 'ws:';
   const host = base.replace(/^https?:\/\//, '');
-  const inputUrl = `${wsProto}//${host}/ws/remote/input`;
+  const devTok = (typeof window.getWinDropDeviceToken === 'function') ? window.getWinDropDeviceToken() : '';
+  const inputUrl = `${wsProto}//${host}/ws/remote/input` + (devTok ? `?token=${encodeURIComponent(devTok)}` : '');
 
   try {
     remoteInputWS = new WebSocket(inputUrl);
@@ -5389,6 +5543,20 @@ function connectRemoteInputWebSocket() {
           const curFps = remoteRenderer ? (remoteRenderer.displayFps || 55) : 55;
           if (hud) hud.textContent = `${curFps} FPS • ${remoteRttMs}ms`;
           if (stats) stats.textContent = `${remoteRttMs}ms • ${curFps} FPS`;
+          if (window.remoteAdaptiveQuality !== false && !window._userSelectedQuality) {
+            const nowT = performance.now();
+            if (!window._lastAdaptiveSwitch || (nowT - window._lastAdaptiveSwitch) > 6000) {
+              if (remoteRttMs > 180 && window.remoteStreamProfile !== 'fast' && typeof setRemoteStreamQuality === 'function') {
+                window._lastAdaptiveSwitch = nowT;
+                setRemoteStreamQuality('fast');
+                window._userSelectedQuality = false;
+              } else if (remoteRttMs < 45 && !location.protocol.startsWith('https') && window.remoteStreamProfile !== 'ultra' && typeof setRemoteStreamQuality === 'function') {
+                window._lastAdaptiveSwitch = nowT;
+                setRemoteStreamQuality('ultra');
+                window._userSelectedQuality = false;
+              }
+            }
+          }
         } else if (msg.action === "error" || msg.status === "forbidden") {
           const errTxt = "⚠️ " + (msg.error || "İşlem engellendi");
           showRemoteToast(errTxt);
@@ -5424,7 +5592,8 @@ function connectRemoteWebSocket() {
   const defaultProf = isHttps ? 'fast' : 'ultra';
   const activeProf = window._userSelectedQuality ? (window.remoteStreamProfile || defaultProf) : defaultProf;
   if (typeof syncQualityUI === 'function') syncQualityUI(activeProf);
-  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120&proto=wd3&profile=${encodeURIComponent(activeProf)}`;
+  const devTok = (typeof window.getWinDropDeviceToken === 'function') ? window.getWinDropDeviceToken() : '';
+  const wsUrl = `${wsProto}//${host}/ws/remote/desktop?mode=ultra120&proto=wd3&profile=${encodeURIComponent(activeProf)}` + (devTok ? `&token=${encodeURIComponent(devTok)}` : '');
 
   try {
     remoteWS = new WebSocket(wsUrl);
@@ -5604,15 +5773,50 @@ window.cycleRemoteMonitor = async function() {
   if (typeof showDesktopToast === 'function') showDesktopToast(msg);
 };
 
-// Attach Enter submit on remoteTextInput and VisualViewport keyboard tracking
+// AnyDesk-style Live Character-by-Character Keyboard Streaming + Clean iOS Dismiss
 document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('remoteTextInput');
   if (input) {
+    let _isComposing = false;
+    input.addEventListener('compositionstart', () => { _isComposing = true; });
+    input.addEventListener('compositionend', () => {
+      _isComposing = false;
+      if (input.value) {
+        sendRemoteAction({ action: 'type_text', text: input.value });
+        input.value = '';
+      }
+    });
+    input.addEventListener('input', () => {
+      if (_isComposing) return;
+      if (input.value) {
+        sendRemoteAction({ action: 'type_text', text: input.value });
+        input.value = '';
+      }
+    });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        sendRemoteTypedText();
+        sendRemoteAction({ action: 'key_press', key: 'enter' });
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        sendRemoteAction({ action: 'key_press', key: 'backspace' });
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeRemoteKeyboard();
       }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        const drawer = document.getElementById('remoteKeyboardDrawer');
+        if (!drawer || !drawer.classList.contains('is-open')) return;
+        if (drawer.contains(document.activeElement)) {
+          input.focus({ preventScroll: true });
+          return;
+        }
+        if (document.activeElement !== input) {
+          closeRemoteKeyboard();
+        }
+      }, 180);
     });
   }
 

@@ -1,0 +1,50 @@
+name: WinDrop
+options:
+  bundleIdPrefix: com.tris
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  WinDrop:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+    info:
+      path: Info.plist
+    dependencies:
+      - target: WinDropShare
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios
+        MARKETING_VERSION: 3.3.0
+        CURRENT_PROJECT_VERSION: 330
+        SWIFT_VERSION: "5.9"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+
+  WinDropShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+    info:
+      path: ShareExtension/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios.share
+        MARKETING_VERSION: 3.3.0
+        CURRENT_PROJECT_VERSION: 330
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"

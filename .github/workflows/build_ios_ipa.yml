@@ -1,0 +1,61 @@
+name: Build WinDrop iOS (.IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'ios_swiftui_app/**'
+      - '.github/workflows/build_ios_ipa.yml'
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Locate iOS Project Root
+        id: root
+        run: |
+          if [ -f "project.yml" ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          elif [ -f "ios_swiftui_app/project.yml" ]; then
+            echo "dir=ios_swiftui_app" >> "$GITHUB_OUTPUT"
+          else
+            echo "project.yml not found" >&2
+            exit 1
+          fi
+
+      - name: Generate Xcode Project via XcodeGen
+        working-directory: ${{ steps.root.outputs.dir }}
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Compile Unsigned iOS ARM64 Release App + Share Extension
+        working-directory: ${{ steps.root.outputs.dir }}
+        run: |
+          xcodebuild -project WinDrop.xcodeproj \
+            -scheme WinDrop \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package Payload into WinDrop.ipa
+        working-directory: ${{ steps.root.outputs.dir }}
+        run: |
+          rm -rf Payload WinDrop.ipa
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/WinDrop.app Payload/
+          zip -r9 WinDrop.ipa Payload
+          ls -lh WinDrop.ipa
+
+      - name: Upload WinDrop.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDrop_Native_iOS_IPA
+          path: ${{ steps.root.outputs.dir }}/WinDrop.ipa
