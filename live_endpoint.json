@@ -1,9 +1,9 @@
 {
-  "primary": "https://cradle-root-receptor-dist.trycloudflare.com",
+  "primary": "https://tired-nightlife-marie-directories.trycloudflare.com",
   "backup": "",
-  "url": "https://cradle-root-receptor-dist.trycloudflare.com",
+  "url": "https://tired-nightlife-marie-directories.trycloudflare.com",
   "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795028687
+  "updated_at": 1795083025
 }
