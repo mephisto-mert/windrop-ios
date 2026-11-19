@@ -1,9 +1,9 @@
 {
-  "primary": "https://glance-mat-wan-kodak.trycloudflare.com",
+  "primary": "https://sherman-sectors-rhythm-dictionaries.trycloudflare.com",
   "backup": "",
-  "url": "https://glance-mat-wan-kodak.trycloudflare.com",
-  "lan_ip": "192.168.1.158",
+  "url": "https://sherman-sectors-rhythm-dictionaries.trycloudflare.com",
+  "lan_ip": "127.0.0.1",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795108241
+  "updated_at": 1795108381
 }
