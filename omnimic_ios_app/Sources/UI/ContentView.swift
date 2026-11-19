@@ -249,6 +249,17 @@ struct ContentView: View {
     private var connectTab: some View {
         NavigationView {
             Form {
+                Section("Durum") {
+                    HStack(spacing: 10) {
+                        if discovery.isSearching {
+                            ProgressView()
+                        }
+                        Text(discovery.statusText)
+                            .font(.subheadline.bold())
+                            .foregroundColor(discovery.activeStudio != nil ? .green : .orange)
+                    }
+                }
+
                 Section("Bulunan Stüdyolar") {
                     if discovery.discoveredStudios.isEmpty {
                         Text("Henüz PC bulunamadı")
@@ -282,8 +293,12 @@ struct ContentView: View {
                         .keyboardType(.URL)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
-                    Button("Bağlan") {
+                    Button {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        discovery.statusText = "🔍 Bağlanılıyor: \(manualHost)..."
                         Task { _ = await discovery.connectManual(manualHost) }
+                    } label: {
+                        Label("Bağlan", systemImage: "bolt.horizontal.circle.fill")
                     }
                 }
 

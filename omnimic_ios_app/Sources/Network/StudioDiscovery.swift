@@ -46,16 +46,23 @@ public final class StudioDiscovery: NSObject, ObservableObject {
     }
 
     public func probeKnownEndpoints() async {
-        if let saved = UserDefaults.standard.string(forKey: "om_manual_host"), !saved.trimmingCharacters(in: .whitespaces).isEmpty {
-            let norm = normalizeBaseURL(saved)
-            if await pingStudio(norm, via: "Kayıtlı IP", isTunnel: norm.hasPrefix("https://")) {
-                return
+        await withTaskGroup(of: Void.self) { group in
+            if let saved = UserDefaults.standard.string(forKey: "om_manual_host"), !saved.trimmingCharacters(in: .whitespaces).isEmpty {
+                let norm = normalizeBaseURL(saved)
+                group.addTask {
+                    await self.pingStudio(norm, via: "Kayıtlı IP", isTunnel: norm.hasPrefix("https://"))
+                }
+            }
+            group.addTask {
+                await self.pingStudio("http://omnimic.local:8125", via: "Bonjour (.local)", isTunnel: false)
+            }
+            group.addTask {
+                await self.discoverFromCloudManifest()
             }
         }
-        if await pingStudio("http://omnimic.local:8125", via: "Bonjour (.local)", isTunnel: false) {
-            return
+        if activeStudio == nil {
+            statusText = "🔴 PC bulunamadı (OmniMic Studio.exe açık mı?)"
         }
-        await discoverFromCloudManifest()
     }
 
     public func discoverFromCloudManifest() async {
