@@ -1,9 +1,9 @@
 {
-  "primary": "https://spin-surveys-collective-grad.trycloudflare.com",
+  "primary": "https://fall-challenges-southwest-movement.trycloudflare.com",
   "backup": "",
-  "url": "https://spin-surveys-collective-grad.trycloudflare.com",
+  "url": "https://fall-challenges-southwest-movement.trycloudflare.com",
   "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795121913
+  "updated_at": 1795173308
 }
