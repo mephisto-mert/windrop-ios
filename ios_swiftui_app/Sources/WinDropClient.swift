@@ -119,6 +119,8 @@ final class WinDropClient: NSObject, ObservableObject {
     private var uploadQueue: [(url: URL, cleanupAfter: Bool)] = []
     private var uploadCancelled = false
     private var currentActivityRef: Any?
+    private var autoDownloadedIds: Set<String> = []
+    private var outboundPollTask: Task<Void, Never>?
     private let tunnelManifestURL = "https://mephisto-mert.github.io/windrop-ios/live_endpoint.json"
 
     override init() {
@@ -132,7 +134,20 @@ final class WinDropClient: NSObject, ObservableObject {
         browserHttp.delegate = self
         browserWinDrop.delegate = self
         startDiscovery()
+        startOutboundAutoWatcher()
         Task { await checkAppUpdate() }
+    }
+
+    private func startOutboundAutoWatcher() {
+        outboundPollTask?.cancel()
+        outboundPollTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                if activePeer != nil {
+                    await fetchOutboundFiles(autoDownloadNew: true)
+                }
+            }
+        }
     }
 
     func checkAppUpdate() async {
@@ -598,17 +613,27 @@ final class WinDropClient: NSObject, ObservableObject {
 
     // MARK: - Outbound PC -> iPhone Files
 
-    func fetchOutboundFiles() async {
+    func fetchOutboundFiles(autoDownloadNew: Bool = false) async {
         guard let peer = activePeer, let url = URL(string: peer.baseURL + "/api/outbound/files") else { return }
         let req = makeRequest(url: url, timeout: 6)
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return }
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let filesArr = json["files"] as? [[String: Any]] {
-            outboundFiles = filesArr.compactMap { dict in
+            let parsed = filesArr.compactMap { dict -> OutboundFileItem? in
                 guard let id = dict["id"] as? String, let name = dict["name"] as? String else { return nil }
                 let size = (dict["size"] as? NSNumber)?.int64Value ?? 0
                 return OutboundFileItem(id: id, name: name, size: size)
+            }
+            outboundFiles = parsed
+            if autoDownloadNew {
+                for item in parsed where !autoDownloadedIds.contains(item.id) {
+                    autoDownloadedIds.insert(item.id)
+                    let msg = await downloadAndSaveOutbound(item)
+                    history.insert(TransferRecord(fileName: item.name, sizeBytes: item.size, direction: "PC ➔ iPhone", detail: msg, isSuccess: !msg.hasPrefix("❌")), at: 0)
+                }
+            } else {
+                for item in parsed { autoDownloadedIds.insert(item.id) }
             }
         }
     }
