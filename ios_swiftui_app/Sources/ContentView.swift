@@ -426,15 +426,32 @@ struct SettingsView: View {
                     }
 
                     Button("SideStore'a Otomatik Kaynak Ekle") {
-                        if let u = URL(string: "sidestore://source?url=https://mephisto-mert.github.io/windrop-ios/apps.json") {
-                            openURL(u)
+                        let src = "https://mephisto-mert.github.io/windrop-ios/apps.json"
+                        UIPasteboard.general.string = src
+                        if let u = URL(string: "sidestore://source?url=\(src)"),
+                           UIApplication.shared.canOpenURL(u) {
+                            UIApplication.shared.open(u)
+                            statusBanner = "✅ SideStore açılıyor..."
+                        } else {
+                            statusBanner = "📋 Kaynak linki kopyalandı! SideStore -> Sources -> + içine yapıştırın."
                         }
                     }
 
                     Button("AltStore'a Otomatik Kaynak Ekle") {
-                        if let u = URL(string: "altstore://source?url=https://mephisto-mert.github.io/windrop-ios/apps.json") {
-                            openURL(u)
+                        let src = "https://mephisto-mert.github.io/windrop-ios/apps.json"
+                        UIPasteboard.general.string = src
+                        if let u = URL(string: "altstore://source?url=\(src)"),
+                           UIApplication.shared.canOpenURL(u) {
+                            UIApplication.shared.open(u)
+                            statusBanner = "✅ AltStore açılıyor..."
+                        } else {
+                            statusBanner = "📋 Kaynak linki kopyalandı! AltStore -> Sources -> + içine yapıştırın."
                         }
+                    }
+
+                    Button("Kaynak Linkini Kopyala (apps.json)") {
+                        UIPasteboard.general.string = "https://mephisto-mert.github.io/windrop-ios/apps.json"
+                        statusBanner = "📋 Kaynak URL panoya kopyalandı!"
                     }
                 }
 
