@@ -1,0 +1,34 @@
+{
+  "name": "WinDrop",
+  "identifier": "com.tris.windrop.source",
+  "subtitle": "Sıfır Sunuculu Yerel AirDrop, Uzak Ekran ve Wake-on-LAN",
+  "sourceURL": "https://mephisto-mert.github.io/windrop-ios/apps.json",
+  "apps": [
+    {
+      "name": "WinDrop",
+      "bundleIdentifier": "com.tris.windrop.ios",
+      "developerName": "Mephisto",
+      "subtitle": "Kayıpsız Dosya Aktarımı, Uzak Ekran & Wake-on-LAN",
+      "localizedDescription": "Windows ve iPhone arasında yerel Wi-Fi üzerinden kayıpsız dosya aktarımı, canlı uzak masaüstü kontrolü, pano geçmişi ve Wake-on-LAN.",
+      "iconURL": "https://mephisto-mert.github.io/windrop-ios/icon-180.png",
+      "tintColor": "#0A84FF",
+      "versions": [
+        {
+          "version": "4.0.0",
+          "date": "2026-11-24T00:35:00+03:00",
+          "localizedDescription": "Uzak Ekran akıcılık/dokunma düzeltmesi, Wake-on-LAN, Evrensel Pano (10), Canlı Etkinlik ve Otomatik Güncelleme Denetleyicisi.",
+          "downloadURL": "https://mephisto-mert.github.io/windrop-ios/WinDrop.ipa",
+          "size": 500000
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSLocalNetworkUsageDescription": "Aynı Wi-Fi ağındaki Windows bilgisayarınızı otomatik bulmak ve dosya/uzak ekran bağlantısı kurmak için kullanılır.",
+          "NSPhotoLibraryUsageDescription": "Fotoğraf ve videoları sıkıştırmadan orijinal kalitede göndermek için kullanılır.",
+          "NSPhotoLibraryAddUsageDescription": "Bilgisayardan gelen medya dosyalarını Fotoğraflar galerisine kaydetmek için kullanılır."
+        }
+      }
+    }
+  ]
+}

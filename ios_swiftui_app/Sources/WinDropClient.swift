@@ -72,6 +72,8 @@ final class WinDropClient: NSObject, ObservableObject {
     @Published var discoveredPeers: [WinDropPeer] = []
     @Published var savedPeers: [SavedPeerRecord] = []
     @Published var wakingPeerName: String = ""
+    @Published var updateStatus: String = "v4.0.0 • Güncel"
+    @Published var updateAvailableURL: String = ""
     @Published var activePeer: WinDropPeer?
     @Published var connectionStatus: String = "Yerel ağda PC aranıyor..."
     @Published var isConnected: Bool = false
@@ -126,6 +128,32 @@ final class WinDropClient: NSObject, ObservableObject {
         browserHttp.delegate = self
         browserWinDrop.delegate = self
         startDiscovery()
+        Task { await checkAppUpdate() }
+    }
+
+    func checkAppUpdate() async {
+        updateStatus = "Kontrol ediliyor..."
+        guard let url = URL(string: "https://api.github.com/repos/mephisto-mert/windrop-ios/releases/latest") else {
+            updateStatus = "v4.0.0 • Güncel"
+            return
+        }
+        var req = URLRequest(url: url, timeoutInterval: 6)
+        req.setValue("WinDrop-iOS/4.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = json["tag_name"] as? String else {
+            updateStatus = "v4.0.0 • Güncel"
+            return
+        }
+        let cleanTag = tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+        if cleanTag.compare("4.0.0", options: .numeric) == .orderedDescending {
+            updateStatus = "Yeni sürüm mevcut: v\(cleanTag)"
+            updateAvailableURL = (json["html_url"] as? String) ?? "https://mephisto-mert.github.io/windrop-ios/apps.json"
+        } else {
+            updateStatus = "v4.0.0 • Güncel"
+            updateAvailableURL = ""
+        }
     }
 
     var offlineSavedPeers: [SavedPeerRecord] {

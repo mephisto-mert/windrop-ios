@@ -357,14 +357,16 @@ struct RadarView: View {
 
 struct SettingsView: View {
     @ObservedObject var client: WinDropClient
+    @Environment(\.openURL) private var openURL
     @State private var hostInput: String = ""
+    @State private var wolMacInput: String = ""
     @State private var statusBanner: String = ""
 
     var body: some View {
         NavigationView {
             Form {
-                Section("Doğrudan PC Bağlantısı (Wi-Fi / Tünel)") {
-                    TextField("Örn: 192.168.1.158:8765 veya https://...", text: $hostInput)
+                Section("Doğrudan PC Bağlantısı (Wi-Fi)") {
+                    TextField("Örn: 192.168.1.158:8765", text: $hostInput)
                         .keyboardType(.URL)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
@@ -376,7 +378,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Button("Otomatik Ara (Bonjour + Bulut Tüneli)") {
+                    Button("Otomatik Ara (Bonjour mDNS)") {
                         client.startDiscovery()
                         statusBanner = "🔍 Aranıyor..."
                     }
@@ -389,22 +391,64 @@ struct SettingsView: View {
                 }
 
                 Section(
-                    header: Text("Kişisel Cihaz Tokeni (4G/5G Tünel Güvenliği)"),
-                    footer: Text("Ev Wi-Fi'ında token gerekmez. Dış ağdan (Cloudflare Tüneli) uzak masaüstü ve pano erişimi için PC'deki %LOCALAPPDATA%\\WinDrop\\device_token.txt içeriğini buraya yapıştırın.")
+                    header: Text("Wake-on-LAN (MAC ile PC Uyandır)"),
+                    footer: Text("PC açıkken bir kez bağlandığınızda MAC adresi otomatik kaydedilir. İsterseniz buradan manuel MAC girip uyandırabilirsiniz.")
                 ) {
-                    SecureField("X-WinDrop-Token", text: $client.deviceToken)
-                        .autocapitalization(.none)
+                    TextField("MAC Adresi (örn: 60:FF:9E:D8:E2:0E)", text: $wolMacInput)
+                        .autocapitalization(.allCharacters)
                         .disableAutocorrection(true)
+
+                    Button {
+                        let mac = wolMacInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let base = client.normalizeBaseURL(hostInput.isEmpty ? "192.168.1.158" : hostInput)
+                        client.sendWakeOnLan(to: SavedPeerRecord(id: "manual", name: "PC", baseURL: base, macAddress: mac))
+                        statusBanner = "⚡ Wake-on-LAN paketi gönderildi"
+                    } label: {
+                        Label("PC'yi Uyandır (Magic Packet)", systemImage: "bolt.fill")
+                    }
+                    .disabled(wolMacInput.filter({ $0.isHexDigit }).count != 12)
+                }
+
+                Section(
+                    header: Text("Otomatik Güncelleme (SideStore / AltStore)"),
+                    footer: Text("iOS güvenlik kuralları gereği uygulama kendi ikili dosyasını doğrudan değiştiremez; SideStore/AltStore kaynağıyla Wi-Fi üzerinden kablosuz otomatik güncelleme alır.")
+                ) {
+                    LabeledContent("Sürüm", value: client.updateStatus)
+
+                    Button("Güncellemeleri Denetle") {
+                        Task { await client.checkAppUpdate() }
+                    }
+
+                    if !client.updateAvailableURL.isEmpty, let u = URL(string: client.updateAvailableURL) {
+                        Button("Yeni Sürümü İndir / Güncelle") {
+                            openURL(u)
+                        }
+                    }
+
+                    Button("SideStore'a Otomatik Kaynak Ekle") {
+                        if let u = URL(string: "sidestore://source?url=https://mephisto-mert.github.io/windrop-ios/apps.json") {
+                            openURL(u)
+                        }
+                    }
+
+                    Button("AltStore'a Otomatik Kaynak Ekle") {
+                        if let u = URL(string: "altstore://source?url=https://mephisto-mert.github.io/windrop-ios/apps.json") {
+                            openURL(u)
+                        }
+                    }
                 }
 
                 Section("Uygulama Bilgisi") {
-                    LabeledContent("Sürüm", value: "WinDrop iOS 3.3 (Native SwiftUI)")
-                    LabeledContent("Aktarım Motoru", value: "8 MB Kayıpsız Parçalı + SHA-256")
+                    LabeledContent("Sürüm", value: "WinDrop iOS 4.0 (Native SwiftUI)")
+                    LabeledContent("Aktarım Motoru", value: "8 MB Kayıpsız Parçalı + Uzak Ekran + WoL")
                 }
             }
             .navigationTitle("Ayarlar")
             .onAppear {
                 hostInput = client.manualHost
+                if wolMacInput.isEmpty, let first = client.savedPeers.first {
+                    wolMacInput = first.macAddress
+                }
             }
         }
     }
