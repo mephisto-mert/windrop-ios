@@ -10,9 +10,12 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      - path: Shared
       - path: Assets.xcassets
     dependencies:
       - target: WinDropShare
+        embed: true
+      - target: WinDropWidgets
         embed: true
     settings:
       base:
@@ -37,6 +40,26 @@ targets:
       base:
         INFOPLIST_FILE: ShareExtension/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios.share
+        MARKETING_VERSION: 3.3.0
+        CURRENT_PROJECT_VERSION: 330
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"
+
+  WinDropWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+    settings:
+      base:
+        INFOPLIST_FILE: Widgets/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.tris.windrop.ios.widgets
         MARKETING_VERSION: 3.3.0
         CURRENT_PROJECT_VERSION: 330
         SWIFT_VERSION: "5.9"

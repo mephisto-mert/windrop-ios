@@ -1,3 +1,4 @@
+import ActivityKit
 import CoreTransferable
 import Darwin
 import Foundation
@@ -14,6 +15,14 @@ struct WinDropPeer: Identifiable, Hashable {
     let baseURL: String
     let via: String
     let isTunnel: Bool
+    var macAddress: String = ""
+}
+
+struct SavedPeerRecord: Identifiable, Codable, Hashable {
+    let id: String
+    let name: String
+    let baseURL: String
+    let macAddress: String
 }
 
 struct OutboundFileItem: Identifiable, Decodable {
@@ -61,6 +70,8 @@ struct LosslessMediaFile: Transferable {
 @MainActor
 final class WinDropClient: NSObject, ObservableObject {
     @Published var discoveredPeers: [WinDropPeer] = []
+    @Published var savedPeers: [SavedPeerRecord] = []
+    @Published var wakingPeerName: String = ""
     @Published var activePeer: WinDropPeer?
     @Published var connectionStatus: String = "Yerel ağda PC aranıyor..."
     @Published var isConnected: Bool = false
@@ -101,15 +112,91 @@ final class WinDropClient: NSObject, ObservableObject {
     private var resolvingServices: [NetService] = []
     private var uploadQueue: [(url: URL, cleanupAfter: Bool)] = []
     private var uploadCancelled = false
+    private var currentActivityRef: Any?
     private let tunnelManifestURL = "https://mephisto-mert.github.io/windrop-ios/live_endpoint.json"
 
     override init() {
         self.manualHost = UserDefaults.standard.string(forKey: "wd_manual_host") ?? ""
         self.deviceToken = UserDefaults.standard.string(forKey: "wd_device_token") ?? ""
+        if let data = UserDefaults.standard.data(forKey: "wd_saved_peers"),
+           let decoded = try? JSONDecoder().decode([SavedPeerRecord].self, from: data) {
+            self.savedPeers = decoded
+        }
         super.init()
         browserHttp.delegate = self
         browserWinDrop.delegate = self
         startDiscovery()
+    }
+
+    var offlineSavedPeers: [SavedPeerRecord] {
+        savedPeers.filter { saved in
+            !discoveredPeers.contains(where: { $0.name.caseInsensitiveCompare(saved.name) == .orderedSame })
+        }
+    }
+
+    func savePeerForWoL(name: String, baseURL: String, mac: String) {
+        let rec = SavedPeerRecord(id: name.lowercased(), name: name, baseURL: baseURL, macAddress: mac)
+        if let idx = savedPeers.firstIndex(where: { $0.id == rec.id }) {
+            savedPeers[idx] = rec
+        } else {
+            savedPeers.append(rec)
+        }
+        if let data = try? JSONEncoder().encode(savedPeers) {
+            UserDefaults.standard.set(data, forKey: "wd_saved_peers")
+        }
+    }
+
+    func sendWakeOnLan(to saved: SavedPeerRecord) {
+        let hexChars = saved.macAddress.filter { $0.isHexDigit }
+        guard hexChars.count == 12 else { return }
+        var macBytes: [UInt8] = []
+        var idx = hexChars.startIndex
+        for _ in 0..<6 {
+            let next = hexChars.index(idx, offsetBy: 2)
+            if let b = UInt8(hexChars[idx..<next], radix: 16) {
+                macBytes.append(b)
+            }
+            idx = next
+        }
+        guard macBytes.count == 6 else { return }
+
+        var packet = [UInt8](repeating: 0xFF, count: 6)
+        for _ in 0..<16 { packet.append(contentsOf: macBytes) }
+
+        wakingPeerName = saved.name
+        connectionStatus = "⚡ \(saved.name) uyandırılıyor (WoL)..."
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let sock = Darwin.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+            if sock >= 0 {
+                var broadcast: Int32 = 1
+                setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcast, socklen_t(MemoryLayout<Int32>.size))
+                var addr = sockaddr_in()
+                addr.sin_family = sa_family_t(AF_INET)
+                addr.sin_port = UInt16(9).bigEndian
+                addr.sin_addr.s_addr = inet_addr("255.255.255.255")
+                let len = socklen_t(MemoryLayout<sockaddr_in>.size)
+                packet.withUnsafeBytes { ptr in
+                    withUnsafePointer(to: &addr) {
+                        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                            _ = Darwin.sendto(sock, ptr.baseAddress, packet.count, 0, sa, len)
+                        }
+                    }
+                }
+                Darwin.close(sock)
+            }
+        }
+
+        Task {
+            for _ in 0..<8 {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if await connectManualHost(saved.baseURL) {
+                    wakingPeerName = ""
+                    return
+                }
+            }
+            wakingPeerName = ""
+        }
     }
 
     // MARK: - Discovery (Bonjour mDNS + Saved Host + Cloudflare Tunnel)
@@ -185,11 +272,19 @@ final class WinDropClient: NSObject, ObservableObject {
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
             var name = "Windows PC"
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let pcName = json["pc_name"] as? String, !pcName.isEmpty {
-                name = pcName
+            var mac = ""
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let pcName = json["pc_name"] as? String, !pcName.isEmpty {
+                    name = pcName
+                }
+                if let macStr = json["mac"] as? String, !macStr.isEmpty {
+                    mac = macStr
+                }
             }
-            let peer = WinDropPeer(id: base, name: name, baseURL: base, via: via, isTunnel: isTunnel)
+            let peer = WinDropPeer(id: base, name: name, baseURL: base, via: via, isTunnel: isTunnel, macAddress: mac)
+            if !mac.isEmpty && !isTunnel {
+                savePeerForWoL(name: name, baseURL: base, mac: mac)
+            }
             registerPeer(peer, selectIfBetter: true)
             return true
         } catch {
@@ -323,8 +418,10 @@ final class WinDropClient: NSObject, ObservableObject {
             return
         }
         isUploading = true
+        startLiveActivity(pcName: peer.name, fileName: uploadQueue.first?.url.lastPathComponent ?? "Dosya", totalCount: uploadTotalCount)
         defer {
             isUploading = false
+            endLiveActivity(pcName: peer.name, fileName: uploadFileName, doneCount: uploadDoneCount, totalCount: uploadTotalCount)
             uploadTotalCount = 0
             uploadDoneCount = 0
         }
@@ -410,8 +507,44 @@ final class WinDropClient: NSObject, ObservableObject {
             let elapsed = max(CFAbsoluteTimeGetCurrent() - startTime, 0.05)
             uploadSpeedMBps = (Double(offset) / 1_048_576.0) / elapsed
             uploadProgress = totalSize > 0 ? min(1.0, Double(offset) / Double(totalSize)) : 1.0
+            updateLiveActivity(fileName: fileName, progress: uploadProgress, speedMBps: uploadSpeedMBps, doneCount: uploadDoneCount, totalCount: uploadTotalCount)
             if isLast { break }
         } while offset < totalSize
+    }
+
+    // MARK: - Dynamic Island / Live Activity Helpers
+
+    private func startLiveActivity(pcName: String, fileName: String, totalCount: Int) {
+        guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let attr = TransferActivityAttributes(pcName: pcName)
+        let state = TransferActivityAttributes.ContentState(
+            fileName: fileName, progress: 0.0, speedMBps: 0.0, doneCount: 0, totalCount: totalCount, isCompleted: false
+        )
+        if let act = try? Activity<TransferActivityAttributes>.request(attributes: attr, contentState: state, pushType: nil) {
+            currentActivityRef = act
+        }
+    }
+
+    private func updateLiveActivity(fileName: String, progress: Double, speedMBps: Double, doneCount: Int, totalCount: Int) {
+        guard #available(iOS 16.2, *), let act = currentActivityRef as? Activity<TransferActivityAttributes> else { return }
+        let state = TransferActivityAttributes.ContentState(
+            fileName: fileName, progress: progress, speedMBps: speedMBps, doneCount: doneCount, totalCount: totalCount, isCompleted: false
+        )
+        Task { await act.update(using: state) }
+    }
+
+    private func endLiveActivity(pcName: String, fileName: String, doneCount: Int, totalCount: Int) {
+        guard #available(iOS 16.2, *), let act = currentActivityRef as? Activity<TransferActivityAttributes> else { return }
+        let finalState = TransferActivityAttributes.ContentState(
+            fileName: fileName.isEmpty ? "Tamamlandı" : fileName,
+            progress: 1.0,
+            speedMBps: uploadSpeedMBps,
+            doneCount: doneCount,
+            totalCount: max(1, totalCount),
+            isCompleted: true
+        )
+        Task { await act.end(using: finalState, dismissalPolicy: .after(.now + 4)) }
+        currentActivityRef = nil
     }
 
     // MARK: - Outbound PC -> iPhone Files

@@ -182,8 +182,8 @@ struct RadarView: View {
                             .foregroundColor(.green)
                     }
 
-                    // Discovered PCs
-                    if !client.discoveredPeers.isEmpty {
+                    // Discovered & Offline Saved PCs (with Wake-on-LAN)
+                    if !client.discoveredPeers.isEmpty || !client.offlineSavedPeers.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Bulunan Bilgisayarlar")
                                 .font(.headline)
@@ -213,6 +213,39 @@ struct RadarView: View {
                                     .background(Color.black.opacity(0.25))
                                     .cornerRadius(12)
                                 }
+                            }
+
+                            ForEach(client.offlineSavedPeers) { saved in
+                                HStack {
+                                    Image(systemName: "desktopcomputer")
+                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading) {
+                                        Text(saved.name)
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(.secondary)
+                                        Text("Kapalı / Uykuda • \(saved.macAddress)")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary.opacity(0.8))
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        client.sendWakeOnLan(to: saved)
+                                    } label: {
+                                        Label(
+                                            client.wakingPeerName == saved.name ? "Uyanıyor..." : "Uyandır",
+                                            systemImage: "bolt.fill"
+                                        )
+                                        .font(.caption.bold())
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.indigo)
+                                    .disabled(client.wakingPeerName == saved.name)
+                                }
+                                .padding(10)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(12)
+                                .opacity(0.75)
                             }
                         }
                         .padding()
