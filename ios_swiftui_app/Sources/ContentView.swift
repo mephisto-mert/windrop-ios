@@ -203,8 +203,8 @@ struct RadarView: View {
                             .foregroundColor(.green)
                     }
 
-                    // Discovered & Offline Saved PCs (with Wake-on-LAN)
-                    if !client.discoveredPeers.isEmpty || !client.offlineSavedPeers.isEmpty {
+                    // Discovered PCs
+                    if !client.discoveredPeers.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Bulunan Bilgisayarlar")
                                 .font(.headline)
@@ -234,47 +234,6 @@ struct RadarView: View {
                                     .background(Color.black.opacity(0.25))
                                     .cornerRadius(12)
                                 }
-                            }
-
-                            ForEach(client.offlineSavedPeers) { saved in
-                                HStack {
-                                    Image(systemName: "desktopcomputer")
-                                        .foregroundColor(.secondary)
-                                    VStack(alignment: .leading) {
-                                        Text(saved.name)
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(.secondary)
-                                        Text("Kapalı / Uykuda • \(saved.macAddress)")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary.opacity(0.8))
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                    Button {
-                                        client.sendWakeOnLan(to: saved)
-                                    } label: {
-                                        Label(
-                                            client.wakingPeerName == saved.name ? "Uyanıyor..." : "Uyandır",
-                                            systemImage: "bolt.fill"
-                                        )
-                                        .font(.caption.bold())
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.indigo)
-                                    .disabled(client.wakingPeerName == saved.name)
-
-                                    Button(role: .destructive) {
-                                        client.removeSavedPeer(saved)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .font(.caption)
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                                .padding(10)
-                                .background(Color.black.opacity(0.15))
-                                .cornerRadius(12)
-                                .opacity(0.75)
                             }
                         }
                         .padding()
@@ -405,7 +364,6 @@ struct SettingsView: View {
     @ObservedObject var client: WinDropClient
     @Environment(\.openURL) private var openURL
     @State private var hostInput: String = ""
-    @State private var wolMacInput: String = ""
     @State private var statusBanner: String = ""
 
     var body: some View {
@@ -436,82 +394,14 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(
-                    header: Text("Wake-on-LAN (MAC ile PC Uyandır)"),
-                    footer: Text("PC açıkken bir kez bağlandığınızda MAC adresi otomatik kaydedilir. İsterseniz buradan manuel MAC girip uyandırabilirsiniz.")
-                ) {
-                    TextField("MAC Adresi (örn: 60:FF:9E:D8:E2:0E)", text: $wolMacInput)
-                        .autocapitalization(.allCharacters)
-                        .disableAutocorrection(true)
-
-                    Button {
-                        let mac = wolMacInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let base = client.normalizeBaseURL(hostInput.isEmpty ? "192.168.1.158" : hostInput)
-                        client.sendWakeOnLan(to: SavedPeerRecord(id: "manual", name: "PC", baseURL: base, macAddress: mac))
-                        statusBanner = "⚡ Wake-on-LAN paketi gönderildi"
-                    } label: {
-                        Label("PC'yi Uyandır (Magic Packet)", systemImage: "bolt.fill")
-                    }
-                    .disabled(wolMacInput.filter({ $0.isHexDigit }).count != 12)
-                }
-
-                Section(
-                    header: Text("Otomatik Güncelleme (SideStore / AltStore)"),
-                    footer: Text("iOS güvenlik kuralları gereği uygulama kendi ikili dosyasını doğrudan değiştiremez; SideStore/AltStore kaynağıyla Wi-Fi üzerinden kablosuz otomatik güncelleme alır.")
-                ) {
-                    LabeledContent("Sürüm", value: client.updateStatus)
-
-                    Button("Güncellemeleri Denetle") {
-                        Task { await client.checkAppUpdate() }
-                    }
-
-                    if !client.updateAvailableURL.isEmpty, let u = URL(string: client.updateAvailableURL) {
-                        Button("Yeni Sürümü İndir / Güncelle") {
-                            openURL(u)
-                        }
-                    }
-
-                    Button("SideStore'a Otomatik Kaynak Ekle") {
-                        let src = "https://mephisto-mert.github.io/windrop-ios/apps.json"
-                        UIPasteboard.general.string = src
-                        if let u = URL(string: "sidestore://source?url=\(src)"),
-                           UIApplication.shared.canOpenURL(u) {
-                            UIApplication.shared.open(u)
-                            statusBanner = "✅ SideStore açılıyor..."
-                        } else {
-                            statusBanner = "📋 Kaynak linki kopyalandı! SideStore -> Sources -> + içine yapıştırın."
-                        }
-                    }
-
-                    Button("AltStore'a Otomatik Kaynak Ekle") {
-                        let src = "https://mephisto-mert.github.io/windrop-ios/apps.json"
-                        UIPasteboard.general.string = src
-                        if let u = URL(string: "altstore://source?url=\(src)"),
-                           UIApplication.shared.canOpenURL(u) {
-                            UIApplication.shared.open(u)
-                            statusBanner = "✅ AltStore açılıyor..."
-                        } else {
-                            statusBanner = "📋 Kaynak linki kopyalandı! AltStore -> Sources -> + içine yapıştırın."
-                        }
-                    }
-
-                    Button("Kaynak Linkini Kopyala (apps.json)") {
-                        UIPasteboard.general.string = "https://mephisto-mert.github.io/windrop-ios/apps.json"
-                        statusBanner = "📋 Kaynak URL panoya kopyalandı!"
-                    }
-                }
-
                 Section("Uygulama Bilgisi") {
                     LabeledContent("Sürüm", value: "WinDrop iOS 4.0 (Native SwiftUI)")
-                    LabeledContent("Aktarım Motoru", value: "8 MB Kayıpsız Parçalı + Uzak Ekran + WoL")
+                    LabeledContent("Aktarım Motoru", value: "8 MB Kayıpsız Parçalı + Uzak Ekran")
                 }
             }
             .navigationTitle("Ayarlar")
             .onAppear {
                 hostInput = client.manualHost
-                if wolMacInput.isEmpty, let first = client.savedPeers.first {
-                    wolMacInput = first.macAddress
-                }
             }
         }
     }
