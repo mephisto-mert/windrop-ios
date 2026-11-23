@@ -100,6 +100,10 @@ final class WinDropClient: NSObject, ObservableObject {
     @Published var privacyEnabled: Bool = false
     @Published var activeMonitorIndex: Int = 1
     @Published var monitorCount: Int = 1
+    @Published var isRemoteFullscreen: Bool = false
+    @Published var quickLookURL: URL?
+
+    private let sharedDefaults = UserDefaults(suiteName: "group.com.tris.windrop.shared")
 
     // Persistent Settings
     @Published var manualHost: String {
@@ -169,6 +173,14 @@ final class WinDropClient: NSObject, ObservableObject {
         } else {
             savedPeers.append(rec)
         }
+        if let data = try? JSONEncoder().encode(savedPeers) {
+            UserDefaults.standard.set(data, forKey: "wd_saved_peers")
+        }
+        sharedDefaults?.set(baseURL, forKey: "wd_last_base_url")
+    }
+
+    func removeSavedPeer(_ saved: SavedPeerRecord) {
+        savedPeers.removeAll { $0.id == saved.id }
         if let data = try? JSONEncoder().encode(savedPeers) {
             UserDefaults.standard.set(data, forKey: "wd_saved_peers")
         }
@@ -446,12 +458,21 @@ final class WinDropClient: NSObject, ObservableObject {
             return
         }
         isUploading = true
+        var bgTask: UIBackgroundTaskIdentifier = .invalid
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "WinDropUpload") {
+            UIApplication.shared.endBackgroundTask(bgTask)
+            bgTask = .invalid
+        }
         startLiveActivity(pcName: peer.name, fileName: uploadQueue.first?.url.lastPathComponent ?? "Dosya", totalCount: uploadTotalCount)
         defer {
             isUploading = false
             endLiveActivity(pcName: peer.name, fileName: uploadFileName, doneCount: uploadDoneCount, totalCount: uploadTotalCount)
             uploadTotalCount = 0
             uploadDoneCount = 0
+            if bgTask != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTask)
+                bgTask = .invalid
+            }
         }
 
         while !uploadQueue.isEmpty && !uploadCancelled {
@@ -606,6 +627,8 @@ final class WinDropClient: NSObject, ObservableObject {
             let dest = docs.appendingPathComponent(item.name)
             try? FileManager.default.removeItem(at: dest)
             try FileManager.default.moveItem(at: tmpURL, to: dest)
+            quickLookURL = dest
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
 
             let ext = dest.pathExtension.lowercased()
             let isPhoto = ["heic", "heif", "jpg", "jpeg", "png", "dng", "webp"].contains(ext)

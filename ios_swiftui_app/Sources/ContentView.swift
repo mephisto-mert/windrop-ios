@@ -1,6 +1,24 @@
 import PhotosUI
+import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
+
+struct QuickLookPreviewSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let c = QLPreviewController()
+        c.dataSource = context.coordinator
+        return c
+    }
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
+    final class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(url: URL) { self.url = url }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
+    }
+}
 
 @main
 struct WinDropApp: App {
@@ -30,6 +48,8 @@ struct MainTabView: View {
                 .tag(0)
 
             RemoteDesktopView(client: client)
+                .toolbar(client.isRemoteFullscreen ? .hidden : .visible, for: .tabBar)
+                .statusBarHidden(client.isRemoteFullscreen)
                 .tabItem {
                     Label("Uzak Ekran", systemImage: "desktopcomputer")
                 }
@@ -59,6 +79,7 @@ struct RadarView: View {
     @State private var showFileImporter: Bool = false
     @State private var isPreparingMedia: Bool = false
     @State private var downloadNotice: String = ""
+    @State private var showQuickLookSheet: Bool = false
     @State private var pulse: Bool = false
 
     var body: some View {
@@ -241,6 +262,14 @@ struct RadarView: View {
                                     .buttonStyle(.borderedProminent)
                                     .tint(.indigo)
                                     .disabled(client.wakingPeerName == saved.name)
+
+                                    Button(role: .destructive) {
+                                        client.removeSavedPeer(saved)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
                                 }
                                 .padding(10)
                                 .background(Color.black.opacity(0.15))
@@ -276,6 +305,18 @@ struct RadarView: View {
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+
+                                    Button {
+                                        Task {
+                                            downloadNotice = "Önizleme hazırlanıyor..."
+                                            downloadNotice = await client.downloadAndSaveOutbound(file)
+                                            if client.quickLookURL != nil { showQuickLookSheet = true }
+                                        }
+                                    } label: {
+                                        Image(systemName: "eye.fill")
+                                    }
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
                                 }
                                 .padding(8)
@@ -335,6 +376,11 @@ struct RadarView: View {
             ) { result in
                 if case .success(let urls) = result {
                     client.enqueueFiles(urls, cleanupAfter: false)
+                }
+            }
+            .sheet(isPresented: $showQuickLookSheet) {
+                if let qlUrl = client.quickLookURL {
+                    QuickLookPreviewSheet(url: qlUrl)
                 }
             }
         }

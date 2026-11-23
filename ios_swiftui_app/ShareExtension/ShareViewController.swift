@@ -68,6 +68,11 @@ final class ShareViewController: UIViewController {
     }
 
     private func resolvePCBaseURL() async -> String? {
+        // 0. Check App Group shared host from main WinDrop app
+        if let sharedBase = UserDefaults(suiteName: "group.com.tris.windrop.shared")?.string(forKey: "wd_last_base_url"),
+           !sharedBase.isEmpty, await healthCheck(sharedBase) {
+            return sharedBase
+        }
         // 1. Try Bonjour hostname directly on LAN
         if await healthCheck("http://windrop.local:8765") {
             return "http://windrop.local:8765"

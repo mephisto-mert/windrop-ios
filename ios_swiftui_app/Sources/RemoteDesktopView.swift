@@ -253,6 +253,7 @@ final class RemoteCanvasUIView: UIView, UIGestureRecognizerDelegate {
     private var lastPanPoint: CGPoint = .zero
     private var lastScrollPoint: CGPoint = .zero
     private var isDraggingLeft: Bool = false
+    private var currentZoom: CGFloat = 1.0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -286,6 +287,26 @@ final class RemoteCanvasUIView: UIView, UIGestureRecognizerDelegate {
         pan2.maximumNumberOfTouches = 2
         pan2.delegate = self
         addGestureRecognizer(pan2)
+
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinch.delegate = self
+        addGestureRecognizer(pinch)
+    }
+
+    @objc private func handlePinch(_ gr: UIPinchGestureRecognizer) {
+        if gr.state == .changed {
+            let next = max(1.0, min(3.5, currentZoom * gr.scale))
+            imageView.transform = CGAffineTransform(scaleX: next, y: next)
+            currentZoom = next
+            gr.scale = 1.0
+        }
+    }
+
+    func resetZoom() {
+        currentZoom = 1.0
+        UIView.animate(withDuration: 0.2) {
+            self.imageView.transform = .identity
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -435,7 +456,7 @@ struct RemoteDesktopView: View {
     @State private var trackpadMode: Bool = false
     @State private var keyboardOpen: Bool = false
     @State private var showControlsSheet: Bool = false
-    @State private var selectedProfile: String = "balanced"
+    @AppStorage("wd_remote_profile") private var selectedProfile: String = "balanced"
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -480,8 +501,47 @@ struct RemoteDesktopView: View {
             .frame(width: 1, height: 1)
             .allowsHitTesting(false)
 
-            // Unobtrusive Bottom-Right AnyDesk Floating Action Cluster (No Top Bars!)
+            // Special Keys Accessory Strip when Keyboard is Open
+            if keyboardOpen {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach([
+                            ("Esc", "escape"), ("Tab", "tab"), ("Ctrl", "ctrl"), ("Alt", "alt"),
+                            ("Win", "win"), ("Del", "delete"), ("←", "left"), ("↑", "up"), ("↓", "down"), ("→", "right")
+                        ], id: \.0) { label, key in
+                            Button(label) {
+                                stream.sendAction(["action": "key_press", "key": key])
+                            }
+                            .font(.caption.bold())
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.75))
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.25), lineWidth: 1))
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                }
+                .padding(.bottom, 64)
+            }
+
+            // Unobtrusive Bottom-Right AnyDesk Floating Action Cluster
             HStack(spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        client.isRemoteFullscreen.toggle()
+                    }
+                } label: {
+                    Image(systemName: client.isRemoteFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(client.isRemoteFullscreen ? Color.green.opacity(0.85) : Color.black.opacity(0.55))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                }
+
                 Button {
                     keyboardOpen.toggle()
                 } label: {
