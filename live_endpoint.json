@@ -1,9 +1,9 @@
 {
-  "primary": "https://cheque-yang-handhelds-triangle.trycloudflare.com",
+  "primary": "https://losses-societies-empire-seconds.trycloudflare.com",
   "backup": "",
-  "url": "https://cheque-yang-handhelds-triangle.trycloudflare.com",
-  "lan_ip": "127.0.0.1",
+  "url": "https://losses-societies-empire-seconds.trycloudflare.com",
+  "lan_ip": "192.168.1.158",
   "port": 8765,
   "pc_name": "DESKTOP-EIJNT5O",
-  "updated_at": 1795406869
+  "updated_at": 1795444086
 }
